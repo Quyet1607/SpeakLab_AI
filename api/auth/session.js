@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       cloudRecordingEnabled: false,
       message: account.role === 'teacher'
         ? 'Đã đăng nhập bằng Google với tài khoản giáo viên.'
-        : 'Đã đăng nhập Google. Bạn có thể luyện tập cá nhân; video vẫn lưu trên thiết bị.',
+        : 'Đã đăng nhập Google cho tài khoản luyện tập cá nhân; video vẫn lưu trên thiết bị.',
     });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 400;
