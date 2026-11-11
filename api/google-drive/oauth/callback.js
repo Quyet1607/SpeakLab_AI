@@ -91,38 +91,102 @@ export default async function handler(req, res) {
         'Ứng dụng không cấp quyền quản trị cho tài khoản này.</p>'));
     }
 
-    const folderResponse = await fetch(
-      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(config.folderId) +
-        '?fields=id,name,mimeType,trashed,capabilities(canAddChildren,canReadRevisions),owners(emailAddress)&supportsAllDrives=true',
-      { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(15000) },
-    );
-    if (!folderResponse.ok) {
-      // A manually-created folder can be invisible under drive.file until explicitly selected/opened with the app.
-      return sendWebResponse(res, safeHtml(200,
-        '<h2>Đã xác thực đúng giáo viên</h2>' +
-        '<p>Đã kết nối OAuth tạm thời, nhưng ứng dụng <strong>chưa có quyền truy cập thư mục Drive hiện tại</strong> ' +
-        'qua scope drive.file. Mã thư mục là chưa đủ. Cần cấp quyền riêng cho thư mục qua Google Picker ' +
-        'hoặc chọn giải pháp thư mục do ứng dụng tạo.</p>' +
-        '<p>Không lưu token, chưa bật tải video hay xóa Drive.</p>'));
+    // Application-created folders are accessible with drive.file, unlike a
+    // manually-created folder whose ID was pasted into environment variables.
+    const folderName = 'SpeakLab AI - Video recordings';
+    const folderMime = 'application/vnd.google-apps.folder';
+    const driveHeaders = { Authorization: 'Bearer ' + token };
+    const query = [
+      "name = '" + folderName.replace(/'/g, "\\'") + "'",
+      "mimeType = '" + folderMime + "'",
+      'trashed = false',
+    ].join(' and ');
+    const search = new URL('https://www.googleapis.com/drive/v3/files');
+    search.searchParams.set('q', query);
+    search.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType,trashed,capabilities(canAddChildren))');
+    search.searchParams.set('page_size', '100');
+    // Drive API parameter is pageSize (camelCase).
+    search.searchParams.delete('page_size');
+    search.searchParams.set('pageSize', '100');
+    const listingResponse = await fetch(search, {
+      headers: driveHeaders,
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!listingResponse.ok) {
+      return sendWebResponse(res, safeHtml(502,
+        '<h2>Không thể kiểm tra thư mục SpeakLab AI</h2>' +
+        '<p>Google Drive chưa cho phép liệt kê các thư mục do ứng dụng quản lý. ' +
+        'Chưa tạo thư mục mới và chưa lưu token.</p>'));
     }
-    const folder = await folderResponse.json();
-    const isFolder = folder.id === config.folderId &&
-      folder.mimeType === 'application/vnd.google-apps.folder' &&
-      folder.trashed === false;
-    const canWrite = folder.capabilities?.canAddChildren === true;
-    if (!isFolder || !canWrite) {
-      return sendWebResponse(res, safeHtml(403,
-        '<h2>Thư mục chưa sẵn sàng</h2><p>Tài khoản xác thực không thể thêm video vào thư mục đã chọn, ' +
-        'hoặc thư mục không hợp lệ.</p><p>Chưa lưu token và chưa bật kết nối Drive.</p>'));
+    const listing = await listingResponse.json();
+    const existing = Array.isArray(listing.files) ? listing.files : [];
+    if (listing.nextPageToken || existing.length > 1) {
+      return sendWebResponse(res, safeHtml(409,
+        '<h2>Cần kiểm tra thư mục trùng tên</h2>' +
+        '<p>Ứng dụng thấy nhiều thư mục cùng tên hoặc danh sách chưa đầy đủ. ' +
+        'Để tránh ghi nhầm dữ liệu, hệ thống chưa chọn thư mục nào. ' +
+        'Hãy kiểm tra Google Drive và thử lại.</p>'));
     }
 
+    let folder = existing[0] || null;
+    let created = false;
+    if (!folder) {
+      const creationResponse = await fetch(
+        'https://www.googleapis.com/drive/v3/files?fields=id,name,mimeType,trashed,capabilities(canAddChildren)',
+        {
+          method: 'POST',
+          headers: { ...driveHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: folderName, mimeType: folderMime }),
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+      if (!creationResponse.ok) {
+        return sendWebResponse(res, safeHtml(502,
+          '<h2>Không tạo được thư mục Google Drive</h2>' +
+          '<p>Google không chấp nhận yêu cầu tạo thư mục bằng quyền drive.file. ' +
+          'Chưa lưu token hoặc video. Hãy kiểm tra quyền đã cấp.</p>'));
+      }
+      folder = await creationResponse.json();
+      created = true;
+    }
+
+    // The API can omit capabilities from a create response. Verify by fetching.
+    const verifyResponse = await fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(folder.id) +
+        '?fields=id,name,mimeType,trashed,capabilities(canAddChildren)',
+      { headers: driveHeaders, signal: AbortSignal.timeout(15000) },
+    );
+    if (!verifyResponse.ok) {
+      return sendWebResponse(res, safeHtml(502,
+        '<h2>Thư mục đã được tạo nhưng chưa xác minh được</h2>' +
+        '<p>Hãy mở Google Drive để kiểm tra thư mục mới, sau đó thử xác minh lại. ' +
+        'Không tạo thư mục khác bằng tay.</p>'));
+    }
+    const verified = await verifyResponse.json();
+    if (verified.id !== folder.id ||
+        verified.name !== folderName ||
+        verified.mimeType !== folderMime ||
+        verified.trashed !== false ||
+        verified.capabilities?.canAddChildren !== true) {
+      return sendWebResponse(res, safeHtml(403,
+        '<h2>Thư mục chưa đủ quyền ghi</h2>' +
+        '<p>Ứng dụng đã xác thực giáo viên nhưng không xác nhận được quyền thêm video vào thư mục. ' +
+        'Chưa bật lưu trữ Drive.</p>'));
+    }
     return sendWebResponse(res, safeHtml(200,
-      '<h2>Kiểm tra OAuth thành công</h2>' +
-      '<p>Đã xác minh tài khoản giáo viên và quyền ghi vào thư mục: <strong>' +
-      escapeHtml(folder.name || 'Thư mục SpeakLab AI') + '</strong>.</p>' +
-      '<p><strong>Chú ý:</strong> Đây chỉ là phép kiểm tra một lần. ' +
-      'Không lưu refresh token, chưa kích hoạt upload/video cloud. ' +
-      'Cần triển khai kho lưu bí mật phía máy chủ và xác thực học sinh trước khi hoạt động chính thức.</p>'));
+      '<h2>' + (created ? 'Đã tạo thư mục Google Drive thành công' :
+        'Đã tìm thấy thư mục SpeakLab AI đã tạo trước đó') + '</h2>' +
+      '<p>Đã xác minh đúng tài khoản giáo viên và quyền thêm tệp vào thư mục <strong>' +
+      escapeHtml(verified.name) + '</strong>.</p>' +
+      '<p><strong>Folder ID mới:</strong></p>' +
+      '<p><code>' + escapeHtml(verified.id) + '</code></p>' +
+      '<p>Hãy sao chép Folder ID trên và thay giá trị biến ' +
+      '<code>GOOGLE_DRIVE_FOLDER_ID</code> tại <strong>Vercel Preview</strong>. ' +
+      'Không dùng ID của thư mục cũ được tạo thủ công.</p>' +
+      '<p><strong>Quan trọng:</strong> Bước này chỉ tạo và xác minh thư mục. ' +
+      'Không lưu refresh token, chưa tải video lên Drive, chưa chia sẻ thư mục công khai, ' +
+      'chưa bật chức năng xóa video.</p>'));
+
   } catch {
     return sendWebResponse(res, safeHtml(502, '<h2>Không thể kiểm tra Google Drive</h2>' +
       '<p>Có lỗi kết nối hoặc Google phản hồi quá thời gian. Hãy thử lại sau.</p>'));
