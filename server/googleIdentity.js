@@ -110,7 +110,7 @@ export async function verifyGoogleIdToken(idToken, env = process.env) {
     userId: payload.sub, // Immutable Google subject, NOT user-supplied email or display name.
     email,
     displayName: typeof payload.name === 'string' ? payload.name.slice(0, 160) : '',
-    role: ownerEmail && email === ownerEmail ? 'teacher' : 'unregistered',
+    role: ownerEmail && email === ownerEmail ? 'teacher' : 'learner',
     expiresAt: payload.exp,
   };
 }
@@ -122,9 +122,9 @@ export async function requireUser(request, env = process.env) {
   return verifyGoogleIdToken(match[1], env);
 }
 
-export function requireEnrolledStudent(user) {
-  if (user.role !== 'student' && user.role !== 'teacher') {
-    throw new AuthError('Tài khoản chưa được giáo viên thêm vào lớp.', 403);
+export function requireAuthenticatedAccount(user) {
+  if (user.role !== 'learner' && user.role !== 'teacher') {
+    throw new AuthError('Cần đăng nhập tài khoản Google hợp lệ.', 403);
   }
   return user;
 }
