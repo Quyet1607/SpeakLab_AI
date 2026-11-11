@@ -48,9 +48,10 @@ export default async function handler(req, res) {
       'Đây là trang cấu hình một lần, <strong>không phải đăng nhập cho học sinh</strong>.</p>' +
       '<form action="/api/google-drive/oauth/start" method="post" autocomplete="off">' +
       '<label for="setup_key">Khóa thiết lập bảo mật (GOOGLE_OAUTH_SETUP_KEY trên Vercel)</label>' +
-      '<input id="setup_key" name="setup_key" type="password" required minlength="24" ' +
+      '<input id="setup_key" name="setup_key" type="password" ' +
       'autocomplete="off" spellcheck="false" />' +
       '<button type="submit">Xác minh và tiếp tục với Google</button></form>' +
+      '<p>Nhấn nút để gửi kiểm tra. Nếu khóa trống hoặc không hợp lệ, trang sẽ hiển thị lỗi cụ thể thay vì đứng yên.</p>' +
       '<p class="warning">Không gửi khóa, Client Secret hoặc token qua ChatGPT, ảnh chụp màn hình hay GitHub.</p>' +
       '<p>Sau bước cấp quyền, backend sẽ kiểm tra đúng tài khoản giáo viên và khả năng truy cập thư mục Drive. ' +
       'Chưa bật tính năng lưu video.</p>'));
@@ -68,7 +69,8 @@ export default async function handler(req, res) {
   catch { supplied = ''; }
   if (!supplied || !safeEquals(supplied, config.setupKey)) {
     return sendWebResponse(res, htmlResponse(403, '<h2>Không được phép kết nối</h2>' +
-      '<p>Khóa thiết lập không chính xác. Không thực hiện bất kỳ yêu cầu nào đến Google.</p>'));
+      '<p>Khóa thiết lập trống hoặc không chính xác. Hãy kiểm tra lại chuỗi đã nhập trong Vercel Preview, ' +
+      'và bảo đảm nhập đủ ký tự, không có dấu cách thừa. Không thực hiện yêu cầu nào đến Google.</p>'));
   }
 
   const { state, cookie } = makeOAuthState(config);
