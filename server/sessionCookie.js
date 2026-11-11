@@ -66,7 +66,7 @@ export function readSession(req, env = process.env) {
     const now = Math.floor(Date.now() / 1000);
     if (typeof payload.sub !== 'string' || !/^[0-9]{5,64}$/.test(payload.sub) ||
         typeof payload.name !== 'string' || payload.name.length > 160 ||
-        !['teacher', 'unregistered'].includes(payload.role) ||
+        !['teacher', 'learner'].includes(payload.role) ||
         !Number.isInteger(payload.exp) || payload.exp <= now ||
         !Number.isInteger(payload.iat) || payload.iat > now + 60 ||
         payload.exp - payload.iat > MAX_AGE_SECONDS) return null;
