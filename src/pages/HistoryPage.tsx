@@ -59,8 +59,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setLocalError(null);
       if (next.status === 'loading') return;
       if (next.status === 'unavailable') {
-        setLocalError('Không xác minh được phiên đăng nhập. Video được ẩn cho đến khi kiểm tra lại.');
-        return;
+        // Keep guest/legacy recordings accessible when server session is not configured.
+        // No signed-in video is displayed under an unverified identity.
+        setLocalError('Dịch vụ đăng nhập chưa sẵn sàng. Chỉ hiển thị video chưa gắn tài khoản trên thiết bị.');
       }
       listLocalVideos(next.identity?.id || null)
         .then(items => { if (mounted) setLocalVideos(items); })
@@ -139,7 +140,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
               ? <>Chế độ khách: chỉ hiện video cũ hoặc video ghi khi chưa đăng nhập. Đăng nhập tại <strong>Cài đặt</strong> để xem nhóm video của tài khoản.</>
               : account.status === 'loading'
                 ? 'Đang kiểm tra phiên đăng nhập…'
-                : 'Dịch vụ đăng nhập chưa sẵn sàng; không hiển thị video cá nhân để tránh nhầm tài khoản.'}
+                : 'Dịch vụ đăng nhập chưa sẵn sàng; chỉ hiển thị video khách/cũ, không hiển thị video gắn tài khoản.'}
         </div>
         {localError && (
           <p role="alert" className="text-xs border border-[#DFBAB8] bg-[#FFF4F3] text-[#873631] rounded-lg p-3">{localError}</p>
