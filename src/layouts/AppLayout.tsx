@@ -56,6 +56,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           title: 'Báo cáo đánh giá chi tiết',
           subtitle: 'Phân tích nhịp độ nói, từ đệm và nhận xét từ hội đồng',
         };
+      case 'classes':
+        return {
+          title: 'Quản lý lớp học',
+          subtitle: 'Danh sách lớp và học sinh giả lập trên trình duyệt này',
+        };
       case 'settings':
         return {
           title: 'Cài đặt hệ thống',
