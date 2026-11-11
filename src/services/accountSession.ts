@@ -3,7 +3,7 @@
  * This state is a convenience for UI, never a security boundary.
  * All future Drive APIs must independently verify server cookies and file owner.
  */
-export type AccountIdentity = { id: string; name: string; role: 'teacher' | 'unregistered' };
+export type AccountIdentity = { id: string; name: string; role: 'teacher' | 'learner' };
 export type SessionState = {
   status: 'loading' | 'signed_in' | 'signed_out' | 'unavailable';
   identity: AccountIdentity | null;
