@@ -26,11 +26,11 @@ export default async function handler(req, res) {
         name: account.displayName,
         role: account.role,
       },
-      enrollmentRequired: account.role === 'unregistered',
+      enrollmentRequired: false,
       cloudRecordingEnabled: false,
       message: account.role === 'teacher'
         ? 'Đã xác minh tài khoản giáo viên. Chưa bật lưu video cloud.'
-        : 'Đã xác minh tài khoản Google. Cần giáo viên cấp quyền vào lớp trước khi lưu video.',
+        : 'Đã xác minh tài khoản cá nhân. Chưa bật lưu video lên Google Drive.',
     });
   } catch (error) {
     const status = error instanceof AuthError ? error.status : 400;
