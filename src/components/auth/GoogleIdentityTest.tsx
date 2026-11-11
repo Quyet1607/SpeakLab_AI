@@ -4,15 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { ShieldCheck, UserRound, AlertCircle, LoaderCircle } from 'lucide-react';
-
-type Identity = { id: string; name: string; role: 'teacher' | 'unregistered' };
-type VerifyResponse = {
-  authenticated: boolean;
-  identity?: Identity;
-  enrollmentRequired?: boolean;
-  message?: string;
-  error?: string;
-};
+import { refreshSession, signInWithGoogleCredential, signOutAccount, subscribeSession, type AccountIdentity, type SessionState } from '../../services/accountSession';
 
 type GoogleIdentityApi = {
   accounts: {
@@ -42,9 +34,16 @@ declare global {
 
 export const GoogleIdentityTest: React.FC = () => {
   const buttonRoot = useRef<HTMLDivElement>(null);
-  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [session, setSession] = useState<SessionState>({ status: 'loading', identity: null });
+  const identity: AccountIdentity | null = session.identity;
   const [feedback, setFeedback] = useState('');
   const [phase, setPhase] = useState<'loading' | 'ready' | 'verifying' | 'unavailable'>('loading');
+
+  useEffect(() => {
+    const unsubscribe = subscribeSession(setSession);
+    void refreshSession();
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -59,26 +58,10 @@ export const GoogleIdentityTest: React.FC = () => {
       setPhase('verifying');
       setFeedback('');
       try {
-        const response = await fetch('/api/auth/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          cache: 'no-store',
-          body: JSON.stringify({ credential }),
-        });
-        const result = await response.json() as VerifyResponse;
-        if (!active) return;
-        if (!response.ok || !result.authenticated || !result.identity) {
-          setIdentity(null);
-          setFeedback(result.error || 'Không thể xác minh tài khoản Google.');
-        } else {
-          setIdentity(result.identity);
-          setFeedback(result.message || 'Đã xác minh tài khoản.');
-        }
-      } catch {
-        if (active) {
-          setIdentity(null);
-          setFeedback('Không thể kết nối máy chủ xác thực. Vui lòng thử lại.');
-        }
+        const message = await signInWithGoogleCredential(credential);
+        if (active) setFeedback(message);
+      } catch (error) {
+        if (active) setFeedback(error instanceof Error ? error.message : 'Không thể đăng nhập.');
       } finally {
         if (active) setPhase('ready');
       }
@@ -150,10 +133,11 @@ export const GoogleIdentityTest: React.FC = () => {
         <h4 className="text-sm font-bold text-[#3D4740]">Xác thực Google (thử nghiệm)</h4>
       </div>
       <p className="text-xs text-[#5A655D] leading-relaxed">
-        Kiểm tra danh tính Google trước khi triển khai tài khoản học sinh và phân quyền dữ liệu.
-        Việc xác minh này chưa tạo tài khoản lớp, chưa lưu phiên đăng nhập lâu dài và chưa đồng bộ video lên Drive.
+        Đăng nhập Google để tạo phiên cá nhân an toàn trên máy chủ (hết hạn sau tối đa 8 giờ).
+        Video vẫn nằm trên trình duyệt, chưa được bảo mật liên thiết bị và chưa đồng bộ Drive.
       </p>
       <div ref={buttonRoot} />
+      {session.status === 'unavailable' && <p className="text-xs text-[#873631]">{session.error}</p>}
       {phase === 'loading' && <p className="text-xs text-[#768078]">Đang tải nút đăng nhập Google…</p>}
       {phase === 'verifying' && (
         <p className="text-xs text-[#52785D] flex items-center gap-2">
@@ -170,12 +154,10 @@ export const GoogleIdentityTest: React.FC = () => {
       {identity && (
         <div className="text-xs text-[#3D4740] border border-[#D9E5DC] bg-white p-3 rounded-lg">
           <p>Danh tính: <strong>{identity.name || 'Người dùng Google'}</strong></p>
-          <p>Vai trò xác minh: <strong>{identity.role === 'teacher' ? 'Giáo viên' : 'Chưa được ghi danh'}</strong></p>
-          <button
-            type="button"
-            className="mt-2 text-[#52785D] font-semibold underline cursor-pointer"
-            onClick={() => { setIdentity(null); setFeedback('Đã ẩn kết quả xác minh khỏi trang.'); }}
-          >Ẩn thông tin xác minh</button>
+          <p>Phiên đăng nhập: <strong>{identity.role === 'teacher' ? 'Giáo viên' : 'Tài khoản cá nhân'}</strong></p>
+          <p className="mt-1 text-[#768078]">Video ghi mới có thể được gắn với tài khoản này trong trình duyệt; đây chưa phải kiểm soát truy cập bảo mật cho video cục bộ.</p>
+          <button type="button" className="mt-3 text-[#873631] font-semibold underline cursor-pointer"
+            onClick={() => void signOutAccount().then(() => setFeedback('Đã đăng xuất khỏi SpeakLab AI.')).catch(error => setFeedback(error instanceof Error ? error.message : 'Không thể đăng xuất.'))}>Đăng xuất</button>
         </div>
       )}
     </section>
