@@ -107,7 +107,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                   </h4>
                   <p className="text-xs text-[#768078]">{currentUser.roleDescription}</p>
                   <span className="inline-block mt-1 text-[10px] text-[#4A6453] bg-[#EEF4F0] px-2 py-0.5 rounded border border-[#D9E5DC]">
-                    Tài khoản demo thử nghiệm
+                    {currentUser.roleDescription.includes('Google') ? 'Đăng nhập Google · Số liệu luyện tập vẫn minh họa' : 'Tài khoản demo thử nghiệm'}
                   </span>
                 </div>
               </div>
@@ -320,7 +320,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                     Không yêu cầu quyền truy cập cá nhân nhạy cảm
                   </h4>
                   <p className="text-[#768078] text-[11px] leading-relaxed">
-                    Hệ thống không thu thập thông tin định danh hay yêu cầu API key từ người dùng.
+                    Đăng nhập Google là tùy chọn và dùng thông tin định danh cơ bản để nhận diện phiên cá nhân. Không yêu cầu học sinh cung cấp API key; video hiện lưu trong trình duyệt, chưa bảo đảm riêng tư khi dùng chung thiết bị.
                   </p>
                 </div>
               </div>
