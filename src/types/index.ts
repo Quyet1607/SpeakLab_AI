@@ -167,5 +167,4 @@ export type ActivePage =
   | 'meeting_room'
   | 'history'
   | 'report'
-  | 'settings'
-  | 'classes';
+  | 'settings';

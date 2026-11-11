@@ -26,7 +26,6 @@ import { MeetingRoomPage } from './pages/MeetingRoomPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { ReportPage } from './pages/ReportPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { ClassesPage } from './pages/ClassesPage';
 
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
@@ -168,10 +167,6 @@ export default function App() {
           onNavigate={(page) => setActivePage(page)}
           onPracticeAgain={() => setActivePage('practice_setup')}
         />
-      )}
-
-      {activePage === 'classes' && (
-        <ClassesPage />
       )}
 
       {activePage === 'settings' && (
