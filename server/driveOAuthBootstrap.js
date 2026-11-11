@@ -96,7 +96,7 @@ export function htmlResponse(status, body, headers = {}) {
       'Referrer-Policy':'no-referrer',
       'X-Content-Type-Options':'nosniff',
       'X-Frame-Options':'DENY',
-      'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self' https://accounts.google.com",
       ...headers,
     },
   });
