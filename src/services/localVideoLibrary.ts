@@ -5,6 +5,7 @@
  */
 import type { PracticeSession } from '../types';
 import type { PresentationRecordingResult } from './presentationRecordingService';
+import { refreshSession } from './accountSession';
 
 const DATABASE_NAME = 'speaklab_local_recordings_v1';
 const STORE = 'recordings';
@@ -19,6 +20,8 @@ export interface LocalVideoRecord {
   mimeType: string;
   extension: 'webm' | 'mp4';
   storage: 'local_pending_drive';
+  /** Browser-only label, not an access-control boundary. Legacy recordings omit this field. */
+  ownerSub?: string;
   blob: Blob;
 }
 
@@ -68,6 +71,9 @@ export async function saveLocalVideo(
   session: PracticeSession,
   recording: PresentationRecordingResult,
 ): Promise<LocalVideoRecord> {
+  // Identify the current signed-in account at save time. Legacy/guest records remain unassigned.
+  const account = await refreshSession();
+  const ownerSub = account.status === 'signed_in' ? account.identity?.id : undefined;
   const entry: LocalVideoRecord = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -78,6 +84,7 @@ export async function saveLocalVideo(
     mimeType: recording.mimeType,
     extension: recording.fileExtension,
     storage: 'local_pending_drive',
+    ownerSub,
     blob: recording.blob,
   };
   try {
@@ -89,9 +96,11 @@ export async function saveLocalVideo(
   }
 }
 
-export async function listLocalVideos(): Promise<LocalVideoRecord[]> {
+export async function listLocalVideos(ownerSub: string | null = null): Promise<LocalVideoRecord[]> {
   const entries = await transaction('readonly', store => store.getAll());
-  return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // UI grouping only. IndexedDB is not secure against other browser users.
+  return entries.filter(item => ownerSub ? item.ownerSub === ownerSub : !item.ownerSub)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function deleteLocalVideo(id: string): Promise<void> {
