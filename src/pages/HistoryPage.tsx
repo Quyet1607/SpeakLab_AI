@@ -25,6 +25,7 @@ import { PracticeSession, PracticeModeType, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
+import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
   sessions: PracticeSession[];
@@ -43,16 +44,30 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<'all' | PracticeModeType>('all');
   // Temporary private-by-device video library. It does NOT sync to Google Drive.
   const [localVideos, setLocalVideos] = useState<LocalVideoRecord[]>([]);
+  const [account, setAccount] = useState<SessionState>({ status: 'loading', identity: null });
   const [localError, setLocalError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<LocalVideoRecord | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    listLocalVideos()
-      .then(items => { if (mounted) setLocalVideos(items); })
-      .catch(error => { if (mounted) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
-    return () => { mounted = false; };
+    const unsubscribe = subscribeSession(next => {
+      if (!mounted) return;
+      setAccount(next);
+      setPlaying(null);
+      setLocalVideos([]);
+      setLocalError(null);
+      if (next.status === 'loading') return;
+      if (next.status === 'unavailable') {
+        setLocalError('Không xác minh được phiên đăng nhập. Video được ẩn cho đến khi kiểm tra lại.');
+        return;
+      }
+      listLocalVideos(next.identity?.id || null)
+        .then(items => { if (mounted) setLocalVideos(items); })
+        .catch(error => { if (mounted) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
+    });
+    void refreshSession();
+    return () => { mounted = false; unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -113,9 +128,19 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           </span>
         </div>
         <p className="text-xs text-[#768078]">
-          Video đang lưu trong trình duyệt trên thiết bị này, chưa lưu lên Google Drive của giáo viên.
-          Có thể mất nếu xóa dữ liệu trang web hoặc đổi thiết bị. Hãy tải bản quan trọng về máy.
+          Video lưu trên thiết bị này, chưa đồng bộ Google Drive. Danh sách đang được nhóm theo phiên Google
+          trong trình duyệt, <strong>chưa phải phân quyền bảo mật</strong> (người dùng chung trình duyệt có thể
+          truy cập dữ liệu cục bộ). Hãy dùng thiết bị riêng và tải video quan trọng về máy.
         </p>
+        <div className="text-xs border border-[#D9E5DC] rounded-lg bg-[#F7F9F6] p-3 text-[#3D4740]">
+          {account.status === 'signed_in'
+            ? <>Đang xem video ghi trên thiết bị dưới tài khoản: <strong>{account.identity?.name || 'Google'}</strong>. Video cũ chưa gắn tài khoản sẽ nằm trong nhóm khách.</>
+            : account.status === 'signed_out'
+              ? <>Chế độ khách: chỉ hiện video cũ hoặc video ghi khi chưa đăng nhập. Đăng nhập tại <strong>Cài đặt</strong> để xem nhóm video của tài khoản.</>
+              : account.status === 'loading'
+                ? 'Đang kiểm tra phiên đăng nhập…'
+                : 'Dịch vụ đăng nhập chưa sẵn sàng; không hiển thị video cá nhân để tránh nhầm tài khoản.'}
+        </div>
         {localError && (
           <p role="alert" className="text-xs border border-[#DFBAB8] bg-[#FFF4F3] text-[#873631] rounded-lg p-3">{localError}</p>
         )}
