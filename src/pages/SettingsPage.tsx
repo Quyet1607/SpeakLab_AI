@@ -21,6 +21,7 @@ import {
 import { UserProfile } from '../types';
 import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
+import { GoogleIdentityTest } from '../components/auth/GoogleIdentityTest';
 
 interface SettingsPageProps {
   currentUser: UserProfile;
@@ -93,6 +94,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                   Dữ liệu định danh dùng để gắn vào báo cáo đánh giá thuyết trình
                 </p>
               </div>
+
+              <GoogleIdentityTest />
 
               <div className="flex items-center gap-4 p-4 rounded-xl bg-[#FAFBF9] border border-[#E4E9E3]">
                 <div className="w-14 h-14 rounded-full bg-[#EEF4F0] border-2 border-[#D9E5DC] text-[#324C3B] font-bold text-lg flex items-center justify-center">
