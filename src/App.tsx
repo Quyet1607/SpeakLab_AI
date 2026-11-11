@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ActivePage,
   PracticeSession,
@@ -18,6 +18,7 @@ import {
 import { sessionService } from './services/sessionService';
 import { reportService } from './services/reportService';
 import { AppLayout } from './layouts/AppLayout';
+import { refreshSession, subscribeSession, type SessionState } from './services/accountSession';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -29,6 +30,13 @@ import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
+  const [accountSession, setAccountSession] = useState<SessionState>({ status: 'loading', identity: null });
+
+  useEffect(() => {
+    const unsubscribe = subscribeSession(setAccountSession);
+    void refreshSession();
+    return unsubscribe;
+  }, []);
   const [sessions, setSessions] = useState<PracticeSession[]>(sessionService.getRecentSessions());
 
   // Setup configuration state retained in current session
@@ -45,6 +53,13 @@ export default function App() {
     const stats = sessionService.getUserStats();
     return {
       ...mockCurrentUser,
+      ...(accountSession.status === 'signed_in' && accountSession.identity ? {
+        fullName: accountSession.identity.name || 'Người dùng Google',
+        avatarInitials: (accountSession.identity.name || 'GG').split(/\s+/).filter(Boolean).map(w => w[0]).slice(-2).join('').toUpperCase(),
+        roleDescription: accountSession.identity.role === 'teacher' ? 'Tài khoản Google (giáo viên)' : 'Tài khoản Google cá nhân',
+        school: 'Hồ sơ luyện tập cá nhân',
+        grade: 'Đã đăng nhập Google',
+      } : {}),
       stats: {
         ...mockCurrentUser.stats,
         totalSessions: stats.totalSessions,
@@ -53,7 +68,7 @@ export default function App() {
         totalReports: stats.totalReports,
       },
     };
-  }, [sessions]);
+  }, [sessions, accountSession]);
 
   // Active Session State
   const [currentSession, setCurrentSession] = useState<PracticeSession>(sessions[0]);
