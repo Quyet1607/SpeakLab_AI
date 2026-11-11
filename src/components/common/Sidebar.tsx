@@ -10,6 +10,7 @@ import {
   History,
   FileBarChart,
   Settings,
+  UsersRound,
   Sparkles,
   Layers,
   ChevronRight,
@@ -56,6 +57,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'report' as ActivePage,
       label: 'Báo cáo đánh giá',
       icon: FileBarChart,
+      badge: 'Demo',
+    },
+    {
+      id: 'classes' as ActivePage,
+      label: 'Quản lý lớp',
+      icon: UsersRound,
       badge: 'Demo',
     },
     {
