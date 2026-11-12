@@ -8,6 +8,8 @@ import type { SpeechTranscriptSegment } from '../types';
 
 export const SPEECH_SEGMENT_LIMIT = 80;
 export const SPEECH_SEGMENT_TEXT_LIMIT = 240;
+/** Silence threshold for separating spoken phrases. */
+export const SPEECH_PAUSE_MS = 1800;
 
 export function cleanSpeechText(text: string): string {
   return text.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SPEECH_SEGMENT_TEXT_LIMIT).trim();
@@ -46,6 +48,8 @@ interface BrowserSpeechEngine {
   maxAlternatives: number;
   onstart: (() => void) | null;
   onresult: ((event: BrowserSpeechEvent) => void) | null;
+  onspeechstart?: (() => void) | null;
+  onspeechend?: (() => void) | null;
   onerror: ((event: BrowserSpeechError) => void) | null;
   onend: (() => void) | null;
   start(): void;
@@ -99,13 +103,17 @@ export class VietnameseBrowserSpeechSession {
   private engine: BrowserSpeechEngine;
   private indices = new Set<number>();
   private firstSeen = new Map<number, number>();
+  private latestInterim = new Map<number, string>();
+  private pausePrefixes = new Map<number, Array<{ text: string; at: number }>>();
+  private lastResultMs: number | null = null;
+  private speechEndedMs: number | null = null;
   private stopped = false;
   private ended = false;
   private lastError: string | null = null;
   private finishStop!: () => void;
   private stopPromise: Promise<void>;
 
-  constructor(private callbacks: SpeechRecognitionCallbacks) {
+  constructor(private callbacks: SpeechRecognitionCallbacks, private nowMs: () => number = () => Date.now()) {
     const Constructor = getBrowserSpeechConstructor();
     if (!Constructor) throw new Error('Trình duyệt chưa hỗ trợ nhận diện lời nói bằng Web Speech API. Hãy dùng Chrome/Edge tương thích.');
     this.engine = new Constructor();
@@ -115,11 +123,26 @@ export class VietnameseBrowserSpeechSession {
     this.engine.maxAlternatives = 1;
     this.stopPromise = new Promise<void>(resolve => { this.finishStop = resolve; });
     this.engine.onstart = () => this.callbacks.onState('listening');
+    // Browser speech events offer better pause evidence than result delivery alone.
+    this.engine.onspeechend = () => { this.speechEndedMs = this.nowMs(); };
+    this.engine.onspeechstart = () => {
+      if (this.speechEndedMs !== null && this.nowMs() - this.speechEndedMs >= SPEECH_PAUSE_MS) {
+        this.capturePause();
+      }
+      this.speechEndedMs = null;
+    };
     this.engine.onresult = event => {
       // Web Speech emits revised hypotheses as the learner speaks. Publish
       // *all* current interim words immediately, rather than showing only
       // the last result (which can look as if words arrive very slowly).
       // The display is provisional; only final results go into history.
+      const timeMs = this.nowMs();
+      if (this.lastResultMs !== null && timeMs - this.lastResultMs >= SPEECH_PAUSE_MS) {
+        // Fallback: some browsers omit onspeechend/onspeechstart.
+        // Mark a boundary, but never persist a provisional hypothesis.
+        this.capturePause();
+      }
+      this.lastResultMs = timeMs;
       const interimParts: string[] = [];
       for (let index = 0; index < event.results.length; index++) {
         const result = event.results[index];
@@ -131,8 +154,11 @@ export class VietnameseBrowserSpeechSession {
           this.indices.add(index);
           const startSeconds = this.firstSeen.get(index) ?? now;
           this.firstSeen.delete(index);
-          this.callbacks.onSegment({ startSeconds, endSeconds: now, text });
+          this.emitConfirmedWithPauses(index, text, startSeconds, now);
+          this.latestInterim.delete(index);
+          this.pausePrefixes.delete(index);
         } else {
+          this.latestInterim.set(index, text);
           interimParts.push(text);
         }
       }
@@ -159,6 +185,38 @@ export class VietnameseBrowserSpeechSession {
     };
   }
 
+  /** Snapshot cumulative interim hypotheses; only final recognition is persisted. */
+  private capturePause(): void {
+    for (const [index, text] of this.latestInterim) {
+      if (this.indices.has(index) || !text) continue;
+      const existing = this.pausePrefixes.get(index) ?? [];
+      if (existing.at(-1)?.text !== text) {
+        existing.push({ text, at: Math.max(0, Math.floor(this.callbacks.getElapsedSeconds())) });
+        this.pausePrefixes.set(index, existing);
+      }
+    }
+  }
+
+  private emitConfirmedWithPauses(index: number, finalText: string, start: number, end: number): void {
+    const pauses = this.pausePrefixes.get(index) ?? [];
+    let cursor = 0;
+    let partStart = start;
+    for (const pause of pauses) {
+      // Hypotheses can change. Split only if the final text confirms this
+      // exact prefix followed by a word boundary.
+      const prefix = pause.text;
+      if (!finalText.startsWith(prefix) || prefix.length <= cursor ||
+          prefix.length >= finalText.length || !/\s/u.test(finalText.charAt(prefix.length))) continue;
+      const part = finalText.slice(cursor, prefix.length).trim();
+      if (!part) continue;
+      this.callbacks.onSegment({ startSeconds: partStart, endSeconds: Math.max(partStart, pause.at), text: part });
+      cursor = prefix.length;
+      partStart = Math.max(partStart, pause.at);
+    }
+    const rest = finalText.slice(cursor).trim();
+    if (rest) this.callbacks.onSegment({ startSeconds: partStart, endSeconds: Math.max(end, partStart), text: rest });
+  }
+
   start(): void {
     this.engine.start();
   }
@@ -181,6 +239,8 @@ export class VietnameseBrowserSpeechSession {
     this.stopped = true;
     this.engine.onstart = null;
     this.engine.onresult = null;
+    this.engine.onspeechstart = null;
+    this.engine.onspeechend = null;
     this.engine.onerror = null;
     this.engine.onend = null;
     try { this.engine.abort(); } catch { /* already stopped */ }
