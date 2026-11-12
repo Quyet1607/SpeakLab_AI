@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { saveLocalTranscript, listLocalTranscripts, deleteLocalTranscript, transcriptToText, transcriptFileName } from '../src/services/localTranscriptLibrary.ts';
+import { saveLocalTranscript, listLocalTranscripts, deleteLocalTranscript, transcriptToText, transcriptFileName, formatTranscriptLines } from '../src/services/localTranscriptLibrary.ts';
 
 const oldStorage = globalThis.localStorage;
 const memory = new Map();
@@ -24,6 +24,26 @@ describe('Phase 7.2.1 separate local transcript library', () => {
     expect(memory.has('speaklab_local_recordings_v1')).toBe(false);
     expect(transcriptToText(item)).toContain('Xin chào các bạn');
     expect(transcriptFileName('Bài luyện: 1')).toBe('Bài luyện 1-loi-noi.txt');
+  });
+
+  test('splits punctuated sentences onto individual lines in TXT', () => {
+    const record = saveLocalTranscript('ses_test_12345', 'Bài nói', 'Chủ đề', null, [
+      { startSeconds: 0, endSeconds: 9, text: 'Xin chào các bạn. Hôm nay tôi trình bày đề tài này! Cuối cùng xin cảm ơn?' },
+    ]);
+    expect(formatTranscriptLines(record.segments[0].text)).toEqual([
+      'Xin chào các bạn.', 'Hôm nay tôi trình bày đề tài này!', 'Cuối cùng xin cảm ơn?',
+    ]);
+    const text = transcriptToText(record);
+    expect(text).toContain('Xin chào các bạn.\nHôm nay tôi trình bày đề tài này!\nCuối cùng xin cảm ơn?');
+  });
+
+  test('wraps unpunctuated long recognition text without adding or dropping words', () => {
+    const words = 'Tôi đang luyện tập thuyết trình về an toàn thông tin trên mạng và cần có bản ghi lời nói dễ đọc hơn sau khi dừng lại'.split(' ');
+    const input = words.join(' ');
+    const lines = formatTranscriptLines(input, 45);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.every(line => line.length <= 45)).toBe(true);
+    expect(lines.join(' ')).toBe(input);
   });
 
   test('later stop extends same transcript, without duplicate records', () => {
