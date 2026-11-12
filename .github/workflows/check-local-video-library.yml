@@ -12,6 +12,7 @@ on:
       - 'tests/localPracticeHistory.test.js'
       - 'tests/presentationRecordingService.test.js'
       - 'tests/recordingNames.test.js'
+      - 'tests/meetingGridCapture.test.js'
       - '.github/workflows/check-local-video-library.yml'
   workflow_dispatch:
 
@@ -35,6 +36,8 @@ jobs:
         run: bun test tests/presentationRecordingService.test.js
       - name: Test recording names
         run: bun test tests/recordingNames.test.js
+      - name: Test meeting tile geometry
+        run: bun test tests/meetingGridCapture.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
