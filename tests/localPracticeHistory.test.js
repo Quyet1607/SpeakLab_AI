@@ -44,6 +44,27 @@ describe('device-only completed practice history', () => {
     expect(own[0].status).toBe('completed');
     expect(JSON.stringify([...store.values()])).not.toContain('fakeSensitiveBinary');
   });
+  test('persists the real topic description and speaking goal, not PPTX files', () => {
+    const current = {
+      ...session,
+      topic: 'Đề tài học sinh tự chọn',
+      topicDescription: 'Mô tả do người học nhập\nNêu nội dung nghiên cứu',
+      speakingGoal: 'Tập trình bày mạch lạc và phản biện có dẫn chứng',
+    };
+    saveCompletedPracticeSession(current, 42, '12345678901234567890');
+    const [reloaded] = listCompletedPracticeSessions('12345678901234567890');
+    expect(reloaded.topic).toBe('Đề tài học sinh tự chọn');
+    expect(reloaded.topicDescription).toBe(current.topicDescription);
+    expect(reloaded.speakingGoal).toBe(current.speakingGoal);
+    expect(JSON.stringify([...store.values()])).not.toContain('fakeSensitiveBinary');
+  });
+  test('legacy records without optional brief fields still remain readable', () => {
+    saveCompletedPracticeSession(session, 31, null);
+    const [legacy] = listCompletedPracticeSessions(null);
+    expect(legacy).toBeDefined();
+    expect(legacy.topicDescription).toBeUndefined();
+    expect(legacy.speakingGoal).toBeUndefined();
+  });
   test('only shows the selected account or guest grouping', () => {
     saveCompletedPracticeSession(session, 43, '12345678901234567890');
     expect(listCompletedPracticeSessions('11111111111111111111')).toHaveLength(0);
