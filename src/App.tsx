@@ -9,7 +9,8 @@ import {
   PracticeSession,
   PresentationDeck,
   VirtualParticipant,
-  PracticeSetupConfig
+  PracticeSetupConfig,
+  type SpeechTranscriptSegment
 } from './types';
 import {
   mockCurrentUser,
@@ -126,13 +127,13 @@ export default function App() {
     setActivePage('meeting_room');
   };
 
-  const handleFinishSession = async (actualSeconds: number, destination: 'report' | 'dashboard') => {
+  const handleFinishSession = async (actualSeconds: number, destination: 'report' | 'dashboard', transcript: SpeechTranscriptSegment[]) => {
     const checked = await refreshSession();
     const activeOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
     // Bind a completed session to the account which started the practice,
     // not another Google account that may have signed in midway.
     try {
-      saveCompletedPracticeSession(currentSession, actualSeconds, sessionOwnerSub);
+      saveCompletedPracticeSession({ ...currentSession, transcriptSegments: transcript }, actualSeconds, sessionOwnerSub);
       setSessions(listCompletedPracticeSessions(activeOwner));
       setHistoryNotice(sessionOwnerSub !== activeOwner
         ? 'Buổi luyện đã lưu dưới tài khoản khi bắt đầu. Đăng nhập lại đúng tài khoản đó để xem trong lịch sử.'
@@ -207,7 +208,7 @@ export default function App() {
           deck={currentDeck}
           participants={participants}
           onNavigate={(page) => setActivePage(page)}
-          onFinishSession={(seconds, destination) => { void handleFinishSession(seconds, destination); }}
+          onFinishSession={(seconds, destination, transcript) => { void handleFinishSession(seconds, destination, transcript); }}
         />
       )}
 
