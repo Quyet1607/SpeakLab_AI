@@ -272,9 +272,12 @@ class ScreenShareService {
    */
   public async stopShare(stream?: MediaStream | null): Promise<void> {
     const target = stream || this.activeStream;
+    // Clear the active stream synchronously only if it is the stream being
+    // stopped. A pending replacement picker may already have installed a new
+    // stream; stopping the old one must never disconnect the new share.
+    if (target === this.activeStream) this.activeStream = null;
     const provider = this.getActiveProvider();
     await provider.stopShare(target);
-    this.activeStream = null;
   }
 
   /**
