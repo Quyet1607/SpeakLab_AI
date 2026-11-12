@@ -18,7 +18,7 @@
   <span class="eyebrow">Thông tin dành cho người sử dụng</span>
   <h1>Chính sách quyền riêng tư</h1>
   <p class="muted">Bản dự thảo cho môi trường thử nghiệm · Cập nhật: 12/11/2026</p>
-  <div class="note alert"><p><strong>Trạng thái hiện tại:</strong> SpeakLab AI đang được phát triển và kiểm thử. Video ghi hình hiện lưu trên trình duyệt của người dùng; tính năng tự động đồng bộ video lên Google Drive chưa được kích hoạt. Trang này mô tả chức năng hiện có và nêu riêng các tính năng dự kiến.</p></div>
+  <div class="note alert"><p><strong>Trạng thái hiện tại:</strong> SpeakLab AI đang được phát triển và kiểm thử. Video ghi hình hiện lưu trên trình duyệt của người dùng; tính năng tự động đồng bộ video lên Google Drive không được sử dụng trong phiên bản này. Trang này mô tả chức năng hiện có và nêu riêng các tính năng dự kiến.</p></div>
 
   <h2>1. Phạm vi và mục đích sử dụng</h2>
   <p>SpeakLab AI là ứng dụng hỗ trợ học sinh tự luyện thuyết trình, trình chiếu và phản biện. Ứng dụng cho phép người dùng chuẩn bị buổi luyện, sử dụng camera, micro, chia sẻ màn hình, ghi lại phần trình bày và xem lại video trên thiết bị. Một số nội dung báo cáo và hội đồng AI vẫn là dữ liệu mô phỏng.</p>
@@ -36,7 +36,7 @@
   <p>Phiên đăng nhập được máy chủ phát hành bằng cookie có các thuộc tính HttpOnly, Secure và SameSite=Lax, với thời hạn tối đa tám giờ. Người dùng có thể đăng xuất trong mục Cài đặt. Cookie này không cấp quyền truy cập trực tiếp vào thư mục Google Drive của người khác.</p>
 
   <h2>4. Google Drive – chức năng chưa bật</h2>
-  <p>SpeakLab AI đang phát triển việc lưu video trong thư mục Google Drive dành riêng cho ứng dụng. Khi chức năng được triển khai, ứng dụng dự kiến xác minh người tạo video trước khi cho xem hoặc xóa, và không công khai đường dẫn chia sẻ video. <strong>Chưa có hoạt động tải video tự động hoặc đồng bộ trên nhiều thiết bị ở phiên bản hiện tại.</strong> Chính sách này cần được rà soát và cập nhật trước khi bật tính năng đó.</p>
+  <p>Phiên bản này không kết nối Google Drive hoặc kho video đám mây. Video được lưu trong IndexedDB của chính trình duyệt đang dùng; không thể tự đồng bộ qua thiết bị khác. Nếu muốn sử dụng video trên máy khác, người dùng có thể tải video về và nhập thủ công vào thư viện trên thiết bị mới. Việc lưu trữ trực tuyến trong tương lai (nếu có) cần công bố chính sách mới trước khi kích hoạt.</p>
 
   <h2>5. Quyền truy cập của thiết bị</h2>
   <p>Trình duyệt yêu cầu người dùng cấp quyền riêng cho camera, micro hoặc chia sẻ màn hình khi cần thiết. Không nên chia sẻ cửa sổ có mật khẩu, nội dung riêng tư hoặc thông tin cá nhân của người khác. Người dùng có thể ngừng chia sẻ/ghi hình và thu hồi quyền thiết bị trong cài đặt trình duyệt.</p>
@@ -51,7 +51,7 @@
   <p>Ứng dụng được triển khai qua hạ tầng lưu trữ web và sử dụng Google Identity Services cho chức năng đăng nhập. Các dịch vụ bên thứ ba có chính sách riêng, có thể tham khảo tại <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Chính sách quyền riêng tư Google</a> và <a href="https://vercel.com/legal/privacy-policy" rel="noopener noreferrer">Chính sách quyền riêng tư Vercel</a>. Việc sử dụng các dịch vụ này không có nghĩa video cục bộ đã được đồng bộ lên Google Drive.</p>
 
   <h2>9. Liên hệ và thay đổi chính sách</h2>
-  <p>Đơn vị quản lý ứng dụng cần xác nhận và công bố kênh liên hệ hỗ trợ/quyền riêng tư chính thức trước khi mở rộng sử dụng cho học sinh. Khi chức năng lưu Google Drive được kích hoạt, nội dung chính sách phải được cập nhật về mục đích, thời hạn lưu giữ, quyền truy cập, xóa và thủ tục yêu cầu hỗ trợ.</p>
+  <p>Đơn vị quản lý ứng dụng cần xác nhận và công bố kênh liên hệ hỗ trợ/quyền riêng tư chính thức trước khi mở rộng sử dụng cho học sinh. Nếu sau này bổ sung lưu trữ trực tuyến, chính sách phải được cập nhật về mục đích, thời hạn lưu giữ, quyền truy cập, xóa và thủ tục yêu cầu hỗ trợ.</p>
   <p class="muted"><strong>Ghi chú:</strong> Đây là dự thảo kỹ thuật phục vụ thử nghiệm, chưa được xác nhận là chính sách pháp lý cuối cùng hoặc tài liệu đủ điều kiện xác minh OAuth của Google.</p>
 </article></main>
 <footer>© 2026 SpeakLab AI · <a href="/">Về ứng dụng</a><a href="/terms.html">Điều khoản sử dụng</a></footer>
