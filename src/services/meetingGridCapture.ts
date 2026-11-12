@@ -60,6 +60,7 @@ export class MeetingGridCapture {
     private user: UserProfile,
     private participants: VirtualParticipant[],
     private getCameraStream: () => MediaStream | null,
+    private getQuestion: () => { judge: string; text: string } | null = () => null,
   ) {
     if (typeof document === 'undefined') throw new Error('Trình duyệt chưa sẵn sàng ghi bố cục cuộc họp.');
     this.canvas = document.createElement('canvas');
@@ -155,6 +156,16 @@ export class MeetingGridCapture {
       ctx.strokeStyle = i === 0 ? '#8cad95' : '#3e5143';
       ctx.lineWidth = i === 0 ? 2 : 1;
       ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+    }
+    const question = this.getQuestion();
+    if (question) {
+      ctx.fillStyle = 'rgba(18, 32, 21, 0.95)';
+      ctx.fillRect(28, height - 112, width - 56, 92);
+      ctx.strokeStyle = '#9aa977';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(28, height - 112, width - 56, 92);
+      drawText(ctx, 'CÂU HỎI MÔ PHỎNG · ' + question.judge, 44, height - 81, width - 88, 17, '#d5c692');
+      drawText(ctx, question.text, 44, height - 44, width - 88, 20, '#ffffff');
     }
   }
 
