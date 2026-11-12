@@ -205,6 +205,7 @@ export default function App() {
         <MeetingRoomPage
           currentUser={userProfile}
           session={currentSession}
+          sessionOwnerSub={sessionOwnerSub}
           deck={currentDeck}
           participants={participants}
           onNavigate={(page) => setActivePage(page)}
