@@ -182,7 +182,7 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
         </button>
 
         {recordingStatus === 'recording' && (
-          <span className="inline-flex items-center gap-1 px-2 py-1.5 shrink-0 rounded-lg bg-[#3D2625] border border-[#873631] text-[#FFE2DF] text-[11px] sm:text-xs font-mono tabular-nums" role="status" aria-label={`Đang ghi hình, ${Math.floor(recordingDuration / 60)} phút ${recordingDuration % 60} giây`}>
+          <span className="inline-flex items-center gap-1 px-2 py-1.5 shrink-0 rounded-lg bg-[#3D2625] border border-[#873631] text-[#FFE2DF] text-[11px] sm:text-xs font-mono tabular-nums" role="timer" aria-live="off" aria-label={`Đang ghi hình, ${Math.floor(recordingDuration / 60)} phút ${recordingDuration % 60} giây`}>
             <span className="w-2 h-2 bg-[#F09995] rounded-full animate-pulse" aria-hidden="true" />
             REC {String(Math.floor(recordingDuration / 60)).padStart(2, '0')}:{String(recordingDuration % 60).padStart(2, '0')}
           </span>
