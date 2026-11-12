@@ -98,6 +98,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const previousSourceRef = useRef<PresentationSource | undefined>(undefined);
   const shareRequestPendingRef = useRef(false);
+  const mountedRef = useRef(true);
   const [shareRequestPending, setShareRequestPending] = useState(false);
   const [showShareGuideModal, setShowShareGuideModal] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -416,7 +417,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     if (active) {
       // Detach our handler before stopping tracks to avoid recursive cleanups.
       active.getVideoTracks().forEach(track => { track.onended = null; });
-      await screenShareService.stopShare(active);
+      // Active stream is cleared synchronously by stopShare; avoid a late
+      // completion resetting the UI if a new share starts immediately.
+      void screenShareService.stopShare(active);
     }
     screenStreamRef.current = null;
     setScreenStream(null);
@@ -453,6 +456,12 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
 
     try {
       const stream = await screenShareService.startShare();
+      if (!mountedRef.current) {
+        // A browser picker may finish even after the learner left the room.
+        // Release the new capture stream instead of leaving it active.
+        void screenShareService.stopShare(stream);
+        return;
+      }
       if (oldStream && oldStream !== stream) {
         oldStream.getVideoTracks().forEach(track => { track.onended = null; });
         // Do not call stopShare(oldStream): that would clear the NEW active stream.
@@ -504,14 +513,18 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // CRITICAL FIX: Cleanup media tracks ONLY when leaving the meeting room (unmount)!
   // Empty dependency array [] ensures this NEVER triggers on screenStream changes!
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       recordingSessionRef.current?.dispose();
       recordingSessionRef.current = null;
       recordingSourceRef.current = null;
       meetingCaptureRef.current?.dispose();
       meetingCaptureRef.current = null;
       if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((track) => track.stop());
+        const oldScreen = screenStreamRef.current;
+        oldScreen.getVideoTracks().forEach(track => { track.onended = null; });
+        void screenShareService.stopShare(oldScreen);
         screenStreamRef.current = null;
       }
       mediaDeviceService.stopAll();
