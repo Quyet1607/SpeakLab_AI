@@ -7,9 +7,13 @@ on:
     paths:
       - 'server/driveVideoAuthorization.js'
       - 'server/driveVideoReader.js'
+      - 'server/driveTokenVault.js'
+      - 'api/google-drive/oauth/callback.js'
+      - 'api/google-drive/status.js'
       - 'api/google-drive/videos.js'
       - 'tests/driveVideoAuthorization.test.js'
       - 'tests/driveVideoReader.test.js'
+      - 'tests/driveTokenVault.test.js'
       - 'package.json'
       - '.github/workflows/drive-ownership-tests.yml'
   workflow_dispatch:
