@@ -27,6 +27,21 @@ function drawImageCover(ctx: CanvasRenderingContext2D, image: HTMLVideoElement, 
   ctx.drawImage(image, (iw - cropW) / 2, (ih - cropH) / 2, cropW, cropH, x, y, w, h);
 }
 
+/** Whether the temporary shared screen currently has a usable video track. */
+export function hasLiveScreenTrack(stream: Pick<MediaStream, 'getVideoTracks'> | null | undefined): boolean {
+  return Boolean(stream?.getVideoTracks().some(track => track.readyState === 'live' && track.enabled));
+}
+
+function drawImageContain(ctx: CanvasRenderingContext2D, image: HTMLVideoElement, x: number, y: number, w: number, h: number): void {
+  const iw = image.videoWidth;
+  const ih = image.videoHeight;
+  if (!iw || !ih) return;
+  const scale = Math.min(w / iw, h / ih);
+  const drawW = iw * scale;
+  const drawH = ih * scale;
+  ctx.drawImage(image, x + (w - drawW) / 2, y + (h - drawH) / 2, drawW, drawH);
+}
+
 function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, fontSize: number, color = '#f4f7f3') {
   ctx.fillStyle = color;
   ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
@@ -51,7 +66,9 @@ export class MeetingGridCapture {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly stream: MediaStream;
   private cameraPreview: HTMLVideoElement;
+  private screenPreview: HTMLVideoElement;
   private attachedCamera: MediaStream | null = null;
+  private attachedScreen: MediaStream | null = null;
   private raf = 0;
   private disposed = false;
   private lastDrawAt = 0;
@@ -61,6 +78,7 @@ export class MeetingGridCapture {
     private participants: VirtualParticipant[],
     private getCameraStream: () => MediaStream | null,
     private getQuestion: () => { judge: string; text: string } | null = () => null,
+    private getScreenStream: () => MediaStream | null = () => null,
   ) {
     if (typeof document === 'undefined') throw new Error('Trình duyệt chưa sẵn sàng ghi bố cục cuộc họp.');
     this.canvas = document.createElement('canvas');
@@ -75,6 +93,11 @@ export class MeetingGridCapture {
     this.cameraPreview.muted = true;
     this.cameraPreview.playsInline = true;
     this.cameraPreview.autoplay = true;
+    this.screenPreview = document.createElement('video');
+    this.screenPreview.muted = true;
+    this.screenPreview.playsInline = true;
+    this.screenPreview.autoplay = true;
+    this.syncScreen();
     this.draw();
     // captureStream is owned by this class; it must be stopped AFTER MediaRecorder finishes.
     this.stream = this.canvas.captureStream(20);
@@ -93,6 +116,7 @@ export class MeetingGridCapture {
       if (this.disposed) return;
       if (timestamp - this.lastDrawAt >= 45) {
         this.syncCamera();
+        this.syncScreen();
         this.draw();
         this.lastDrawAt = timestamp;
       }
@@ -110,12 +134,38 @@ export class MeetingGridCapture {
     if (active) void this.cameraPreview.play().catch(() => { /* keep avatar fallback */ });
   }
 
+  /**
+   * A share can be started, stopped or replaced while MediaRecorder is running.
+   * The canvas video track stays constant; only the picture drawn onto it changes.
+   */
+  private syncScreen(): void {
+    const current = this.getScreenStream();
+    const stream = hasLiveScreenTrack(current) ? current : null;
+    if (this.attachedScreen === stream) return;
+    this.attachedScreen = stream;
+    this.screenPreview.pause();
+    this.screenPreview.srcObject = stream;
+    if (stream) void this.screenPreview.play().catch(() => { /* show pending frame until ready */ });
+  }
+
   private draw(): void {
     const ctx = this.ctx;
     const width = this.canvas.width;
     const height = this.canvas.height;
     ctx.fillStyle = '#162019';
     ctx.fillRect(0, 0, width, height);
+
+    // A screen share gets the entire recording frame, preserving the aspect ratio.
+    // Do not stop or replace MediaRecorder's original canvas track.
+    if (this.attachedScreen && hasLiveScreenTrack(this.attachedScreen)) {
+      if (this.screenPreview.readyState >= 2 && this.screenPreview.videoWidth > 0) {
+        drawImageContain(ctx, this.screenPreview, 0, 0, width, height);
+      } else {
+        drawText(ctx, 'Đang nhận hình màn hình chia sẻ…', 36, height / 2, width - 72, 26, '#dce8df');
+      }
+      return;
+    }
+
     const numberOfTiles = 1 + this.participants.length;
     const { columns, rows } = meetingTileLayout(numberOfTiles);
     const padding = 18;
@@ -175,6 +225,10 @@ export class MeetingGridCapture {
     cancelAnimationFrame(this.raf);
     this.cameraPreview.pause();
     this.cameraPreview.srcObject = null;
+    this.screenPreview.pause();
+    this.screenPreview.srcObject = null;
+    this.attachedCamera = null;
+    this.attachedScreen = null;
     this.stream.getTracks().forEach(track => track.stop());
     // Never stop the real webcam or microphone here.
   }
