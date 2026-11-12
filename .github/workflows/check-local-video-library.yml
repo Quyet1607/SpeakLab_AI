@@ -10,6 +10,7 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'tests/localPracticeHistory.test.js'
+      - 'tests/presentationRecordingService.test.js'
       - '.github/workflows/check-local-video-library.yml'
   workflow_dispatch:
 
@@ -29,6 +30,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Test local account history
         run: bun test tests/localPracticeHistory.test.js
+      - name: Test webcam and screen recording modes
+        run: bun test tests/presentationRecordingService.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
