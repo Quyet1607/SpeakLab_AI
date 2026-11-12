@@ -11,6 +11,7 @@ on:
       - 'package.json'
       - 'tests/localPracticeHistory.test.js'
       - 'tests/practiceBrief.test.js'
+      - 'tests/vietnameseSpeechRecognition.test.js'
       - 'tests/presentationRecordingService.test.js'
       - 'tests/recordingNames.test.js'
       - 'tests/meetingGridCapture.test.js'
@@ -33,6 +34,8 @@ jobs:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Test Phase 7.2 browser speech recognition
+        run: bun test tests/vietnameseSpeechRecognition.test.js
       - name: Test Phase 7.1 learner topic setup
         run: bun test tests/practiceBrief.test.js
       - name: Test local account history
