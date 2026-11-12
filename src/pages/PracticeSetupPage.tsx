@@ -104,7 +104,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
       status: 'ready',
     });
     // Clear the previous internal presentation selection.
-    pptxSessionStore.setDemoSource('', 'Không trình chiếu', 0);
+    pptxSessionStore.setNoPresentation();
   };
 
   const handleSelectDemoDeck = (deck: PresentationDeck) => {
