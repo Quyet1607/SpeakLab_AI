@@ -76,7 +76,7 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
             Phòng họp mô phỏng
           </p>
           <p className="text-[10px] text-[#A8B6AB] leading-tight">
-            Đợt 3.2A · Ghi PowerPoint + tiếng micro
+            Ghi camera hoặc PowerPoint + micro
           </p>
         </div>
       </div>
@@ -161,13 +161,13 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
           )}
         </button>
 
-        {/* Bắt đầu hoặc dừng bản ghi màn hình + micro (3.2A) */}
+        {/* Ghi camera+micro không cần PPT, hoặc ghi màn hình+micro nếu đang chia sẻ. */}
         <button
           type="button"
           onClick={onRecordClick}
           disabled={!onRecordClick || recordingStatus === 'finalizing'}
-          aria-label={recordingStatus === 'recording' ? 'Dừng ghi hình PowerPoint và micro' : 'Bắt đầu ghi hình PowerPoint và micro'}
-          title={recordingStatus === 'recording' ? 'Dừng ghi hình' : recordingStatus === 'finalizing' ? 'Đang hoàn tất bản ghi…' : 'Ghi màn hình PowerPoint + micro (chưa gồm webcam)'}
+          aria-label={recordingStatus === 'recording' ? 'Dừng ghi hình' : isScreenSharing ? 'Bắt đầu ghi màn hình và micro' : 'Bắt đầu ghi camera và micro'}
+          title={recordingStatus === 'recording' ? 'Dừng ghi hình' : recordingStatus === 'finalizing' ? 'Đang hoàn tất bản ghi…' : isScreenSharing ? 'Ghi PowerPoint + micro' : 'Ghi camera + micro (không cần PowerPoint)'}
           className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl border transition-colors flex items-center justify-center shrink-0 ${
             recordingStatus === 'recording'
               ? 'bg-[#873631] text-white border-[#B9544D] hover:bg-[#A33E37]'
