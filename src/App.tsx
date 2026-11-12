@@ -149,6 +149,9 @@ export default function App() {
   const handleReplaySession = (session: PracticeSession) => {
     setSetupConfig({
       title: session.title,
+      topicTitle: session.topic,
+      topicDescription: session.topicDescription || '',
+      speakingGoal: session.speakingGoal || '',
       modeId: session.mode,
       deckId: 'deck_ai_waste',
       participantCount: session.participantCount,
