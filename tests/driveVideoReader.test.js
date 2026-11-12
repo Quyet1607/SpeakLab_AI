@@ -1,13 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { listOwnedDriveVideos } from '../server/driveVideoReader.js';
+import { encryptDriveRefreshToken } from '../server/driveTokenVault.js';
 
 const env = {
   GOOGLE_DRIVE_FOLDER_ID: '162BRQa2a0sVMsM-icghcI6QqhK1va1rr',
   GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com',
   GOOGLE_CLIENT_SECRET: 'fake-secret',
-  GOOGLE_REFRESH_TOKEN: 'fake-refresh-token',
+  GOOGLE_DRIVE_OWNER_EMAIL: 'owner@example.com',
+  SPEAKLAB_DRIVE_VAULT_KEY: Buffer.alloc(32, 7).toString('base64'),
 };
+env.GOOGLE_DRIVE_REFRESH_TOKEN_ENC = encryptDriveRefreshToken(
+  'fake-refresh-token-1234567890', {
+    clientId: env.GOOGLE_CLIENT_ID,
+    folderId: env.GOOGLE_DRIVE_FOLDER_ID,
+    ownerEmail: env.GOOGLE_DRIVE_OWNER_EMAIL,
+  }, env,
+);
 const subject = '123456789012345678901';
 const otherSubject = '987654321098765432109';
 const valid = {
@@ -67,7 +76,7 @@ test('lists only verified owner records without exposing Drive file IDs', async 
 test('missing refresh token fails before making any network request', async () => {
   const mock = mockFetch([]);
   await assert.rejects(
-    () => listOwnedDriveVideos(subject, { ...env, GOOGLE_REFRESH_TOKEN: '' }, mock.fetcher),
+    () => listOwnedDriveVideos(subject, { ...env, GOOGLE_DRIVE_REFRESH_TOKEN_ENC: '' }, mock.fetcher),
     /Google Drive chưa được kết nối/,
   );
   assert.equal(mock.calls.length, 0);
