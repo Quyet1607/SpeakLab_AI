@@ -13,7 +13,7 @@ export interface MeetingTileLayout {
 
 export function meetingTileLayout(count: number): MeetingTileLayout {
   const total = Math.max(1, Math.min(24, Math.floor(count) || 1));
-  const columns = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(total * (16 / 9)))));
+  const columns = total === 1 ? 1 : Math.min(5, Math.max(1, Math.ceil(Math.sqrt(total * (16 / 9)))));
   return { columns, rows: Math.ceil(total / columns) };
 }
 
