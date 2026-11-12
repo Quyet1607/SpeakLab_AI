@@ -11,6 +11,25 @@ export function recordingLibraryTitle(title: string, source: RecordingVideoSourc
   return (base || 'Buổi luyện thuyết trình') + ' · ' + SOURCE_NAME[source];
 }
 
+function readableSlug(title: string): string {
+  return title.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 52) || 'Buoi_luyen';
+}
+
+function recordingTimestamp(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-') + '_' +
+    [date.getHours(), date.getMinutes(), date.getSeconds()]
+      .map(n => String(n).padStart(2, '0')).join('-');
+}
+
 /** Safe and legible local filename with subject, source and timestamp. */
 export function recordingDownloadName(
   title: string,
@@ -18,18 +37,16 @@ export function recordingDownloadName(
   extension: 'webm' | 'mp4',
   date: Date = new Date(),
 ): string {
-  const slug = title.normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[đĐ]/g, 'd')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 52) || 'Buoi_luyen';
-  const timestamp = [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-') + '_' +
-    [date.getHours(), date.getMinutes(), date.getSeconds()]
-      .map(n => String(n).padStart(2, '0')).join('-');
-  return `SpeakLab_${source === 'camera' ? 'Camera' : 'PowerPoint'}_${slug}_${timestamp}.${extension}`;
+  return `SpeakLab_${source === 'camera' ? 'Camera' : 'PowerPoint'}_${readableSlug(title)}_${recordingTimestamp(date)}.${extension}`;
+}
+
+/** Also names legacy videos and user-imported files without guessing a camera source. */
+export function libraryVideoDownloadName(
+  title: string,
+  extension: 'webm' | 'mp4',
+  createdAt: string,
+): string {
+  const parsed = new Date(createdAt);
+  const date = Number.isFinite(parsed.getTime()) ? parsed : new Date();
+  return `SpeakLab_Video_${readableSlug(title)}_${recordingTimestamp(date)}.${extension}`;
 }
