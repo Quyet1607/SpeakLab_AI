@@ -107,6 +107,7 @@ export class VietnameseBrowserSpeechSession {
   private pausePrefixes = new Map<number, Array<{ text: string; at: number }>>();
   private lastResultMs: number | null = null;
   private speechEndedMs: number | null = null;
+  private pauseTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private ended = false;
   private lastError: string | null = null;
@@ -124,12 +125,17 @@ export class VietnameseBrowserSpeechSession {
     this.stopPromise = new Promise<void>(resolve => { this.finishStop = resolve; });
     this.engine.onstart = () => this.callbacks.onState('listening');
     // Browser speech events offer better pause evidence than result delivery alone.
-    this.engine.onspeechend = () => { this.speechEndedMs = this.nowMs(); };
+    this.engine.onspeechend = () => {
+      this.speechEndedMs = this.nowMs();
+      this.scheduleLivePause();
+    };
     this.engine.onspeechstart = () => {
       if (this.speechEndedMs !== null && this.nowMs() - this.speechEndedMs >= SPEECH_PAUSE_MS) {
         this.capturePause();
+        this.publishInterim();
       }
       this.speechEndedMs = null;
+      this.clearPauseTimer();
     };
     this.engine.onresult = event => {
       // Web Speech emits revised hypotheses as the learner speaks. Publish
@@ -143,7 +149,7 @@ export class VietnameseBrowserSpeechSession {
         this.capturePause();
       }
       this.lastResultMs = timeMs;
-      const interimParts: string[] = [];
+      if (this.speechEndedMs === null) this.scheduleLivePause();
       for (let index = 0; index < event.results.length; index++) {
         const result = event.results[index];
         const text = cleanSpeechText(result[0]?.transcript || '');
@@ -159,22 +165,21 @@ export class VietnameseBrowserSpeechSession {
           this.pausePrefixes.delete(index);
         } else {
           this.latestInterim.set(index, text);
-          interimParts.push(text);
         }
       }
-      const currentInterim = cleanSpeechText(interimParts.join(' '));
-      // Do not debounce: the first partial result should be visible as soon
-      // as the browser delivers it. Provider-side recognition latency remains
-      // outside SpeakLab's control.
-      this.callbacks.onInterim(currentInterim);
+      // Display confirmed pause boundaries immediately, even while listening.
+      // Interim content remains provisional and is NEVER saved to history.
+      this.publishInterim();
     };
     this.engine.onerror = event => {
+      this.clearPauseTimer();
       if (this.stopped && event.error === 'aborted') return;
       this.lastError = speechRecognitionErrorMessage(event.error);
       this.callbacks.onState('error', this.lastError);
     };
     this.engine.onend = () => {
       if (this.ended) return;
+      this.clearPauseTimer();
       this.ended = true;
       this.callbacks.onInterim('');
       if (!this.lastError) {
@@ -183,6 +188,48 @@ export class VietnameseBrowserSpeechSession {
       }
       this.finishStop();
     };
+  }
+
+  /** Cancel timers when speech resumes or the learner ends recognition. */
+  private clearPauseTimer(): void {
+    if (this.pauseTimer !== null) {
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = null;
+    }
+  }
+
+  /** Update the live text at the pause itself, without stopping recognition. */
+  private scheduleLivePause(): void {
+    if (this.stopped || this.ended) return;
+    this.clearPauseTimer();
+    this.pauseTimer = setTimeout(() => {
+      this.pauseTimer = null;
+      if (this.stopped || this.ended) return;
+      this.capturePause();
+      this.publishInterim();
+    }, SPEECH_PAUSE_MS);
+  }
+
+  private publishInterim(): void {
+    const parts: string[] = [];
+    for (const [index, text] of [...this.latestInterim].sort(([a], [b]) => a - b)) {
+      if (this.indices.has(index)) continue;
+      const pauses = this.pausePrefixes.get(index) ?? [];
+      let cursor = 0;
+      const paragraphs: string[] = [];
+      for (const pause of pauses) {
+        const prefix = pause.text;
+        if (!text.startsWith(prefix) || prefix.length <= cursor ||
+          (prefix.length < text.length && !/\s/u.test(text.charAt(prefix.length)))) continue;
+        const paragraph = text.slice(cursor, prefix.length).trim();
+        if (paragraph) paragraphs.push(paragraph);
+        cursor = prefix.length;
+      }
+      const remainder = text.slice(cursor).trim();
+      if (remainder) paragraphs.push(remainder);
+      parts.push(paragraphs.join('\n\n') + (cursor === text.length && cursor > 0 ? '\n\n' : ''));
+    }
+    this.callbacks.onInterim(parts.join(' '));
   }
 
   /** Snapshot cumulative interim hypotheses; only final recognition is persisted. */
@@ -226,6 +273,7 @@ export class VietnameseBrowserSpeechSession {
     if (this.ended) return;
     if (!this.stopped) {
       this.stopped = true;
+      this.clearPauseTimer();
       try { this.engine.stop(); } catch { this.finishStop(); }
     }
     // A browser implementation can fail to send onend. Never block the UI.
@@ -237,6 +285,7 @@ export class VietnameseBrowserSpeechSession {
 
   dispose(): void {
     this.stopped = true;
+    this.clearPauseTimer();
     this.engine.onstart = null;
     this.engine.onresult = null;
     this.engine.onspeechstart = null;
