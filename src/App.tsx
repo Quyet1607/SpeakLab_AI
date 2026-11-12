@@ -70,6 +70,12 @@ export default function App() {
     };
     return {
       ...mockCurrentUser,
+      // Without Google sign-in, do not pretend the demo user is a real account.
+      fullName: 'Người luyện tập (khách)',
+      avatarInitials: 'NL',
+      roleDescription: 'Chưa đăng nhập',
+      school: 'Luyện tập trên thiết bị hiện tại',
+      grade: 'Chế độ khách',
       ...(accountSession.status === 'signed_in' && accountSession.identity ? {
         fullName: accountSession.identity.name || 'Người dùng Google',
         avatarInitials: (accountSession.identity.name || 'GG').split(/\s+/).filter(Boolean).map(w => w[0]).slice(-2).join('').toUpperCase(),
