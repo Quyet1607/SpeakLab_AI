@@ -84,8 +84,25 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
         </div>
       </div>
 
+      {/* Pin provisional words where they can be seen immediately. When the
+          list grows long, learners no longer need to scroll to the bottom to
+          find the current hypothesis. This text is never saved as final. */}
+      {active && (
+        <div className="mx-3 mt-3 rounded-xl border border-[#7E9A83] bg-[#2B4232] px-3 py-3 shrink-0" aria-live="off">
+          <span className="text-[11px] font-semibold text-[#BFE5C7] block mb-1">
+            Chữ đang nhận diện · cập nhật liên tục
+          </span>
+          {interimText ? (
+            <p className="text-sm text-white leading-relaxed break-words whitespace-pre-wrap">{interimText}</p>
+          ) : (
+            <p className="text-xs text-[#BDD2C1]">Đang nghe… Chữ sẽ xuất hiện ngay khi trình duyệt trả kết quả tạm thời.</p>
+          )}
+          <p className="text-[10px] text-[#AFC6B4] mt-1">Bản nháp có thể thay đổi; chỉ lưu những câu đã xác nhận.</p>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2" aria-live="off">
-        {segments.length === 0 && !interimText && (
+        {segments.length === 0 && !active && (
           <p className="text-xs text-[#A8BAAC] py-4">Chưa có nội dung nhận diện. Bạn có thể ghi video bình thường mà không bật chức năng này.</p>
         )}
         {segments.map((segment, index) => (
@@ -97,12 +114,7 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
             <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">{segment.text}</p>
           </div>
         ))}
-        {interimText && (
-          <div className="p-2.5 rounded-xl border border-dashed border-[#7E9A83] text-[#D5E4D8]">
-            <span className="text-[10px] block mb-1">Đang nhận diện (chưa xác nhận)</span>
-            <p className="text-xs italic break-words">{interimText}</p>
-          </div>
-        )}
+
       </div>
 
       <footer className="p-3 border-t border-[#354639] text-[11px] text-[#9DB2A2] shrink-0">
