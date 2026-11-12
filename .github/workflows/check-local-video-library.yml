@@ -1,0 +1,32 @@
+name: Check local video library
+
+on:
+  push:
+    branches:
+      - feature/recording-3-2
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'bun.lock'
+      - 'package.json'
+      - '.github/workflows/check-local-video-library.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-local-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: TypeScript check
+        run: bun run lint
+      - name: Build Preview frontend
+        run: bun run build
