@@ -1,0 +1,30 @@
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#34433a;background:#f7f9f6;font-size:16px;line-height:1.65}
+*{box-sizing:border-box}
+body{margin:0}
+a{color:#3e7656;text-underline-offset:3px}
+a:hover{color:#22543b}
+a:focus-visible{outline:3px solid #6c9b77;outline-offset:3px;border-radius:3px}
+.skip{position:absolute;left:12px;top:-80px;background:white;padding:12px;z-index:2}
+.skip:focus{top:12px}
+.header{background:#fff;border-bottom:1px solid #dbe5dd}
+.header-inner{max-width:980px;margin:auto;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
+.brand{text-decoration:none;font-size:20px;font-weight:800;letter-spacing:-.5px;color:#344a3b;display:inline-flex;align-items:center;gap:10px}
+.brand-mark{background:#83a58e;color:white;border-radius:9px;width:33px;height:33px;display:grid;place-items:center;font-size:19px}
+nav{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;font-weight:650}
+.container{max-width:860px;margin:36px auto;padding:0 22px 55px}
+article{background:white;border:1px solid #dbe5dd;border-radius:17px;padding:30px 38px;box-shadow:0 3px 14px #172b1c06}
+h1{font-size:clamp(25px,4vw,33px);line-height:1.2;letter-spacing:-.7px;margin:8px 0 12px;color:#294735}
+h2{font-size:18px;line-height:1.35;margin:32px 0 12px;color:#314b3b}
+h3{font-size:15px;margin:21px 0 9px}
+p,li{color:#526157}
+li{margin-bottom:8px}
+ul{padding-left:22px}
+.muted{font-size:13px;color:#65756b}
+.eyebrow{display:inline-block;font-size:11px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;color:#64826e}
+.note{background:#f3f7f3;border:1px solid #d7e5d9;border-radius:11px;padding:15px 18px;margin:24px 0;color:#344f3d}
+.note p{margin:0}
+.note.alert{background:#fff8eb;border-color:#eddfba}
+.note.alert p{color:#6a582d}
+footer{max-width:860px;margin:0 auto 30px;padding:0 22px;font-size:13px;color:#738075}
+footer a{margin-right:15px}
+@media(max-width:600px){article{padding:22px 19px}.container{margin:22px auto;padding:0 12px 35px}.header-inner{padding:14px}.header nav{gap:12px}h2{margin-top:25px}}
