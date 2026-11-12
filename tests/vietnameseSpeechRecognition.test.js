@@ -86,6 +86,47 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     expect(states.at(-1)[0]).toBe('stopped');
   });
 
+  test('streams every provisional result immediately, including earlier unfinalized words', async () => {
+    const live = [];
+    const confirmed = [];
+    const s = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: text => live.push(text),
+      onSegment: part => confirmed.push(part),
+      getElapsedSeconds: () => 12,
+    });
+    s.start();
+    const engine = FakeRecognition.current;
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Tôi xin' } }],
+    });
+    expect(live.at(-1)).toBe('Tôi xin');
+
+    // Chrome may update only the newest index while another phrase remains
+    // provisional. The previous implementation showed just the last phrase.
+    engine.onresult({
+      resultIndex: 1,
+      results: [
+        { isFinal: false, 0: { transcript: 'Tôi xin' } },
+        { isFinal: false, 0: { transcript: 'giới thiệu đề tài' } },
+      ],
+    });
+    expect(live.at(-1)).toBe('Tôi xin giới thiệu đề tài');
+    expect(confirmed).toHaveLength(0);
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [
+        { isFinal: true, 0: { transcript: 'Tôi xin' } },
+        { isFinal: false, 0: { transcript: 'giới thiệu đề tài hôm nay' } },
+      ],
+    });
+    expect(confirmed).toHaveLength(1);
+    expect(live.at(-1)).toBe('giới thiệu đề tài hôm nay');
+    await s.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
