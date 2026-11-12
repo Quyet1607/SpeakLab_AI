@@ -10,6 +10,7 @@ import {
   Video,
   VideoOff,
   Share2,
+  RefreshCw,
   Users,
   FileText,
   Settings,
@@ -35,6 +36,8 @@ interface MeetingControlsProps {
   isScreenSharing?: boolean;
   hasPresentation?: boolean;
   onStopScreenShare?: () => void;
+  onChangeScreenShare?: () => void;
+  isScreenSharePending?: boolean;
   isCameraLoading?: boolean;
   isMicLoading?: boolean;
   cameraError?: string | null;
@@ -60,6 +63,8 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
   isScreenSharing = false,
   hasPresentation = false,
   onStopScreenShare,
+  onChangeScreenShare,
+  isScreenSharePending = false,
   isCameraLoading = false,
   isMicLoading = false,
   cameraError,
@@ -152,7 +157,8 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
         {/* Share Screen */}
         <button
           onClick={isScreenSharing && onStopScreenShare ? onStopScreenShare : onShareScreenClick}
-          className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center relative ${
+          disabled={isScreenSharePending}
+          className={`disabled:opacity-50 disabled:cursor-wait min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center relative ${
             isScreenSharing
               ? 'bg-[#83A58E] text-white hover:bg-[#6F917A] shadow-md ring-2 ring-[#83A58E]/40'
               : 'bg-[#27332A] text-[#A8B6AB] hover:text-white hover:bg-[#344438] border border-[#3A4A3E]'
@@ -164,6 +170,18 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#E5484D] animate-ping" />
           )}
         </button>
+        {isScreenSharing && onChangeScreenShare && (
+          <button
+            type="button"
+            onClick={onChangeScreenShare}
+            disabled={isScreenSharePending}
+            className="min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 rounded-xl bg-[#27332A] text-[#D8E6DC] hover:bg-[#344438] border border-[#3A4A3E] flex items-center justify-center disabled:opacity-50"
+            aria-label="Đổi cửa sổ hoặc màn hình đang chia sẻ"
+            title="Đổi màn hình chia sẻ (giữ nguyên bản ghi)"
+          >
+            <RefreshCw className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+          </button>
+        )}
 
         {/* Composite simulated meeting tiles or real screen capture; real mic only. */}
         <button
