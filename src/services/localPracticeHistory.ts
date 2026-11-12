@@ -1,0 +1,85 @@
+/**
+ * Local-only completed practice metadata. Video blobs remain in IndexedDB.
+ * Browser storage is NOT secure account isolation or cloud synchronization.
+ * Never persist PresentationSource.file, File, MediaStream, OAuth data or tokens.
+ */
+import type { PracticeSession, PracticeModeType } from '../types';
+
+const KEY = 'speaklab_completed_practice_v1';
+const LIMIT = 200;
+type StoredEntry = {
+  id: string;
+  title: string;
+  mode: PracticeModeType;
+  modeTitle: string;
+  topic: string;
+  durationSeconds: number;
+  slideCount: number;
+  participantCount: number;
+  completedAt: string;
+  ownerSub: string | null;
+};
+
+function validEntry(item: unknown): item is StoredEntry {
+  if (!item || typeof item !== 'object') return false;
+  const e = item as Partial<StoredEntry>;
+  return typeof e.id === 'string' && /^ses_[\w-]{5,100}$/.test(e.id) &&
+    typeof e.title === 'string' && e.title.length <= 180 &&
+    ['basic', 'defense', 'debate'].includes(String(e.mode)) &&
+    typeof e.modeTitle === 'string' && e.modeTitle.length <= 100 &&
+    typeof e.topic === 'string' && e.topic.length <= 120 &&
+    Number.isInteger(e.durationSeconds) && e.durationSeconds! >= 0 && e.durationSeconds! < 86400 &&
+    Number.isInteger(e.slideCount) && e.slideCount! >= 0 && e.slideCount! <= 10000 &&
+    Number.isInteger(e.participantCount) && e.participantCount! >= 0 && e.participantCount! <= 1000 &&
+    typeof e.completedAt === 'string' && Number.isFinite(Date.parse(e.completedAt)) &&
+    (e.ownerSub === null || typeof e.ownerSub === 'string' && /^[0-9]{5,64}$/.test(e.ownerSub));
+}
+
+function readAll(): StoredEntry[] {
+  try {
+    const json = localStorage.getItem(KEY);
+    if (!json) return [];
+    const data: unknown = JSON.parse(json);
+    return Array.isArray(data) ? data.filter(validEntry).slice(0, LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function listCompletedPracticeSessions(ownerSub: string | null): PracticeSession[] {
+  return readAll()
+    .filter(item => item.ownerSub === ownerSub)
+    .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+    .map(({ completedAt, ownerSub: _ownerSub, ...item }) => ({
+      ...item,
+      createdAt: new Date(completedAt).toLocaleString('vi-VN'),
+      status: 'completed' as const,
+    }));
+}
+
+export function saveCompletedPracticeSession(
+  session: PracticeSession,
+  durationSeconds: number,
+  ownerSub: string | null,
+): void {
+  const now = new Date().toISOString();
+  const entry: StoredEntry = {
+    id: session.id,
+    title: session.title.slice(0, 180),
+    mode: session.mode,
+    modeTitle: session.modeTitle.slice(0, 100),
+    topic: session.topic.slice(0, 120),
+    durationSeconds: Math.min(86399, Math.max(0, Math.floor(durationSeconds))),
+    slideCount: session.slideCount,
+    participantCount: session.participantCount,
+    completedAt: now,
+    ownerSub,
+  };
+  if (!validEntry(entry)) throw new Error('Thông tin buổi luyện chưa hợp lệ.');
+  const remaining = readAll().filter(item => item.id !== entry.id);
+  try {
+    localStorage.setItem(KEY, JSON.stringify([entry, ...remaining].slice(0, LIMIT)));
+  } catch {
+    throw new Error('Trình duyệt không lưu được lịch sử buổi luyện. Hãy kiểm tra dung lượng hoặc cài đặt quyền lưu trữ.');
+  }
+}
