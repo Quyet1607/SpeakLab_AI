@@ -29,7 +29,7 @@ import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
-import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, formatTranscriptLines, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
+import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
@@ -191,9 +191,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       <div className="max-h-48 overflow-y-auto space-y-2 mt-2">
         {item.segments.map((part, index) => <div key={index} className="space-y-1">
           <span className="block font-mono text-[#5A7D65]">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>
-          {formatTranscriptLines(part.text).map((line, lineIndex) => (
-            <p key={lineIndex} className="break-words leading-relaxed">{line}</p>
-          ))}
+          <p className="break-words leading-relaxed whitespace-pre-wrap">{part.text}</p>
         </div>)}
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
@@ -446,7 +444,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                       {session.transcriptSegments.map((part, index) => (
                         <p key={index} className="break-words whitespace-pre-wrap leading-relaxed">
                           <span className="block font-mono text-[#5A7D65] mb-1">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>
-                          {formatTranscriptLines(part.text).map((line, i) => <span key={i} className="block leading-relaxed">{line}</span>)}
+                          <span className="block leading-relaxed whitespace-pre-wrap">{part.text}</span>
                         </p>
                       ))}
                     </div>
