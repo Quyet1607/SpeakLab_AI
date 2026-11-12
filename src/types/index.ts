@@ -82,7 +82,16 @@ export interface PresentationSource {
   stream?: MediaStream;
 }
 
+/** Approximate speech segment boundaries from browser recognition events (not word alignment). */
+export interface SpeechTranscriptSegment {
+  startSeconds: number;
+  endSeconds: number;
+  text: string;
+}
+
 export interface PracticeSession {
+  /** Browser-recognized real speech text, optionally captured after learner consent. */
+  transcriptSegments?: SpeechTranscriptSegment[];
   id: string;
   title: string;
   mode: PracticeModeType;
