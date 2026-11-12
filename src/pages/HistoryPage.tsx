@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   History,
   Search,
@@ -19,12 +19,13 @@ import {
   Video,
   Trash2,
   Download,
+  Upload,
   X
 } from 'lucide-react';
 import { PracticeSession, PracticeModeType, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
-import { listLocalVideos, deleteLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
+import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
@@ -42,12 +43,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | PracticeModeType>('all');
-  // Temporary private-by-device video library. It does NOT sync to Google Drive.
+  // Device-only personal video library; no remote sync.
   const [localVideos, setLocalVideos] = useState<LocalVideoRecord[]>([]);
   const [account, setAccount] = useState<SessionState>({ status: 'loading', identity: null });
   const [localError, setLocalError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<LocalVideoRecord | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -57,6 +61,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setPlaying(null);
       setLocalVideos([]);
       setLocalError(null);
+      setImportNotice(null);
       if (next.status === 'loading') return;
       if (next.status === 'unavailable') {
         // Keep guest/legacy recordings accessible when server session is not configured.
@@ -90,8 +95,31 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
   };
 
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file || importing) return;
+    setImporting(true);
+    setImportNotice(null);
+    setLocalError(null);
+    try {
+      const imported = await importLocalVideo(file);
+      // Never show the new record under another account if the session changed.
+      const checked = await refreshSession();
+      if (checked.status === 'signed_in' && checked.identity?.id === imported.ownerSub) {
+        setLocalVideos(await listLocalVideos(imported.ownerSub));
+        setImportNotice('Đã nhập video vào thư viện của tài khoản trên trình duyệt này.');
+      } else {
+        setImportNotice('Đã lưu video cục bộ. Hãy đăng nhập lại đúng tài khoản để xem.');
+      }
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Không nhập được video.');
+    } finally {
+      setImporting(false);
+      if (importInput.current) importInput.current.value = '';
+    }
+  };
+
   const removeLocal = async (item: LocalVideoRecord) => {
-    if (!window.confirm('Xóa bản ghi này khỏi trình duyệt hiện tại? Hành động này không thể khôi phục. Video chưa được đồng bộ Google Drive.')) return;
+    if (!window.confirm('Xóa bản ghi này khỏi trình duyệt hiện tại? Hành động này không thể khôi phục. Video chỉ lưu trên thiết bị này.')) return;
     try {
       await deleteLocalVideo(item.id);
       setLocalVideos(prev => prev.filter(video => video.id !== item.id));
@@ -117,7 +145,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         message="Danh sách các phiên luyện tập đã thực hiện. Bạn có thể xem lại báo cáo phân tích hoặc khởi chạy lại buổi luyện tập với các thông số tương tự."
       />
 
-      {/* 3.2C-1: local recordings are NOT synchronized with Google Drive. */}
+      {/* Local-only recordings grouped by Google identity, not server-enforced private storage. */}
       <section className="bg-white border border-[#E4E9E3] rounded-2xl p-5 md:p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -125,13 +153,11 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             <h3 className="text-base font-bold text-[#3D4740]">Video đã ghi ({localVideos.length})</h3>
           </div>
           <span className="text-[11px] font-medium rounded-full border border-[#D9E5DC] bg-[#F7F9F6] text-[#47644F] px-3 py-1">
-            Lưu tạm trên thiết bị · Chưa đồng bộ Drive
+            Lưu trên thiết bị này
           </span>
         </div>
         <p className="text-xs text-[#768078]">
-          Video lưu trên thiết bị này, chưa đồng bộ Google Drive. Danh sách đang được nhóm theo phiên Google
-          trong trình duyệt, <strong>chưa phải phân quyền bảo mật</strong> (người dùng chung trình duyệt có thể
-          truy cập dữ liệu cục bộ). Hãy dùng thiết bị riêng và tải video quan trọng về máy.
+          Video được lưu trong trình duyệt của thiết bị này và nhóm theo tài khoản Google. Đây <strong>không phải phân quyền bảo mật</strong> giữa những người dùng chung trình duyệt. Video không tự xuất hiện trên thiết bị khác; hãy tải về để giữ bản sao hoặc nhập lại trên máy khác.
         </p>
         <div className="text-xs border border-[#D9E5DC] rounded-lg bg-[#F7F9F6] p-3 text-[#3D4740]">
           {account.status === 'signed_in'
@@ -142,12 +168,35 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                 ? 'Đang kiểm tra phiên đăng nhập…'
                 : 'Dịch vụ đăng nhập chưa sẵn sàng; chỉ hiển thị video khách/cũ, không hiển thị video gắn tài khoản.'}
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={importInput}
+            type="file"
+            accept=".webm,.mp4,video/webm,video/mp4"
+            className="hidden"
+            aria-label="Chọn video WebM hoặc MP4 để nhập"
+            onChange={event => void handleImportFile(event.currentTarget.files?.[0])}
+          />
+          <button
+            type="button"
+            disabled={account.status !== 'signed_in' || importing}
+            onClick={() => importInput.current?.click()}
+            className="text-xs font-semibold px-3 py-2 bg-[#EEF4F0] border border-[#D9E5DC] text-[#324C3B] rounded-lg flex items-center gap-2 hover:bg-[#DDEBDD] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload className="w-4 h-4" />
+            {importing ? 'Đang nhập video…' : 'Nhập video từ máy'}
+          </button>
+          <span className="text-[11px] text-[#768078]">
+            Đăng nhập Google để nhập WebM/MP4 (tối đa 1 GB) vào thư viện trên thiết bị này.
+          </span>
+        </div>
+        {importNotice && <p role="status" className="text-xs border border-[#D9E5DC] bg-[#EEF4F0] text-[#324C3B] rounded-lg p-3">{importNotice}</p>}
         {localError && (
           <p role="alert" className="text-xs border border-[#DFBAB8] bg-[#FFF4F3] text-[#873631] rounded-lg p-3">{localError}</p>
         )}
         {localVideos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#D9E5DC] bg-[#F7F9F6] py-6 text-center text-xs text-[#768078]">
-            Chưa có video lưu tạm. Hãy ghi PowerPoint trong phòng họp, sau đó nhấn Dừng ghi.
+            Chưa có video trên thiết bị trong nhóm tài khoản này. Hãy ghi video trong phòng luyện tập hoặc chọn Nhập video từ máy.
           </div>
         ) : (
           <div className="space-y-2">
@@ -158,7 +207,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-[#3D4740] truncate">{video.title}</div>
                     <p className="text-[11px] text-[#768078]">
-                      {new Date(video.createdAt).toLocaleString('vi-VN')} · {Math.max(0, Math.round(video.durationMs / 1000))} giây · {(video.sizeBytes / 1024 / 1024).toFixed(1)} MB
+                      {new Date(video.createdAt).toLocaleString('vi-VN')} · {video.durationMs > 0 ? `${Math.round(video.durationMs / 1000)} giây · ` : ''}{(video.sizeBytes / 1024 / 1024).toFixed(1)} MB
                     </p>
                   </div>
                 </div>
