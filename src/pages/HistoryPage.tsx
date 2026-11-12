@@ -350,6 +350,12 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     {session.topic}
                   </span>
                 </div>
+                {(session.topicDescription || session.speakingGoal) && (
+                  <div className="text-xs text-[#556057] space-y-1 max-w-2xl">
+                    {session.topicDescription && <p className="break-words whitespace-pre-wrap"><strong>Mô tả:</strong> {session.topicDescription}</p>}
+                    {session.speakingGoal && <p className="break-words whitespace-pre-wrap"><strong>Mục tiêu:</strong> {session.speakingGoal}</p>}
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-[#768078]">
                   <span className="flex items-center gap-1.5">
