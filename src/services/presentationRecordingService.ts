@@ -11,7 +11,7 @@ export interface PresentationRecordingResult {
   bytes: number;
 }
 
-export type RecordingVideoSource = 'screen' | 'camera';
+export type RecordingVideoSource = 'screen' | 'camera' | 'meeting';
 export type RecordingInput = RecordingVideoSource | 'microphone';
 
 const MIME_OPTIONS = [
@@ -42,7 +42,9 @@ export class ScreenAudioRecordingSession {
     const audio = microphoneStream.getAudioTracks().find(t => t.readyState === 'live' && t.enabled);
     if (!video) throw new Error(videoSource === 'camera'
       ? 'Hãy bật camera thật trước khi ghi hình.'
-      : 'Chưa có nguồn chia sẻ PowerPoint đang hoạt động.');
+      : videoSource === 'meeting'
+        ? 'Không tạo được hình ảnh cuộc họp mô phỏng.'
+        : 'Chưa có nguồn chia sẻ PowerPoint đang hoạt động.');
     if (!audio) throw new Error('Hãy bật micro thật trước khi ghi hình.');
     if (typeof MediaRecorder === 'undefined') {
       throw new Error('Trình duyệt này chưa hỗ trợ ghi video.');
