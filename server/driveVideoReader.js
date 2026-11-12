@@ -10,12 +10,13 @@ import {
   validateDriveFolderId,
   validateGoogleSubject,
 } from './driveVideoAuthorization.js';
+import { getDriveRefreshToken } from './driveTokenVault.js';
 
 function readConfig(env = process.env) {
   const folderId = validateDriveFolderId(String(env.GOOGLE_DRIVE_FOLDER_ID || ''));
   const clientId = String(env.GOOGLE_CLIENT_ID || '').trim();
   const clientSecret = String(env.GOOGLE_CLIENT_SECRET || '').trim();
-  const refreshToken = String(env.GOOGLE_REFRESH_TOKEN || '').trim();
+  const refreshToken = getDriveRefreshToken(env);
   if (!clientId || !clientSecret || !refreshToken) {
     const error = new Error('Google Drive chưa được kết nối để đọc video.');
     error.status = 503;
