@@ -52,11 +52,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [importing, setImporting] = useState(false);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
+  const sessionRevision = useRef(0);
 
   useEffect(() => {
     let mounted = true;
     const unsubscribe = subscribeSession(next => {
       if (!mounted) return;
+      const revision = ++sessionRevision.current;
       setAccount(next);
       setPlaying(null);
       setLocalVideos([]);
@@ -69,11 +71,11 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         setLocalError('Dịch vụ đăng nhập chưa sẵn sàng. Chỉ hiển thị video chưa gắn tài khoản trên thiết bị.');
       }
       listLocalVideos(next.identity?.id || null)
-        .then(items => { if (mounted) setLocalVideos(items); })
-        .catch(error => { if (mounted) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
+        .then(items => { if (mounted && revision === sessionRevision.current) setLocalVideos(items); })
+        .catch(error => { if (mounted && revision === sessionRevision.current) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
     });
     void refreshSession();
-    return () => { mounted = false; unsubscribe(); };
+    return () => { mounted = false; sessionRevision.current += 1; unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -97,6 +99,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
   const handleImportFile = async (file: File | undefined) => {
     if (!file || importing) return;
+    const revision = sessionRevision.current;
     setImporting(true);
     setImportNotice(null);
     setLocalError(null);
@@ -104,10 +107,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       const imported = await importLocalVideo(file);
       // Never show the new record under another account if the session changed.
       const checked = await refreshSession();
-      if (checked.status === 'signed_in' && checked.identity?.id === imported.ownerSub) {
+      if (revision === sessionRevision.current && checked.status === 'signed_in' && checked.identity?.id === imported.ownerSub) {
         setLocalVideos(await listLocalVideos(imported.ownerSub));
         setImportNotice('Đã nhập video vào thư viện của tài khoản trên trình duyệt này.');
-      } else {
+      } else if (revision === sessionRevision.current) {
         setImportNotice('Đã lưu video cục bộ. Hãy đăng nhập lại đúng tài khoản để xem.');
       }
     } catch (error) {
