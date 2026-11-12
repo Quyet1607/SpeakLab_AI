@@ -9,6 +9,8 @@ describe('student-friendly recording names', () => {
       .toBe('Đề tài Rác Thông minh · PowerPoint + micro');
     expect(recordingLibraryTitle('  ', 'camera'))
       .toBe('Buổi luyện thuyết trình · Camera + micro');
+    expect(recordingLibraryTitle('Luyện phản biện', 'meeting'))
+      .toBe('Luyện phản biện · Cuộc họp mô phỏng + micro');
   });
 
   test('creates safe readable timestamped download filenames', () => {
@@ -17,6 +19,8 @@ describe('student-friendly recording names', () => {
     expect(cameraName).toBe('SpeakLab_Camera_Bao_ve_Phan_loai_rac_bang_AI_2026-11-12_14-02-07.webm');
     expect(recordingDownloadName('Thuyết trình PPT', 'screen', 'mp4', d))
       .toBe('SpeakLab_PowerPoint_Thuyet_trinh_PPT_2026-11-12_14-02-07.mp4');
+    expect(recordingDownloadName('Tự luyện', 'meeting', 'webm', d))
+      .toBe('SpeakLab_Cuoc_hop_Tu_luyen_2026-11-12_14-02-07.webm');
   });
 
   test('names legacy and imported video downloads without guessing their sources', () => {
