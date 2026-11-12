@@ -979,6 +979,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
 
       {/* Screen Share 5-Step Guidance Modal (Phase 2.3) */}
       <ScreenShareGuideModal
+        isReplacingShare={isScreenSharing}
         isOpen={showShareGuideModal}
         onClose={() => setShowShareGuideModal(false)}
         onConfirmStartShare={handleStartScreenShare}
