@@ -116,8 +116,12 @@ export class VietnameseBrowserSpeechSession {
     this.stopPromise = new Promise<void>(resolve => { this.finishStop = resolve; });
     this.engine.onstart = () => this.callbacks.onState('listening');
     this.engine.onresult = event => {
-      let currentInterim = '';
-      for (let index = event.resultIndex; index < event.results.length; index++) {
+      // Web Speech emits revised hypotheses as the learner speaks. Publish
+      // *all* current interim words immediately, rather than showing only
+      // the last result (which can look as if words arrive very slowly).
+      // The display is provisional; only final results go into history.
+      const interimParts: string[] = [];
+      for (let index = 0; index < event.results.length; index++) {
         const result = event.results[index];
         const text = cleanSpeechText(result[0]?.transcript || '');
         if (!text || this.indices.has(index)) continue;
@@ -129,9 +133,13 @@ export class VietnameseBrowserSpeechSession {
           this.firstSeen.delete(index);
           this.callbacks.onSegment({ startSeconds, endSeconds: now, text });
         } else {
-          currentInterim = text;
+          interimParts.push(text);
         }
       }
+      const currentInterim = cleanSpeechText(interimParts.join(' '));
+      // Do not debounce: the first partial result should be visible as soon
+      // as the browser delivers it. Provider-side recognition latency remains
+      // outside SpeakLab's control.
       this.callbacks.onInterim(currentInterim);
     };
     this.engine.onerror = event => {
