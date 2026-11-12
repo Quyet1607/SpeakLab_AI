@@ -426,6 +426,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // Start Screen Share handler (preserves active camera and microphone tracks)
   const handleStartScreenShare = async () => {
     setShowShareGuideModal(false);
+    if (recordingSessionRef.current || recordingStatus === 'finalizing') {
+      setRecordingNotice('Hãy dừng và lưu bản ghi cuộc họp trước khi bắt đầu chia sẻ màn hình. Sau đó bạn có thể tạo bản ghi PowerPoint riêng.');
+      return;
+    }
 
     const capability = screenShareService.getCapability();
     if (!capability.isSupported) {
