@@ -1,7 +1,8 @@
 /**
- * Teacher-only OAuth callback. Performs ONE-TIME verification, then discards
- * Google tokens. No refresh token is displayed, logged, stored or sent to client.
- * Does not activate video storage or enable student access.
+ * Teacher-only OAuth callback: validates owner and app-created folder.
+ * Never returns raw refresh/access tokens. With a preconfigured server-side vault
+ * key, it provides a one-time AES-GCM encrypted provisioning envelope for Vercel
+ * Preview (no automatic storage). Does not enable upload, playback or deletion.
  */
 import {
   readOAuthConfig,
