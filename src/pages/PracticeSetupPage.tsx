@@ -468,7 +468,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
             <PptxUploader
               currentSource={presentationSource}
               onSourceChange={handlePptxSourceChange}
-              onDeckSelectRequested={() => handleSelectDemoDeck(selectedDeck)}
+              onDeckSelectRequested={handleWithoutSlides}
             />
           </div>
         </div>
