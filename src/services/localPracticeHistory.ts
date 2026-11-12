@@ -4,6 +4,7 @@
  * Never persist PresentationSource.file, File, MediaStream, OAuth data or tokens.
  */
 import type { PracticeSession, PracticeModeType } from '../types';
+import { normalizePracticeBrief, PRACTICE_BRIEF_LIMITS } from './practiceBrief';
 
 const KEY = 'speaklab_completed_practice_v1';
 const LIMIT = 200;
@@ -13,6 +14,8 @@ type StoredEntry = {
   mode: PracticeModeType;
   modeTitle: string;
   topic: string;
+  topicDescription?: string;
+  speakingGoal?: string;
   durationSeconds: number;
   slideCount: number;
   participantCount: number;
@@ -28,6 +31,8 @@ function validEntry(item: unknown): item is StoredEntry {
     ['basic', 'defense', 'debate'].includes(String(e.mode)) &&
     typeof e.modeTitle === 'string' && e.modeTitle.length <= 100 &&
     typeof e.topic === 'string' && e.topic.length <= 120 &&
+    (e.topicDescription === undefined || typeof e.topicDescription === 'string' && e.topicDescription.length <= PRACTICE_BRIEF_LIMITS.topicDescription) &&
+    (e.speakingGoal === undefined || typeof e.speakingGoal === 'string' && e.speakingGoal.length <= PRACTICE_BRIEF_LIMITS.speakingGoal) &&
     Number.isInteger(e.durationSeconds) && e.durationSeconds! >= 0 && e.durationSeconds! < 86400 &&
     Number.isInteger(e.slideCount) && e.slideCount! >= 0 && e.slideCount! <= 10000 &&
     Number.isInteger(e.participantCount) && e.participantCount! >= 0 && e.participantCount! <= 1000 &&
@@ -63,12 +68,19 @@ export function saveCompletedPracticeSession(
   ownerSub: string | null,
 ): void {
   const now = new Date().toISOString();
+  const brief = normalizePracticeBrief({
+    topicTitle: session.topic,
+    topicDescription: session.topicDescription,
+    speakingGoal: session.speakingGoal,
+  });
   const entry: StoredEntry = {
     id: session.id,
     title: session.title.slice(0, 180),
     mode: session.mode,
     modeTitle: session.modeTitle.slice(0, 100),
-    topic: session.topic.slice(0, 120),
+    topic: brief.topicTitle,
+    ...(brief.topicDescription ? { topicDescription: brief.topicDescription } : {}),
+    ...(brief.speakingGoal ? { speakingGoal: brief.speakingGoal } : {}),
     durationSeconds: Math.min(86399, Math.max(0, Math.floor(durationSeconds))),
     slideCount: session.slideCount,
     participantCount: session.participantCount,
