@@ -26,6 +26,7 @@ import { PracticeSession, PracticeModeType, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
+import { libraryVideoDownloadName } from '../services/recordingNames';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
@@ -94,7 +95,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     const blobUrl = URL.createObjectURL(item.blob);
     const anchor = document.createElement('a');
     anchor.href = blobUrl;
-    anchor.download = `SpeakLab_${item.sessionId}_${item.id}.${item.extension}`;
+    anchor.download = libraryVideoDownloadName(item.title, item.extension, item.createdAt);
     anchor.click();
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
   };
