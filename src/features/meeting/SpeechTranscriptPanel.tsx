@@ -48,8 +48,7 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
           SpeakLab AI không tự gửi âm thanh hay bản ghi chữ lên API riêng.
         </p>
         <p className="text-[11px] text-[#9FB1A3]">
-          Khi bấm Dừng nhận diện, văn bản đã xác nhận được lưu riêng trên thiết bị và có thể xem, tải TXT tại Lịch sử luyện tập.
-          Thời điểm và thời lượng từng đoạn là ước lượng, không phải phân tích chính xác từng từ.
+          Khi bấm Dừng nhận diện, toàn bộ văn bản đã được trình duyệt xác nhận sẽ lưu riêng trên thiết bị và có thể xem, tải TXT tại Lịch sử luyện tập. Âm thanh đã nằm trong video; SpeakLab chỉ lưu thêm văn bản, không tạo tệp âm thanh riêng.
         </p>
         {!supported && (
           <p role="alert" className="text-xs rounded-lg p-2 bg-[#3C2928] text-[#F3C1BE]">
