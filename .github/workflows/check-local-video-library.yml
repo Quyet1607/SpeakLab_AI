@@ -13,6 +13,7 @@ on:
       - 'tests/presentationRecordingService.test.js'
       - 'tests/recordingNames.test.js'
       - 'tests/meetingGridCapture.test.js'
+      - 'tests/meetingNoAutoSlides.test.js'
       - '.github/workflows/check-local-video-library.yml'
   workflow_dispatch:
 
@@ -38,6 +39,8 @@ jobs:
         run: bun test tests/recordingNames.test.js
       - name: Test meeting tile geometry
         run: bun test tests/meetingGridCapture.test.js
+      - name: Test no auto-injected presentation
+        run: bun test tests/meetingNoAutoSlides.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
