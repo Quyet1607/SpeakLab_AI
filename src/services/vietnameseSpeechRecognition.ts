@@ -6,8 +6,8 @@
  */
 import type { SpeechTranscriptSegment } from '../types';
 
-export const SPEECH_SEGMENT_LIMIT = 80;
-export const SPEECH_SEGMENT_TEXT_LIMIT = 240;
+export const SPEECH_SEGMENT_LIMIT = 500;
+export const SPEECH_SEGMENT_TEXT_LIMIT = 2000;
 
 export function cleanSpeechText(text: string): string {
   return text.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, SPEECH_SEGMENT_TEXT_LIMIT).trim();
