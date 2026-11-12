@@ -77,6 +77,34 @@ export function transcriptFileName(title: string): string {
   return safe + '-loi-noi.txt';
 }
 
+/**
+ * Presentation-only line wrapping: split at sentence-ending punctuation.
+ * If browser recognition yields no punctuation, wrap at word boundaries,
+ * without changing the recognized words or inventing punctuation.
+ * Original segments stay untouched in localStorage.
+ */
+export function formatTranscriptLines(text: string, maxLength = 110): string[] {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return [];
+  const sentences = cleaned.match(/[^.!?。！？]+(?:[.!?。！？]+|$)/gu) ?? [cleaned];
+  const lines: string[] = [];
+  for (const candidate of sentences) {
+    const sentence = candidate.trim();
+    if (!sentence) continue;
+    let line = '';
+    for (const word of sentence.split(/\s+/u)) {
+      if (line && line.length + 1 + word.length > maxLength) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = line ? line + ' ' + word : word;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
 export function transcriptToText(record: LocalTranscriptRecord): string {
   const stamp = new Date(record.updatedAt).toLocaleString('vi-VN');
   const time = (seconds: number) =>
@@ -89,7 +117,8 @@ export function transcriptToText(record: LocalTranscriptRecord): string {
     'Ngày lưu: ' + stamp,
     'Thời gian các đoạn chỉ mang tính ước lượng.',
     '',
-    ...record.segments.map(s => '[' + time(s.startSeconds) + '–' + time(s.endSeconds) + '] ' + s.text),
+    ...record.segments.flatMap(s => formatTranscriptLines(s.text).map((line, i) =>
+      (i === 0 ? '[' + time(s.startSeconds) + '–' + time(s.endSeconds) + '] ' : '') + line)),
     '',
   ].join('\n');
 }
