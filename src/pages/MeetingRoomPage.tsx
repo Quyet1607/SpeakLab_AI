@@ -168,8 +168,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
 
     const screen = screenShareService.getActiveStream();
     const microphone = mediaDeviceService.getMicrophoneStream();
-    // Screen share: preserve PowerPoint recording. Otherwise record all the
-    // meeting tiles (one real user and simulated avatars), not webcam alone.
+    // Always use a single canvas video track. The canvas can show either
+    // meeting tiles or the shared screen without restarting the recording.
     const source: RecordingVideoSource = screen?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)
       ? 'screen' : 'meeting';
     if (!microphone?.getAudioTracks().some(t => t.readyState === 'live' && t.enabled)) {
@@ -178,25 +178,25 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     }
     let gridCapture: MeetingGridCapture | null = null;
     try {
-      const videoStream = source === 'screen' ? screen : (gridCapture = new MeetingGridCapture(
-        currentUser, participants, () => mediaDeviceService.getCameraStream(),
+      gridCapture = new MeetingGridCapture(
+        currentUser,
+        participants,
+        () => mediaDeviceService.getCameraStream(),
         () => activeQuestionRef.current,
-      )).getStream();
-      if (!videoStream?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
+        () => screenShareService.getActiveStream(),
+      );
+      const videoStream = gridCapture.getStream();
+      if (!videoStream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
         throw new Error('Không lấy được hình ảnh để ghi video.');
       }
       const sessionRecorder = new ScreenAudioRecordingSession(videoStream, microphone, (input) => {
-        void handleStopRecording(input === 'screen'
-          ? 'Chia sẻ màn hình đã dừng; bản ghi được hoàn tất.'
-          : input === 'microphone'
-            ? 'Micro đã ngắt; bản ghi được hoàn tất để tránh mất tiếng.'
-            : 'Nguồn hình ảnh đã ngắt; bản ghi được hoàn tất.');
-      }, source);
+        void handleStopRecording(input === 'microphone'
+          ? 'Micro đã ngắt; bản ghi được hoàn tất để tránh mất tiếng.'
+          : 'Nguồn hình ảnh cuộc họp đã ngắt; bản ghi được hoàn tất.');
+      }, 'meeting');
       sessionRecorder.start();
-      if (gridCapture) {
-        meetingCaptureRef.current = gridCapture;
-        gridCapture.start();
-      }
+      meetingCaptureRef.current = gridCapture;
+      gridCapture.start();
       recordingSourceRef.current = source;
       setRecordingVideoSource(source);
       recordingSessionRef.current = sessionRecorder;
