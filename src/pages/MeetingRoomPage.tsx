@@ -124,6 +124,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     judge: string;
     text: string;
   } | null>(null);
+  const activeQuestionRef = useRef<typeof activeQuestion>(null);
+  useEffect(() => {
+    activeQuestionRef.current = activeQuestion;
+  }, [activeQuestion]);
 
   // Mobile View Switcher: 'slide' | 'audience' | 'camera'
   const [mobileTab, setMobileTab] = useState<'slide' | 'audience' | 'camera'>('slide');
@@ -176,6 +180,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     try {
       const videoStream = source === 'screen' ? screen : (gridCapture = new MeetingGridCapture(
         currentUser, participants, () => mediaDeviceService.getCameraStream(),
+        () => activeQuestionRef.current,
       )).getStream();
       if (!videoStream?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
         throw new Error('Không lấy được hình ảnh để ghi video.');
@@ -523,10 +528,13 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   };
 
   const handleTriggerSimulatedQuestion = (judgeName: string) => {
-    setActiveQuestion({
-      judge: judgeName,
-      text: `Chào em Quân, thầy muốn hỏi thêm về tính khả thi của hệ thống camera khi căng-tin vào giờ cao điểm, ánh sáng yếu hoặc học sinh bỏ rác liên tục thì thuật toán xử lý thế nào?`,
-    });
+    // A written practice prompt only; no participant is connected or speaking.
+    const prompts = {
+      basic: 'Bạn hãy nêu ngắn gọn ý chính của bài thuyết trình và ví dụ để làm rõ.',
+      defense: 'Bạn có thể giải thích bằng chứng cho đề tài này, giới hạn của giải pháp và cách kiểm chứng?',
+      debate: 'Bạn sẽ phản hồi thế nào nếu có ý kiến phản đối luận điểm chính của mình?',
+    };
+    setActiveQuestion({ judge: judgeName, text: prompts[session.mode] });
   };
 
   return (
