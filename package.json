@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:drive": "node --test tests/driveVideoAuthorization.test.js tests/driveVideoReader.test.js"
+    "test:drive": "node --test tests/driveVideoAuthorization.test.js tests/driveVideoReader.test.js tests/driveTokenVault.test.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
