@@ -50,7 +50,7 @@ export default function App() {
 
   // Setup configuration state retained in current session
   const [setupConfig, setSetupConfig] = useState<PracticeSetupConfig>({
-    title: 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI',
+    title: 'Buổi luyện thuyết trình của tôi',
     modeId: 'defense',
     deckId: 'deck_ai_waste',
     participantCount: 6,
