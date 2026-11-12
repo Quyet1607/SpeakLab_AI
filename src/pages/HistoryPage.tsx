@@ -27,6 +27,7 @@ import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { libraryVideoDownloadName } from '../services/recordingNames';
+import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
@@ -35,6 +36,7 @@ interface HistoryPageProps {
   onNavigate: (page: ActivePage) => void;
   onSelectSessionForReport: (sessionId: string) => void;
   onReplaySession: (session: PracticeSession) => void;
+  onTranscriptDeleted?: () => void;
 }
 
 export const HistoryPage: React.FC<HistoryPageProps> = ({
@@ -43,6 +45,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   onNavigate,
   onSelectSessionForReport,
   onReplaySession,
+  onTranscriptDeleted,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | PracticeModeType>('all');
@@ -134,6 +137,23 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi.');
     }
   };
+
+  const removeTranscript = async (session: PracticeSession) => {
+    if (!session.transcriptSegments?.length) return;
+    if (!window.confirm('Xóa vĩnh viễn phần chữ nhận diện của buổi luyện này? Video sẽ được giữ lại.')) return;
+    try {
+      const checked = await refreshSession();
+      const originalOwner = account.status === 'signed_in' ? account.identity?.id || null : null;
+      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+      if (originalOwner !== currentOwner) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử và thử lại.');
+      const removed = deleteCompletedPracticeTranscript(session.id, currentOwner);
+      if (removed) onTranscriptDeleted?.();
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi chữ.');
+    }
+  };
+
+  const formatSpeechTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 
   const filteredSessions = sessions.filter((s) => {
     const matchesSearch =
@@ -355,6 +375,32 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     {session.topicDescription && <p className="break-words whitespace-pre-wrap"><strong>Mô tả:</strong> {session.topicDescription}</p>}
                     {session.speakingGoal && <p className="break-words whitespace-pre-wrap"><strong>Mục tiêu:</strong> {session.speakingGoal}</p>}
                   </div>
+                )}
+
+                {session.transcriptSegments && session.transcriptSegments.length > 0 && (
+                  <details className="max-w-2xl rounded-xl border border-[#D9E5DC] bg-[#F7F9F6] px-3 py-2.5 text-xs text-[#3D4740]">
+                    <summary className="cursor-pointer font-semibold text-[#324C3B]">
+                      Lời nói đã nhận diện ({session.transcriptSegments.length} đoạn)
+                    </summary>
+                    <p className="text-[11px] text-[#768078] my-2">
+                      Văn bản từ nhận diện giọng nói của trình duyệt; thời gian mỗi đoạn chỉ là ước lượng. Không phải đánh giá AI.
+                    </p>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {session.transcriptSegments.map((part, index) => (
+                        <p key={index} className="break-words whitespace-pre-wrap leading-relaxed">
+                          <span className="font-mono text-[#5A7D65] mr-2">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>{part.text}
+                        </p>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void removeTranscript(session); }}
+                      className="mt-3 inline-flex items-center gap-1 text-[#873631] font-semibold hover:underline"
+                      title="Chỉ xóa bản ghi chữ, không xóa video hay buổi luyện"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Xóa riêng bản ghi chữ
+                    </button>
+                  </details>
                 )}
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-[#768078]">
