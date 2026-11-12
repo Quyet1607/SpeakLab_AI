@@ -68,7 +68,7 @@ describe('live sharing inside a continuous meeting recording', () => {
     const originalTrack = capture.getStream().getVideoTracks()[0];
     const screenElement = videos[1];
     capture.start();
-    const tick = t => { expect(latestFrame).toBeFunction(); latestFrame(t); };
+    const tick = t => { expect(typeof latestFrame).toBe('function'); latestFrame(t); };
     tick(100);
     expect(screenElement.srcObject).toBeNull();
 
