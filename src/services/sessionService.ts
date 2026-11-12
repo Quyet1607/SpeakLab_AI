@@ -83,12 +83,11 @@ class SessionService {
     const deck = mockPresentationDecks.find((d) => d.id === params.deckId) || mockPresentationDecks[0];
 
     const isPptx = params.presentationSource?.type === 'pptx';
-    const slideCount = isPptx && params.presentationSource
-      ? params.presentationSource.slideCount
-      : deck.slides.length;
-    const topic = isPptx && params.presentationSource
-      ? 'PowerPoint cá nhân'
-      : deck.category;
+    const hasNoSlides = !params.presentationSource || params.presentationSource.type === 'none';
+    const slideCount = hasNoSlides ? 0 : isPptx && params.presentationSource
+      ? params.presentationSource.slideCount : deck.slides.length;
+    const topic = hasNoSlides ? 'Luyện thuyết trình và phản biện không trình chiếu' : isPptx
+      ? 'PowerPoint cá nhân' : deck.category;
 
     const newSession: PracticeSession = {
       id: `ses_${Date.now()}`,
@@ -102,7 +101,7 @@ class SessionService {
       createdAt: 'Vừa xong',
       status: 'in_progress',
       score: undefined,
-      reportId: 'rep_01', // Link to demo report
+      reportId: undefined, // No pretend AI evaluation for real practice
       presentationSource: params.presentationSource,
     };
 
