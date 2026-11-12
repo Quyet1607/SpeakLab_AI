@@ -943,17 +943,33 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       >
         <div className="space-y-3 text-xs text-[#3D4740]">
           <div>
-            <span className="text-[#768078] block text-[11px]">Tên đề tài:</span>
+            <span className="text-[#768078] block text-[11px]">Tên buổi luyện:</span>
             <p className="font-bold text-sm mt-0.5">{session.title}</p>
           </div>
+          <div>
+            <span className="text-[#768078] block text-[11px]">Đề tài học sinh đã nhập:</span>
+            <p className="font-semibold text-sm mt-0.5">{session.topic}</p>
+          </div>
+          {session.topicDescription && (
+            <div>
+              <span className="text-[#768078] block text-[11px]">Mô tả đề tài:</span>
+              <p className="whitespace-pre-wrap break-words mt-0.5">{session.topicDescription}</p>
+            </div>
+          )}
+          {session.speakingGoal && (
+            <div>
+              <span className="text-[#768078] block text-[11px]">Mục tiêu bài nói:</span>
+              <p className="whitespace-pre-wrap break-words mt-0.5">{session.speakingGoal}</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E4E9E3]">
             <div>
               <span className="text-[#768078] text-[11px]">Chế độ:</span>
               <p className="font-semibold text-[#4A6453]">{session.modeTitle}</p>
             </div>
             <div>
-              <span className="text-[#768078] text-[11px]">Chủ đề:</span>
-              <p className="font-semibold">{session.topic}</p>
+              <span className="text-[#768078] text-[11px]">Số trang trình chiếu:</span>
+              <p className="font-semibold">{session.slideCount || 'Không có'}</p>
             </div>
             <div>
               <span className="text-[#768078] text-[11px]">Thời lượng mục tiêu:</span>
