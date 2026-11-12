@@ -16,7 +16,8 @@ import {
   Video,
   Layers,
   HelpCircle,
-  Download
+  Download,
+  Play
 } from 'lucide-react';
 import {
   UserProfile,
@@ -41,6 +42,7 @@ import { screenShareService } from '../services/screenShareService';
 import { mediaDeviceService, DevicePermissionState } from '../services/mediaDeviceService';
 import { ScreenAudioRecordingSession, PresentationRecordingResult, type RecordingVideoSource } from '../services/presentationRecordingService';
 import { saveLocalVideo } from '../services/localVideoLibrary';
+import { recordingLibraryTitle, recordingDownloadName } from '../services/recordingNames';
 
 interface MeetingRoomPageProps {
   currentUser: UserProfile;
@@ -109,6 +111,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [recordingDownloaded, setRecordingDownloaded] = useState(false);
   const [recordingSavedLocal, setRecordingSavedLocal] = useState(false);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
+  const [showRecordingPreview, setShowRecordingPreview] = useState(false);
+  const [recordingPreviewUrl, setRecordingPreviewUrl] = useState<string | null>(null);
   const [showRecordingConfirm, setShowRecordingConfirm] = useState(false);
 
   // Modals & Notices
@@ -187,6 +191,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       recordingSourceRef.current = source;
       setRecordingVideoSource(source);
       recordingSessionRef.current = sessionRecorder;
+      setShowRecordingPreview(false);
       setRecordingResult(null);
       setRecordingDownloaded(false);
       setRecordingSavedLocal(false);
@@ -202,6 +207,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const handleStopRecording = async (reason?: string) => {
     const active = recordingSessionRef.current;
     if (!active) return;
+    const finishedSource = recordingSourceRef.current ?? recordingVideoSource;
     recordingSessionRef.current = null;
     recordingSourceRef.current = null;
     setRecordingStatus('finalizing');
@@ -211,15 +217,20 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingDownloaded(false);
       setRecordingSavedLocal(false);
       setRecordingDuration(Math.round(result.durationMs / 1000));
+      let savedInBrowser = false;
       try {
-        // IndexedDB is the chosen device-only storage; this is NOT a cloud upload.
-        await saveLocalVideo(session, result);
+        // Keep the same IndexedDB schema; only use clearer titles for NEW recordings.
+        await saveLocalVideo({ ...session, title: recordingLibraryTitle(session.title, finishedSource) }, result);
+        savedInBrowser = true;
         setRecordingSavedLocal(true);
         if (reason) setRecordingNotice(reason + ' Đã lưu video trên trình duyệt này.');
       } catch (saveError) {
         setRecordingNotice((reason ? reason + ' ' : '') + (saveError instanceof Error ? saveError.message : 'Không lưu được video.') + ' Hãy nhấn “Lưu video” để tải về thiết bị ngay.');
       }
       setRecordingStatus('ready');
+      // Show instant playback after a normal, successfully saved recording.
+      // If capture stopped unexpectedly, show the warning first; preview stays available.
+      if (savedInBrowser && !reason) setShowRecordingPreview(true);
     } catch (error) {
       setRecordingStatus('error');
       setRecordingNotice(error instanceof Error ? error.message : 'Không thể hoàn tất bản ghi.');
@@ -233,13 +244,23 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     const url = URL.createObjectURL(recordingResult.blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `SpeakLab_AI_ghi_man_hinh_${new Date().toISOString().replace(/[:.]/g, '-')}.${recordingResult.fileExtension}`;
+    link.download = recordingDownloadName(session.title, recordingVideoSource, recordingResult.fileExtension);
     document.body.appendChild(link);
     link.click();
     link.remove();
     setRecordingDownloaded(true); // requested, not verified by OS
     window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
+
+  useEffect(() => {
+    if (!recordingResult) {
+      setRecordingPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(recordingResult.blob);
+    setRecordingPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [recordingResult]);
 
   useEffect(() => {
     if (recordingStatus !== 'recording' || recordingStartedAt === null) return;
@@ -803,8 +824,16 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         }}
         onEndMeeting={() => setShowEndModal(true)}
         recordingStatus={recordingStatus}
+        recordingDuration={recordingDuration}
         onRecordClick={() => recordingStatus === 'recording' ? void handleStopRecording() : setShowRecordingConfirm(true)}
       />
+
+      {recordingStatus === 'recording' &&
+        (micState === 'interrupted' || (recordingSourceRef.current === 'camera' && cameraState === 'interrupted')) && (
+        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 w-[min(94vw,520px)] z-40 p-3 rounded-xl border border-[#E9C999] bg-[#FFF7E7] text-[#665125] shadow-lg text-xs">
+          <strong>Đường ghi đang bị gián đoạn.</strong> Camera hoặc micro tạm mất tín hiệu. Hãy kiểm tra thiết bị; nếu nguồn bị ngắt hẳn, bản ghi sẽ tự kết thúc để tránh thiếu hình hoặc tiếng.
+        </div>
+      )}
 
       {/* Xác nhận nguồn hình ảnh: camera hoặc PowerPoint chia sẻ + micro */}
       <Modal
@@ -842,11 +871,51 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
             <p className="text-[11px] text-[#768078]">{formatTimer(Math.round(recordingResult.durationMs / 1000))} · {(recordingResult.bytes / 1024 / 1024).toFixed(1)} MB · {recordingResult.fileExtension.toUpperCase()}</p>
             <p className="text-[10px] text-[#768078]">{recordingSavedLocal ? 'Đã lưu trên trình duyệt này. Xem lại trong Lịch sử luyện tập.' : recordingDownloaded ? 'Đã yêu cầu tải xuống; hãy kiểm tra thư mục Tải xuống.' : 'Chưa lưu – hãy tải về máy trước khi rời phòng.'}</p>
           </div>
-          <button onClick={handleDownloadRecording} className="bg-[#83A58E] text-white hover:bg-[#6F917A] font-semibold text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer">
-            <Download className="w-4 h-4" /> Lưu video
-          </button>
+          <div className="flex flex-col gap-2 shrink-0">
+            <button onClick={() => setShowRecordingPreview(true)} className="border border-[#83A58E] text-[#395640] bg-white font-semibold text-xs px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer">
+              <Play className="w-4 h-4" /> Xem ngay
+            </button>
+            <button onClick={handleDownloadRecording} className="bg-[#83A58E] text-white hover:bg-[#6F917A] font-semibold text-xs px-3 py-2 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer">
+              <Download className="w-4 h-4" /> Tải về
+            </button>
+          </div>
         </div>
       )}
+
+      <Modal
+        isOpen={showRecordingPreview && Boolean(recordingResult)}
+        onClose={() => setShowRecordingPreview(false)}
+        maxWidth="lg"
+        title="Xem lại bản ghi vừa thực hiện"
+        subtitle={recordingVideoSource === 'camera' ? 'Hình camera và tiếng micro' : 'Màn hình PowerPoint và tiếng micro'}
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setShowRecordingPreview(false)}>Đóng</Button>
+            <Button variant="primary" size="sm" icon={<Download className="w-4 h-4" />} onClick={handleDownloadRecording}>Tải video về máy</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {recordingPreviewUrl ? (
+            <video
+              key={recordingPreviewUrl}
+              controls
+              playsInline
+              preload="metadata"
+              src={recordingPreviewUrl}
+              className="w-full max-h-[60vh] bg-[#17211B] rounded-xl"
+              aria-label="Xem trước video vừa ghi"
+            />
+          ) : (
+            <p className="text-xs text-[#647568]">Đang chuẩn bị video xem thử…</p>
+          )}
+          <p className="text-xs text-[#556057]">
+            {recordingSavedLocal
+              ? 'Video đã được lưu trên trình duyệt này. Có thể xem lại tại Lịch sử luyện tập.'
+              : 'Video chưa được lưu vào thư viện. Hãy tải tệp về máy để không bị mất.'}
+          </p>
+        </div>
+      </Modal>
 
       {/* 4. Modals */}
 
