@@ -536,13 +536,7 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
                 className="w-full h-full object-contain"
               />
 
-              {/* Floating Live Helper Overlay */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[#171F19]/90 backdrop-blur-md border border-[#354638] text-white px-3.5 py-1.5 rounded-full text-[11px] flex items-center gap-2 shadow-lg pointer-events-none max-w-[92%]">
-                <span className="w-2 h-2 rounded-full bg-[#83A58E] animate-ping shrink-0" />
-                <span className="truncate">
-                  Đang phát trực tiếp từ PowerPoint · Điều khiển phím chuyển slide trên PowerPoint của bạn
-                </span>
-              </div>
+
             </div>
           </div>
         ) : isPptx ? (
@@ -811,29 +805,9 @@ export const SlideViewer: React.FC<SlideViewerProps> = ({
         )}
       </div>
 
-      {/* 3. Bottom Slide Navigation Bar */}
-      {isScreenShare ? (
-        <div className="h-10 sm:h-12 bg-[#242C26] border-t border-[#2D3830] px-2 sm:px-4 flex items-center justify-between text-xs shrink-0">
-          <div className="flex items-center gap-2 text-[#A8B6AB] text-[11px] truncate">
-            <span className="w-2 h-2 rounded-full bg-[#83A58E] animate-pulse shrink-0" />
-            <span className="font-semibold text-white truncate">Cửa sổ PowerPoint ngoài</span>
-            <span className="hidden sm:inline text-[#768078]">· Hiệu ứng thời gian thực</span>
-          </div>
-
-          <div className="text-[11px] text-[#A8B6AB] hidden md:block text-center truncate max-w-sm">
-            Thao tác chuyển slide và kích hoạt hiệu ứng trực tiếp trên PowerPoint của bạn
-          </div>
-
-          <button
-            onClick={onStopScreenShare}
-            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#873631] hover:bg-[#A33E37] text-white flex items-center gap-1.5 font-medium transition-colors cursor-pointer min-h-[34px] sm:min-h-[36px] shrink-0"
-            title="Dừng chia sẻ màn hình"
-          >
-            <Square className="w-3.5 h-3.5 fill-current" />
-            <span>Dừng chia sẻ</span>
-          </button>
-        </div>
-      ) : (
+      {/* Local PPTX/demo slides retain navigation; an external shared screen
+          uses the full viewport with its stop button in the top toolbar. */}
+      {!isScreenShare && (
         <div className="h-11 sm:h-12 bg-[#242C26] border-t border-[#2D3830] px-2 sm:px-4 flex items-center justify-between text-xs shrink-0">
           <button
             onClick={onPrevSlide}
