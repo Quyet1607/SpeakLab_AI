@@ -53,7 +53,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
     initialConfig?.modeId || 'defense'
   );
   const [sessionTitle, setSessionTitle] = useState(
-    initialConfig?.title || 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI'
+    initialConfig?.title || 'Buổi luyện thuyết trình của tôi'
   );
   const [selectedDeckId, setSelectedDeckId] = useState<string>(
     initialConfig?.deckId || availableDecks[0]?.id || ''
@@ -123,7 +123,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
   const handlePptxSourceChange = (newSource: PresentationSource) => {
     setPresentationSource(newSource);
     // If current title is default, suggest clean title from PPTX filename
-    if (sessionTitle === 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI') {
+    if (sessionTitle === 'Buổi luyện thuyết trình của tôi') {
       const cleanName = newSource.name.replace(/\.pptx$/i, '').replace(/[_-]/g, ' ');
       setSessionTitle(`Thuyết trình: ${cleanName}`);
     }
