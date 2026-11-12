@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { recordingDownloadName, recordingLibraryTitle } from '../src/services/recordingNames.ts';
+import { recordingDownloadName, recordingLibraryTitle, libraryVideoDownloadName } from '../src/services/recordingNames.ts';
 
 describe('student-friendly recording names', () => {
   test('labels new recordings by camera vs PowerPoint without changing old entries', () => {
@@ -17,6 +17,13 @@ describe('student-friendly recording names', () => {
     expect(cameraName).toBe('SpeakLab_Camera_Bao_ve_Phan_loai_rac_bang_AI_2026-11-12_14-02-07.webm');
     expect(recordingDownloadName('Thuyết trình PPT', 'screen', 'mp4', d))
       .toBe('SpeakLab_PowerPoint_Thuyet_trinh_PPT_2026-11-12_14-02-07.mp4');
+  });
+
+  test('names legacy and imported video downloads without guessing their sources', () => {
+    const name = libraryVideoDownloadName('Bài luyện cá nhân', 'webm', '2026-11-12T04:20:00.000Z');
+    expect(name.startsWith('SpeakLab_Video_Bai_luyen_ca_nhan_')).toBe(true);
+    expect(name.endsWith('.webm')).toBe(true);
+    expect(libraryVideoDownloadName('...', 'mp4', 'invalid').startsWith('SpeakLab_Video_Buoi_luyen_')).toBe(true);
   });
 
   test('never injects directory separators or blank filename', () => {
