@@ -468,6 +468,11 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     const unsubscribeDevice = mediaDeviceService.subscribe(() => {
       const camStatus = mediaDeviceService.getCameraStatus();
       const micStatus = mediaDeviceService.getMicrophoneStatus();
+      // If the learner disables/unplugs the mic, recognition must not keep
+      // listening through a separate browser-owned microphone session.
+      if (!micStatus.isEnabled && speechRecognitionRef.current) {
+        void speechRecognitionRef.current.stop();
+      }
 
       setCameraStream(mediaDeviceService.getCameraStream());
       setIsCameraOff(!camStatus.isEnabled);
