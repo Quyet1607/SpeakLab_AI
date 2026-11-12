@@ -62,7 +62,7 @@ export const MeetingGallery: React.FC<MeetingGalleryProps> = ({
           )}
           <div className="absolute bottom-0 inset-x-0 flex items-center justify-between p-2.5 bg-[#121D15]/90 gap-2">
             <span className="text-xs font-semibold truncate">{currentUser.fullName} (Bạn)</span>
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] bg-[#354F3B] text-[#D9F0DC]">Thật {isMuted ? '· Mic tắt' : '· Mic bật'}</span>
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] bg-[#354F3B] text-[#D9F0DC]">{currentUser.roleDescription === 'Chưa đăng nhập' ? 'Khách' : 'Đã đăng nhập'} {isMuted ? '· Mic tắt' : '· Mic bật'}</span>
           </div>
         </div>
         {participants.map(p => (
