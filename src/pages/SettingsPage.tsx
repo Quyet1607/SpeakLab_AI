@@ -49,7 +49,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
     <div className="space-y-6 max-w-4xl mx-auto">
       <DemoNotice
         title="Trang cấu hình hệ thống"
-        message="Các thiết lập dưới đây được lưu trong phiên làm việc hiện tại của trình duyệt. Các kết nối phần cứng và tài khoản cơ sở dữ liệu sẽ được triển khai ở các giai đoạn sau."
+        message="Video luyện tập hiện lưu trực tiếp trên trình duyệt của thiết bị; không cần Google Drive hoặc cơ sở dữ liệu đám mây. Đăng nhập Google giúp nhóm lịch sử video cá nhân trên cùng trình duyệt."
       />
 
       <div className="bg-white rounded-2xl border border-[#E4E9E3] shadow-xs overflow-hidden">
@@ -307,7 +307,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
               <div className="rounded-xl bg-[#EEF4F0] border border-[#D9E5DC] p-4 space-y-2 text-xs">
                 <h4 className="font-bold text-[#2A4433]">Tài liệu quyền riêng tư và điều khoản</h4>
                 <p className="text-[#556057] leading-relaxed">
-                  Đây là nội dung dự thảo cho môi trường thử nghiệm; chưa bật đồng bộ video Google Drive.
+                  Đây là nội dung dự thảo cho môi trường thử nghiệm; video chỉ lưu cục bộ theo trình duyệt.
                   Đọc kỹ cách lưu video cục bộ và giới hạn quyền riêng tư trước khi sử dụng.
                 </p>
                 <div className="flex flex-wrap gap-3">
@@ -327,7 +327,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                     Xử lý cục bộ tại thiết bị (Edge Processing)
                   </h4>
                   <p className="text-[#768078] text-[11px] leading-relaxed">
-                    Video được ghi và lưu trong IndexedDB của trình duyệt hiện tại, chưa tự động đồng bộ Google Drive.
+                    Video được ghi và lưu trong IndexedDB của trình duyệt hiện tại, không tự động đồng bộ sang thiết bị khác.
                     Khi sử dụng đăng nhập Google hoặc các tính năng trực tuyến khác, dữ liệu liên quan có thể được xử lý bởi dịch vụ tương ứng.
                     Không nên dùng chung trình duyệt để lưu video riêng tư.
                   </p>
@@ -338,7 +338,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                     Không yêu cầu quyền truy cập cá nhân nhạy cảm
                   </h4>
                   <p className="text-[#768078] text-[11px] leading-relaxed">
-                    Đăng nhập Google là tùy chọn và dùng thông tin định danh cơ bản để nhận diện phiên cá nhân. Không yêu cầu học sinh cung cấp API key; video hiện lưu trong trình duyệt, chưa bảo đảm riêng tư khi dùng chung thiết bị.
+                    Đăng nhập Google là tùy chọn và dùng thông tin định danh cơ bản để phân nhóm video trên trình duyệt. Không yêu cầu API key; video chưa được bảo mật riêng biệt giữa người dùng chung thiết bị. Hãy dùng máy cá nhân và tải bản sao video quan trọng.
                   </p>
                 </div>
               </div>
