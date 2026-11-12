@@ -3,7 +3,7 @@ import { meetingTileLayout } from '../src/services/meetingGridCapture.ts';
 
 describe('SpeakLab meeting gallery layout for one real user + mock avatars', () => {
   test('single user receives a tile', () => {
-    expect(meetingTileLayout(1)).toEqual({ columns: 2, rows: 1 });
+    expect(meetingTileLayout(1)).toEqual({ columns: 1, rows: 1 });
   });
   test('four people fit into an accessible grid', () => {
     const layout = meetingTileLayout(4);
