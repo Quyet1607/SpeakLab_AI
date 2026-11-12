@@ -127,6 +127,65 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await s.stop();
   });
 
+  test('splits a single final browser result after a 1.8-second speaking pause', async () => {
+    let ms = 0;
+    let seconds = 1;
+    const confirmed = [];
+    const s = new VietnameseBrowserSpeechSession({
+      onState: () => {}, onInterim: () => {}, onSegment: p => confirmed.push(p),
+      getElapsedSeconds: () => seconds,
+    }, () => ms);
+    s.start();
+    const engine = FakeRecognition.current;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: 'Xin chào thầy cô' } }] });
+    ms = 2100;
+    seconds = 3;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: 'Xin chào thầy cô hôm nay em trình bày' } }] });
+    ms = 2500;
+    seconds = 4;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: 'Xin chào thầy cô hôm nay em trình bày' } }] });
+    expect(confirmed.map(p => p.text)).toEqual(['Xin chào thầy cô', 'hôm nay em trình bày']);
+    expect(confirmed.map(p => p.text).join(' ')).toBe('Xin chào thầy cô hôm nay em trình bày');
+    await s.stop();
+  });
+
+  test('does not split a short pause and ignores revised interim hypotheses', async () => {
+    let ms = 0;
+    const confirmed = [];
+    const s = new VietnameseBrowserSpeechSession({
+      onState: () => {}, onInterim: () => {}, onSegment: p => confirmed.push(p),
+      getElapsedSeconds: () => 5,
+    }, () => ms);
+    s.start();
+    const engine = FakeRecognition.current;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: 'Xin chào' } }] });
+    ms = 2000;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: 'Xin chào các bạn' } }] });
+    ms = 2300;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: 'Xin kính chào các bạn' } }] });
+    expect(confirmed.map(p => p.text)).toEqual(['Xin kính chào các bạn']);
+    await s.stop();
+  });
+
+  test('recognizer speechend/speechstart pause signals split even with intermittent updates', async () => {
+    let ms = 0;
+    const confirmed = [];
+    const s = new VietnameseBrowserSpeechSession({
+      onState: () => {}, onInterim: () => {}, onSegment: p => confirmed.push(p),
+      getElapsedSeconds: () => Math.floor(ms / 1000),
+    }, () => ms);
+    s.start();
+    const engine = FakeRecognition.current;
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: false, 0: { transcript: 'Chủ đề của em' } }] });
+    ms = 500;
+    engine.onspeechend?.();
+    ms = 2600;
+    engine.onspeechstart?.();
+    engine.onresult({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: 'Chủ đề của em là bảo vệ dữ liệu' } }] });
+    expect(confirmed.map(p => p.text)).toEqual(['Chủ đề của em', 'là bảo vệ dữ liệu']);
+    await s.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
