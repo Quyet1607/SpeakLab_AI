@@ -16,6 +16,7 @@ import {
   Video,
   Layers,
   HelpCircle,
+  ScrollText,
   Download
 } from 'lucide-react';
 import {
@@ -24,7 +25,8 @@ import {
   PresentationDeck,
   VirtualParticipant,
   ActivePage,
-  PresentationSource
+  PresentationSource,
+  type SpeechTranscriptSegment
 } from '../types';
 import { SlideViewer } from '../features/meeting/SlideViewer';
 import { ParticipantGrid } from '../features/meeting/ParticipantGrid';
@@ -44,6 +46,8 @@ import { ScreenAudioRecordingSession, PresentationRecordingResult, type Recordin
 import { saveLocalVideo } from '../services/localVideoLibrary';
 import { recordingLibraryTitle, recordingDownloadName } from '../services/recordingNames';
 import { MeetingGridCapture } from '../services/meetingGridCapture';
+import { VietnameseBrowserSpeechSession, isVietnameseSpeechRecognitionSupported, normalizeTranscriptSegments, SPEECH_SEGMENT_LIMIT } from '../services/vietnameseSpeechRecognition';
+import { SpeechTranscriptPanel } from '../features/meeting/SpeechTranscriptPanel';
 
 interface MeetingRoomPageProps {
   currentUser: UserProfile;
@@ -51,7 +55,7 @@ interface MeetingRoomPageProps {
   deck: PresentationDeck;
   participants: VirtualParticipant[];
   onNavigate: (page: ActivePage) => void;
-  onFinishSession: (actualSeconds: number, destination: 'report' | 'dashboard') => void;
+  onFinishSession: (actualSeconds: number, destination: 'report' | 'dashboard', transcript: SpeechTranscriptSegment[]) => void;
 }
 
 export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
@@ -118,6 +122,79 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
   const [showRecordingConfirm, setShowRecordingConfirm] = useState(false);
 
+  // Phase 7.2 — optional browser-native speech recognition, independent of video.
+  // The mic and any browser recognition service are never enabled automatically.
+  const speechRecognitionRef = useRef<VietnameseBrowserSpeechSession | null>(null);
+  const speechSegmentsRef = useRef<SpeechTranscriptSegment[]>([]);
+  const elapsedSecondsRef = useRef(0);
+  const [speechSegments, setSpeechSegments] = useState<SpeechTranscriptSegment[]>([]);
+  const [speechInterim, setSpeechInterim] = useState('');
+  const [speechStatus, setSpeechStatus] = useState<'idle' | 'starting' | 'listening' | 'stopped' | 'error'>('idle');
+  const [speechNotice, setSpeechNotice] = useState<string | null>(null);
+  const [showSpeechPanel, setShowSpeechPanel] = useState(false);
+
+  useEffect(() => { elapsedSecondsRef.current = elapsedSeconds; }, [elapsedSeconds]);
+
+  const startSpeechRecognition = () => {
+    if (speechRecognitionRef.current || speechStatus === 'starting' || speechStatus === 'listening') return;
+    const activeMic = mediaDeviceService.getMicrophoneStream();
+    if (!activeMic?.getAudioTracks().some(t => t.readyState === 'live' && t.enabled)) {
+      setSpeechNotice('Hãy bật micro thật trên thanh điều khiển trước khi bắt đầu nhận diện.');
+      return;
+    }
+    if (speechSegmentsRef.current.length >= SPEECH_SEGMENT_LIMIT) {
+      setSpeechNotice('Đã đạt giới hạn bản ghi chữ của buổi luyện. Video vẫn có thể ghi tiếp.');
+      return;
+    }
+    setSpeechNotice(null);
+    setSpeechStatus('starting');
+    try {
+      const controller = new VietnameseBrowserSpeechSession({
+        getElapsedSeconds: () => elapsedSecondsRef.current,
+        onInterim: text => { if (mountedRef.current) setSpeechInterim(text); },
+        onState: (state, message) => {
+          if (!mountedRef.current) return;
+          setSpeechStatus(state);
+          if (message) setSpeechNotice(message);
+          if (state === 'stopped' || state === 'error') speechRecognitionRef.current = null;
+        },
+        onSegment: segment => {
+          if (!mountedRef.current) return;
+          const updated = normalizeTranscriptSegments([...speechSegmentsRef.current, segment]);
+          speechSegmentsRef.current = updated;
+          setSpeechSegments(updated);
+          if (updated.length >= SPEECH_SEGMENT_LIMIT) {
+            setSpeechNotice('Đã nhận diện tối đa số đoạn cho buổi luyện. Bạn vẫn có thể tiếp tục ghi video.');
+            void speechRecognitionRef.current?.stop();
+          }
+        },
+      });
+      speechRecognitionRef.current = controller;
+      controller.start(); // Synchronous with the user's explicit opt-in click.
+    } catch (error) {
+      speechRecognitionRef.current?.dispose();
+      speechRecognitionRef.current = null;
+      setSpeechStatus('error');
+      setSpeechNotice(error instanceof Error ? error.message : 'Không bắt đầu nhận diện được.');
+    }
+  };
+
+  const stopSpeechRecognition = async () => {
+    const current = speechRecognitionRef.current;
+    if (current) await current.stop();
+    if (speechRecognitionRef.current === current) speechRecognitionRef.current = null;
+    setSpeechInterim('');
+    setSpeechStatus(prev => prev === 'error' ? prev : 'stopped');
+  };
+
+  const clearSpeechRecognition = async () => {
+    if (!window.confirm('Xóa toàn bộ bản ghi chữ của buổi luyện này? Video đã ghi sẽ không bị xóa.')) return;
+    await stopSpeechRecognition();
+    speechSegmentsRef.current = [];
+    setSpeechSegments([]);
+    setSpeechNotice('Đã xóa bản ghi chữ của buổi luyện này trên giao diện.');
+  };
+
   // Modals & Notices
   const [showEndModal, setShowEndModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -131,6 +208,19 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   useEffect(() => {
     activeQuestionRef.current = activeQuestion;
   }, [activeQuestion]);
+
+  const finishMeetingWithTranscript = async (destination: 'report' | 'dashboard') => {
+    if (!canLeaveMeeting(true)) { setShowEndModal(false); return; }
+    // The browser may send a final recognition event in response to stop().
+    // Wait briefly before taking the canonical segmentsRef snapshot.
+    await stopSpeechRecognition();
+    if (!mountedRef.current) return;
+    void handleStopScreenShare();
+    mediaDeviceService.stopAll();
+    setIsTimerRunning(false);
+    setShowEndModal(false);
+    onFinishSession(elapsedSecondsRef.current, destination, [...speechSegmentsRef.current]);
+  };
 
   // Mobile View Switcher: 'slide' | 'audience' | 'camera'
   const [mobileTab, setMobileTab] = useState<'slide' | 'audience' | 'camera'>('slide');
@@ -149,7 +239,12 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     }
   };
 
-  const canLeaveMeeting = (): boolean => {
+  const canLeaveMeeting = (savingTranscript = false): boolean => {
+    if (!savingTranscript && (speechRecognitionRef.current || speechSegmentsRef.current.length > 0)) {
+      setShowSpeechPanel(true);
+      setSpeechNotice('Có bản ghi chữ chưa được lưu. Hãy kết thúc buổi luyện để lưu vào Lịch sử hoặc xóa bản ghi chữ trước khi thoát.');
+      return false;
+    }
     if (recordingSessionRef.current || recordingStatus === 'finalizing') {
       setRecordingNotice('Hãy dừng ghi hình và đợi hoàn tất tệp trước khi rời phòng.');
       return false;
@@ -339,6 +434,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const handleToggleMic = async () => {
     setMicError(null);
     if (!isMuted) {
+      await stopSpeechRecognition();
       if (recordingSessionRef.current) {
         await handleStopRecording('Micro đã được tắt; bản ghi kết thúc để bảo đảm quyền riêng tư.');
       }
@@ -516,6 +612,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      speechRecognitionRef.current?.dispose();
+      speechRecognitionRef.current = null;
       recordingSessionRef.current?.dispose();
       recordingSessionRef.current = null;
       recordingSourceRef.current = null;
@@ -657,6 +755,17 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
             </button>
           </div>}
 
+          <button
+            type="button"
+            onClick={() => setShowSpeechPanel(prev => !prev)}
+            aria-label="Mở bản ghi lời nói tiếng Việt"
+            aria-expanded={showSpeechPanel}
+            className="text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#2B3A2E] text-[#D4E9D8] border border-[#436047] hover:bg-[#38503C] flex items-center gap-1.5 cursor-pointer"
+          >
+            <ScrollText className="w-4 h-4" />
+            <span className="hidden sm:inline">Lời nói</span>
+            {speechStatus === 'listening' && <span className="w-2 h-2 bg-[#A8DDB3] rounded-full animate-pulse" aria-hidden="true" />}
+          </button>
           <button
             onClick={() => setShowEndModal(true)}
             className="text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#873631] hover:bg-[#A33E37] text-white font-medium transition-colors cursor-pointer shrink-0 min-h-[32px] sm:min-h-[36px] flex items-center justify-center"
@@ -821,6 +930,21 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           </>
           )}
         </div>
+
+        {showSpeechPanel && (
+          <SpeechTranscriptPanel
+            segments={speechSegments}
+            interimText={speechInterim}
+            status={speechStatus}
+            notice={speechNotice}
+            supported={isVietnameseSpeechRecognitionSupported()}
+            micEnabled={!isMuted}
+            onStart={startSpeechRecognition}
+            onStop={() => { void stopSpeechRecognition(); }}
+            onClear={() => { void clearSpeechRecognition(); }}
+            onClose={() => setShowSpeechPanel(false)}
+          />
+        )}
 
         {/* Right Drawers */}
         <AttendeeDrawer
@@ -988,22 +1112,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         isOpen={showEndModal}
         onClose={() => setShowEndModal(false)}
         elapsedSeconds={elapsedSeconds}
-        onConfirmViewReport={() => {
-          if (!canLeaveMeeting()) { setShowEndModal(false); return; }
-          void handleStopScreenShare();
-          mediaDeviceService.stopAll();
-          setIsTimerRunning(false);
-          setShowEndModal(false);
-          onFinishSession(elapsedSeconds, 'report');
-        }}
-        onReturnToDashboard={() => {
-          if (!canLeaveMeeting()) { setShowEndModal(false); return; }
-          void handleStopScreenShare();
-          mediaDeviceService.stopAll();
-          setIsTimerRunning(false);
-          setShowEndModal(false);
-          onFinishSession(elapsedSeconds, 'dashboard');
-        }}
+        onConfirmViewReport={() => { void finishMeetingWithTranscript('report'); }}
+        onReturnToDashboard={() => { void finishMeetingWithTranscript('dashboard'); }}
       />
 
       {/* Screen Share 5-Step Guidance Modal (Phase 2.3) */}
