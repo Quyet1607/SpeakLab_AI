@@ -40,6 +40,7 @@ export default function App() {
   }, []);
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const [sessionOwnerSub, setSessionOwnerSub] = useState<string | null>(null);
 
   useEffect(() => {
     if (accountSession.status === 'loading') return;
@@ -82,6 +83,7 @@ export default function App() {
         totalPracticeMinutes: stats.totalPracticeMinutes,
         avgMinutesPerSession: stats.avgMinutesPerSession,
         totalReports: stats.totalReports,
+        improvementPercentage: 0,
       },
     };
   }, [sessions, accountSession]);
@@ -98,6 +100,8 @@ export default function App() {
   const handleStartSession = (config: PracticeSetupConfig) => {
     // Save chosen config in state
     setSetupConfig(config);
+    setSessionOwnerSub(accountSession.status === 'signed_in' ? accountSession.identity?.id || null : null);
+    setHistoryNotice(null);
 
     const newSession = sessionService.createSession(config);
     const deck =
@@ -118,13 +122,17 @@ export default function App() {
 
   const handleFinishSession = async (actualSeconds: number, destination: 'report' | 'dashboard') => {
     const checked = await refreshSession();
-    const owner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+    const activeOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+    // Bind a completed session to the account which started the practice,
+    // not another Google account that may have signed in midway.
     try {
-      saveCompletedPracticeSession(currentSession, actualSeconds, owner);
-      setSessions(listCompletedPracticeSessions(owner));
-      setHistoryNotice(destination === 'report'
-        ? 'Đã lưu buổi luyện thực tế trên trình duyệt. Báo cáo AI dựa trên dữ liệu thực chưa được kích hoạt; các báo cáo mẫu hiện chỉ để tham khảo.'
-        : null);
+      saveCompletedPracticeSession(currentSession, actualSeconds, sessionOwnerSub);
+      setSessions(listCompletedPracticeSessions(activeOwner));
+      setHistoryNotice(sessionOwnerSub !== activeOwner
+        ? 'Buổi luyện đã lưu dưới tài khoản khi bắt đầu. Đăng nhập lại đúng tài khoản đó để xem trong lịch sử.'
+        : destination === 'report'
+          ? 'Đã lưu buổi luyện thực tế trên trình duyệt. Báo cáo AI dựa trên dữ liệu thực chưa được kích hoạt; các báo cáo mẫu hiện chỉ để tham khảo.'
+          : null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Không lưu được lịch sử buổi luyện.');
     }
@@ -138,7 +146,7 @@ export default function App() {
       modeId: session.mode,
       deckId: 'deck_ai_waste',
       participantCount: session.participantCount,
-      durationMinutes: Math.round(session.durationSeconds / 60),
+      durationMinutes: Math.max(1, Math.round(session.durationSeconds / 60)),
     });
     setCurrentSession(session);
     setActivePage('practice_setup');
