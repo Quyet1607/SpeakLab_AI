@@ -77,6 +77,20 @@ describe('local screen / camera recording sources', () => {
     expect(result.bytes).toBeGreaterThan(0);
   });
 
+  test('records composite meeting tiles with one real microphone and no captured simulated audio', async () => {
+    const composedVideo = new FakeTrack('video');
+    const realMicrophone = new FakeTrack('audio');
+    const session = new ScreenAudioRecordingSession(
+      new FakeMediaStream([composedVideo]), new FakeMediaStream([realMicrophone]),
+      () => {}, 'meeting',
+    );
+    session.start();
+    const result = await session.stop();
+    expect(result.bytes).toBeGreaterThan(0);
+    expect(composedVideo.stopCalls).toBe(0);
+    expect(realMicrophone.stopCalls).toBe(0);
+  });
+
   test('camera ending emits camera source, not screen; microphone ending is distinct', () => {
     const camera = new FakeTrack('video');
     const microphone = new FakeTrack('audio');
