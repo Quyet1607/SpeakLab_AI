@@ -1093,7 +1093,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           </div>
 
           <div className="p-2.5 rounded-lg bg-[#FAFBF9] border border-[#E4E9E3] text-[11px] text-[#768078]">
-            Lưu ý: Chỉ khi xác nhận ghi, ứng dụng mới thu màn hình chia sẻ và tiếng micro. Đợt 3.2A chưa ghi webcam.
+            Lưu ý: Chỉ khi bạn xác nhận, ứng dụng mới ghi camera hoặc màn hình chia sẻ kèm tiếng micro. Không tự tải video lên máy chủ.
           </div>
         </div>
       </Modal>
