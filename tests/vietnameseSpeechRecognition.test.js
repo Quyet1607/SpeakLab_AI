@@ -186,6 +186,42 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await s.stop();
   });
 
+  test('automatically inserts a live paragraph break after a pause without pressing Stop', async () => {
+    const live = [];
+    const confirmed = [];
+    let seconds = 1;
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: text => live.push(text),
+      onSegment: part => confirmed.push(part),
+      getElapsedSeconds: () => seconds,
+    });
+    const engine = FakeRecognition.current;
+    session.start();
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Xin chào thầy cô' } }],
+    });
+    engine.onspeechend?.();
+    await new Promise(resolve => setTimeout(resolve, 1900));
+    expect(engine.started).toBe(true);
+    expect(live.at(-1)).toBe('Xin chào thầy cô\n\n');
+    expect(confirmed).toHaveLength(0); // Provisional text is not saved.
+    seconds = 4;
+    engine.onspeechstart?.();
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Xin chào thầy cô hôm nay em trình bày' } }],
+    });
+    expect(live.at(-1)).toBe('Xin chào thầy cô\n\nhôm nay em trình bày');
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: true, 0: { transcript: 'Xin chào thầy cô hôm nay em trình bày' } }],
+    });
+    expect(confirmed.map(part => part.text)).toEqual(['Xin chào thầy cô', 'hôm nay em trình bày']);
+    await session.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
