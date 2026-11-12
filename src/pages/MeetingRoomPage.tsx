@@ -156,7 +156,13 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           if (!mountedRef.current) return;
           setSpeechStatus(state);
           if (message) setSpeechNotice(message);
-          if (state === 'stopped' || state === 'error') speechRecognitionRef.current = null;
+          if (state === 'error') {
+            const failed = speechRecognitionRef.current;
+            speechRecognitionRef.current = null;
+            failed?.dispose(); // Errors must not leave a browser-owned mic listening.
+          } else if (state === 'stopped') {
+            speechRecognitionRef.current = null;
+          }
         },
         onSegment: segment => {
           if (!mountedRef.current) return;
@@ -947,7 +953,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
             onStart={startSpeechRecognition}
             onStop={() => { void stopSpeechRecognition(); }}
             onClear={() => { void clearSpeechRecognition(); }}
-            onClose={() => setShowSpeechPanel(false)}
+            onClose={() => {
+              void stopSpeechRecognition();
+              setShowSpeechPanel(false);
+            }}
           />
         )}
 
