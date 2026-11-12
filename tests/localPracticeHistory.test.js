@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach } from 'bun:test';
 import {
   listCompletedPracticeSessions,
   saveCompletedPracticeSession,
+  deleteCompletedPracticeTranscript,
 } from '../src/services/localPracticeHistory.ts';
 
 let store = new Map();
@@ -71,6 +72,25 @@ describe('device-only completed practice history', () => {
     expect(listCompletedPracticeSessions(null)).toHaveLength(0);
     expect(listCompletedPracticeSessions('12345678901234567890')).toHaveLength(1);
   });
+  test('saves actual recognized speech and can delete text without deleting the session or video', () => {
+    const spoken = {
+      ...session,
+      transcriptSegments: [
+        { startSeconds: 2, endSeconds: 6, text: 'Giới thiệu nội dung học tập' },
+        { startSeconds: 10, endSeconds: 14, text: 'Trả lời câu hỏi phản biện' },
+      ],
+    };
+    saveCompletedPracticeSession(spoken, 45, '12345678901234567890');
+    const [retrieved] = listCompletedPracticeSessions('12345678901234567890');
+    expect(retrieved.transcriptSegments).toEqual(spoken.transcriptSegments);
+    expect(deleteCompletedPracticeTranscript(spoken.id, '11111111111111111111')).toBe(false);
+    expect(deleteCompletedPracticeTranscript(spoken.id, '12345678901234567890')).toBe(true);
+    const [afterDeletion] = listCompletedPracticeSessions('12345678901234567890');
+    expect(afterDeletion.id).toBe(spoken.id);
+    expect(afterDeletion.title).toBe(spoken.title);
+    expect(afterDeletion.transcriptSegments).toBeUndefined();
+  });
+
   test('same session ID is updated rather than duplicated', () => {
     saveCompletedPracticeSession(session, 30, null);
     saveCompletedPracticeSession(session, 45, null);
