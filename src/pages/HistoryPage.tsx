@@ -30,6 +30,7 @@ import { subscribeSession, refreshSession, type SessionState } from '../services
 
 interface HistoryPageProps {
   sessions: PracticeSession[];
+  notice?: string | null;
   onNavigate: (page: ActivePage) => void;
   onSelectSessionForReport: (sessionId: string) => void;
   onReplaySession: (session: PracticeSession) => void;
@@ -37,6 +38,7 @@ interface HistoryPageProps {
 
 export const HistoryPage: React.FC<HistoryPageProps> = ({
   sessions,
+  notice,
   onNavigate,
   onSelectSessionForReport,
   onReplaySession,
@@ -145,8 +147,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     <div className="space-y-6">
       <DemoNotice
         title="Lịch sử các buổi luyện tập"
-        message="Danh sách các phiên luyện tập đã thực hiện. Bạn có thể xem lại báo cáo phân tích hoặc khởi chạy lại buổi luyện tập với các thông số tương tự."
+        message="Chỉ thống kê các buổi luyện thực tế đã hoàn thành trên trình duyệt này. Dữ liệu mẫu không được tính là kết quả học tập. Video được lưu riêng ở mục bên dưới."
       />
+
+      {notice && <div role="status" className="rounded-xl bg-[#EEF4F0] border border-[#D9E5DC] text-sm p-4 text-[#324C3B]">{notice}</div>}
 
       {/* Local-only recordings grouped by Google identity, not server-enforced private storage. */}
       <section className="bg-white border border-[#E4E9E3] rounded-2xl p-5 md:p-6 space-y-4">
@@ -239,10 +243,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-base md:text-lg font-bold text-[#3D4740]">
-              Tất cả các buổi luyện tập ({sessions.length})
+              Các buổi luyện đã hoàn thành ({sessions.length})
             </h3>
             <p className="text-xs text-[#768078] mt-0.5">
-              Theo dõi sự tiến bộ và điểm số qua từng lần tập dượt
+              Chỉ tính buổi luyện hoàn thành trên trình duyệt này; không cộng dữ liệu minh họa
             </p>
           </div>
 
@@ -321,10 +325,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           <div className="bg-white rounded-2xl border border-[#E4E9E3] p-12 text-center">
             <History className="w-10 h-10 text-[#768078] mx-auto mb-2 opacity-50" />
             <p className="text-sm font-semibold text-[#3D4740]">
-              Không tìm thấy buổi luyện tập phù hợp
+              {sessions.length ? 'Không tìm thấy buổi luyện phù hợp' : 'Chưa có buổi luyện hoàn thành'}
             </p>
             <p className="text-xs text-[#768078] mt-1">
-              Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc chế độ.
+              {sessions.length ? 'Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc chế độ.' : 'Bắt đầu một buổi luyện, sau đó chọn Kết thúc để lưu lịch sử thực tế.'}
             </p>
           </div>
         ) : (
@@ -389,17 +393,21 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   Luyện lại
                 </Button>
 
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={<FileCheck className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    onSelectSessionForReport(session.id);
-                    onNavigate('report');
-                  }}
-                >
-                  Xem báo cáo
-                </Button>
+                {session.reportId ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<FileCheck className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      onSelectSessionForReport(session.id);
+                      onNavigate('report');
+                    }}
+                  >
+                    Xem báo cáo
+                  </Button>
+                ) : (
+                  <span className="text-[11px] text-[#768078]">Chưa có báo cáo AI thực tế</span>
+                )}
               </div>
             </div>
           ))
