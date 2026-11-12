@@ -304,6 +304,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                 </p>
               </div>
 
+              <div className="rounded-xl bg-[#EEF4F0] border border-[#D9E5DC] p-4 space-y-2 text-xs">
+                <h4 className="font-bold text-[#2A4433]">Tài liệu quyền riêng tư và điều khoản</h4>
+                <p className="text-[#556057] leading-relaxed">
+                  Đây là nội dung dự thảo cho môi trường thử nghiệm; chưa bật đồng bộ video Google Drive.
+                  Đọc kỹ cách lưu video cục bộ và giới hạn quyền riêng tư trước khi sử dụng.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-[#3D6447] underline font-semibold">
+                    Chính sách quyền riêng tư
+                  </a>
+                  <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-[#3D6447] underline font-semibold">
+                    Điều khoản sử dụng
+                  </a>
+                </div>
+              </div>
+
               <div className="space-y-3 text-xs text-[#444F47]">
                 <div className="p-4 rounded-xl bg-[#FAFBF9] border border-[#E4E9E3] space-y-1.5">
                   <h4 className="font-bold text-[#3D4740] flex items-center gap-1.5">
@@ -311,7 +327,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                     Xử lý cục bộ tại thiết bị (Edge Processing)
                   </h4>
                   <p className="text-[#768078] text-[11px] leading-relaxed">
-                    Ở Đợt 1, toàn bộ dữ liệu chỉ tồn tại trên trình duyệt máy khách. Không có bất kỳ hình ảnh hay giọng nói nào được tải lên máy chủ ngoài.
+                    Video được ghi và lưu trong IndexedDB của trình duyệt hiện tại, chưa tự động đồng bộ Google Drive.
+                    Khi sử dụng đăng nhập Google hoặc các tính năng trực tuyến khác, dữ liệu liên quan có thể được xử lý bởi dịch vụ tương ứng.
+                    Không nên dùng chung trình duyệt để lưu video riêng tư.
                   </p>
                 </div>
 
