@@ -104,7 +104,7 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
           ) : (
             <p className="text-xs text-[#BDD2C1]">Đang nghe… Chữ sẽ xuất hiện ngay khi trình duyệt trả kết quả tạm thời.</p>
           )}
-          <p className="text-[10px] text-[#AFC6B4] mt-1">Bản nháp có thể thay đổi; chỉ lưu những câu đã xác nhận.</p>
+          <p className="text-[10px] text-[#AFC6B4] mt-1">Bản nháp có thể thay đổi; chỉ lưu văn bản trình duyệt đã xác nhận.</p>
         </div>
       )}
 
