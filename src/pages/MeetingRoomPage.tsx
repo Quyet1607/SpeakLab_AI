@@ -48,7 +48,7 @@ interface MeetingRoomPageProps {
   deck: PresentationDeck;
   participants: VirtualParticipant[];
   onNavigate: (page: ActivePage) => void;
-  onFinishSession: () => void;
+  onFinishSession: (actualSeconds: number, destination: 'report' | 'dashboard') => void;
 }
 
 export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
@@ -66,7 +66,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isAttendeesOpen, setIsAttendeesOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(145); // start with realistic ~2m25s demo time
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // Actual elapsed time; no simulated starting offset.
   const [isTimerRunning, setIsTimerRunning] = useState(true);
 
   // Real Camera & Microphone State (Phase 3.1: default to OFF for privacy)
@@ -198,10 +198,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingSavedLocal(false);
       setRecordingDuration(Math.round(result.durationMs / 1000));
       try {
-        // IndexedDB is a temporary same-browser fallback; this is NOT a cloud upload.
+        // IndexedDB is the chosen device-only storage; this is NOT a cloud upload.
         await saveLocalVideo(session, result);
         setRecordingSavedLocal(true);
-        if (reason) setRecordingNotice(reason + ' Đã lưu tạm trên trình duyệt, chưa đồng bộ Google Drive.');
+        if (reason) setRecordingNotice(reason + ' Đã lưu video trên trình duyệt này.');
       } catch (saveError) {
         setRecordingNotice((reason ? reason + ' ' : '') + (saveError instanceof Error ? saveError.message : 'Không lưu được video.') + ' Hãy nhấn “Lưu video” để tải về thiết bị ngay.');
       }
@@ -878,7 +878,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           mediaDeviceService.stopAll();
           setIsTimerRunning(false);
           setShowEndModal(false);
-          onFinishSession();
+          onFinishSession(elapsedSeconds, 'report');
         }}
         onReturnToDashboard={() => {
           if (!canLeaveMeeting()) { setShowEndModal(false); return; }
@@ -886,7 +886,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           mediaDeviceService.stopAll();
           setIsTimerRunning(false);
           setShowEndModal(false);
-          onNavigate('dashboard');
+          onFinishSession(elapsedSeconds, 'dashboard');
         }}
       />
 
