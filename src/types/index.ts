@@ -69,7 +69,7 @@ export interface PptxDocumentInfo {
   status: 'valid' | 'invalid';
 }
 
-export type PresentationSourceType = 'demo' | 'pptx' | 'screenShare';
+export type PresentationSourceType = 'none' | 'demo' | 'pptx' | 'screenShare';
 
 export interface PresentationSource {
   type: PresentationSourceType;
