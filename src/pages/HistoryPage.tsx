@@ -29,7 +29,7 @@ import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
-import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
+import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, formatTranscriptLines, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
@@ -189,9 +189,12 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       </summary>
       <p className="text-[11px] text-[#768078] mt-2">Nhận diện tự động; thời gian ước lượng. TXT được tải khi người dùng chọn.</p>
       <div className="max-h-48 overflow-y-auto space-y-2 mt-2">
-        {item.segments.map((part, index) => <p key={index} className="whitespace-pre-wrap break-words">
-          <span className="font-mono text-[#5A7D65]">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span> {part.text}
-        </p>)}
+        {item.segments.map((part, index) => <div key={index} className="space-y-1">
+          <span className="block font-mono text-[#5A7D65]">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>
+          {formatTranscriptLines(part.text).map((line, lineIndex) => (
+            <p key={lineIndex} className="break-words leading-relaxed">{line}</p>
+          ))}
+        </div>)}
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
         <button type="button" onClick={() => downloadTranscript(item)} className="px-3 py-2 rounded-lg border border-[#D9E5DC] flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Tải TXT</button>
@@ -442,7 +445,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     <div className="space-y-2 max-h-60 overflow-y-auto">
                       {session.transcriptSegments.map((part, index) => (
                         <p key={index} className="break-words whitespace-pre-wrap leading-relaxed">
-                          <span className="font-mono text-[#5A7D65] mr-2">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>{part.text}
+                          <span className="block font-mono text-[#5A7D65] mb-1">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>
+                          {formatTranscriptLines(part.text).map((line, i) => <span key={i} className="block leading-relaxed">{line}</span>)}
                         </p>
                       ))}
                     </div>
