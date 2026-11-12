@@ -19,6 +19,7 @@ import { sessionService } from './services/sessionService';
 import { reportService } from './services/reportService';
 import { AppLayout } from './layouts/AppLayout';
 import { refreshSession, subscribeSession, type SessionState } from './services/accountSession';
+import { listCompletedPracticeSessions, saveCompletedPracticeSession } from './services/localPracticeHistory';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -37,7 +38,14 @@ export default function App() {
     void refreshSession();
     return unsubscribe;
   }, []);
-  const [sessions, setSessions] = useState<PracticeSession[]>(sessionService.getRecentSessions());
+  const [sessions, setSessions] = useState<PracticeSession[]>([]);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (accountSession.status === 'loading') return;
+    const owner = accountSession.status === 'signed_in' ? accountSession.identity?.id || null : null;
+    setSessions(listCompletedPracticeSessions(owner));
+  }, [accountSession]);
 
   // Setup configuration state retained in current session
   const [setupConfig, setSetupConfig] = useState<PracticeSetupConfig>({
@@ -50,7 +58,15 @@ export default function App() {
 
   // Calculate user profile stats dynamically from the actual sessions list
   const userProfile = useMemo(() => {
-    const stats = sessionService.getUserStats();
+    const totalSeconds = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
+    const totalMinutes = Math.round(totalSeconds / 60);
+    const stats = {
+      totalSessions: sessions.length,
+      totalPracticeMinutes: totalMinutes,
+      avgMinutesPerSession: sessions.length ? Math.round(totalMinutes / sessions.length) : 0,
+      totalReports: 0,
+      improvementPercentage: 0,
+    };
     return {
       ...mockCurrentUser,
       ...(accountSession.status === 'signed_in' && accountSession.identity ? {
@@ -71,7 +87,7 @@ export default function App() {
   }, [sessions, accountSession]);
 
   // Active Session State
-  const [currentSession, setCurrentSession] = useState<PracticeSession>(sessions[0]);
+  const [currentSession, setCurrentSession] = useState<PracticeSession>(() => sessionService.getRecentSessions()[0]);
   const [currentDeck, setCurrentDeck] = useState<PresentationDeck>(mockPresentationDecks[0]);
   const [participants, setParticipants] = useState<VirtualParticipant[]>(() =>
     sessionService.getParticipantsForSession(6, 'defense')
@@ -97,8 +113,22 @@ export default function App() {
     setCurrentSession(newSession);
     setCurrentDeck(deck);
     setParticipants(activeParticipants);
-    setSessions(sessionService.getRecentSessions());
     setActivePage('meeting_room');
+  };
+
+  const handleFinishSession = async (actualSeconds: number, destination: 'report' | 'dashboard') => {
+    const checked = await refreshSession();
+    const owner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+    try {
+      saveCompletedPracticeSession(currentSession, actualSeconds, owner);
+      setSessions(listCompletedPracticeSessions(owner));
+      setHistoryNotice(destination === 'report'
+        ? 'Đã lưu buổi luyện thực tế trên trình duyệt. Báo cáo AI dựa trên dữ liệu thực chưa được kích hoạt; các báo cáo mẫu hiện chỉ để tham khảo.'
+        : null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Không lưu được lịch sử buổi luyện.');
+    }
+    setActivePage(destination === 'report' ? 'history' : 'dashboard');
   };
 
   // Replay an existing session
@@ -160,16 +190,14 @@ export default function App() {
           deck={currentDeck}
           participants={participants}
           onNavigate={(page) => setActivePage(page)}
-          onFinishSession={() => {
-            setSelectedReportId('rep_01');
-            setActivePage('report');
-          }}
+          onFinishSession={(seconds, destination) => { void handleFinishSession(seconds, destination); }}
         />
       )}
 
       {activePage === 'history' && (
         <HistoryPage
           sessions={sessions}
+          notice={historyNotice}
           onNavigate={(page) => setActivePage(page)}
           onSelectSessionForReport={handleSelectSessionForReport}
           onReplaySession={handleReplaySession}
