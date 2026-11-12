@@ -177,11 +177,7 @@ class PptxSessionStore {
   private loadPromise: Promise<Presentation | null> | null = null;
 
   private currentSource: PresentationSource = {
-    type: 'demo',
-    deckId: 'deck_ai_waste',
-    name: 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI',
-    slideCount: 6,
-    status: 'ready',
+    type: 'none', name: 'Không trình chiếu', slideCount: 0, status: 'ready',
   };
 
   getPptx(): PptxDocumentInfo | null {
@@ -203,11 +199,7 @@ class PptxSessionStore {
       };
     } else {
       this.currentSource = {
-        type: 'demo',
-        deckId: 'deck_ai_waste',
-        name: 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI',
-        slideCount: 6,
-        status: 'ready',
+        type: 'none', name: 'Không trình chiếu', slideCount: 0, status: 'ready',
       };
     }
   }
@@ -310,6 +302,12 @@ class PptxSessionStore {
   clearPptx() {
     this.disposeCurrent();
     this.setPptx(null);
+  }
+
+  setNoPresentation() {
+    this.currentSource = {
+      type: 'none', name: 'Không trình chiếu', slideCount: 0, status: 'ready',
+    };
   }
 
   getSource(): PresentationSource {
