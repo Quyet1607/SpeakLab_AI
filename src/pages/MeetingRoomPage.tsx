@@ -96,7 +96,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // Screen Share State (Independent stream from camera & microphone)
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [previousSource, setPreviousSource] = useState<PresentationSource | undefined>(undefined);
+  const previousSourceRef = useRef<PresentationSource | undefined>(undefined);
+  const shareRequestPendingRef = useRef(false);
+  const [shareRequestPending, setShareRequestPending] = useState(false);
   const [showShareGuideModal, setShowShareGuideModal] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
 
@@ -405,71 +407,91 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     };
   }, []);
 
-  // Stop Screen Share handler (stops ONLY screen capture tracks, never touches camera/mic)
-  const handleStopScreenShare = async () => {
-    if (recordingSessionRef.current && recordingSourceRef.current === 'screen') {
-      await handleStopRecording('Chia sẻ màn hình đã dừng; bản ghi được hoàn tất.');
+  // Screen sharing can be started, stopped or replaced at any time, including
+  // during a recording. The recorder has a stable canvas video track and will
+  // switch between gallery and shared screen without being stopped.
+  const handleStopScreenShare = async (expectedStream?: MediaStream) => {
+    const active = screenShareService.getActiveStream();
+    if (expectedStream && active !== expectedStream) return; // Ignore stale ended events.
+    if (active) {
+      // Detach our handler before stopping tracks to avoid recursive cleanups.
+      active.getVideoTracks().forEach(track => { track.onended = null; });
+      await screenShareService.stopShare(active);
     }
-    screenShareService.stopShare(screenStream);
+    screenStreamRef.current = null;
     setScreenStream(null);
     setIsScreenSharing(false);
 
-    // Never attach a PowerPoint deck when screen sharing ends.
-    setActiveSource(previousSource || session.presentationSource || {
+    if (recordingSessionRef.current && recordingSourceRef.current === 'screen') {
+      recordingSourceRef.current = 'meeting'; // This clip now includes both views.
+      setRecordingVideoSource('meeting');
+    }
+
+    setActiveSource(previousSourceRef.current || session.presentationSource || {
       type: 'none', name: 'Không trình chiếu', slideCount: 0, status: 'ready',
     });
-
-    // Ensure audio level analyzer is resumed smoothly
+    previousSourceRef.current = undefined;
     mediaDeviceService.resumeAudio();
   };
 
-  // Start Screen Share handler (preserves active camera and microphone tracks)
+  // User-initiated getDisplayMedia must run directly after the click in the guide.
+  // A second selection replaces the first only AFTER the new source was granted.
   const handleStartScreenShare = async () => {
     setShowShareGuideModal(false);
-    if (recordingSessionRef.current || recordingStatus === 'finalizing') {
-      setRecordingNotice('Hãy dừng và lưu bản ghi cuộc họp trước khi bắt đầu chia sẻ màn hình. Sau đó bạn có thể tạo bản ghi PowerPoint riêng.');
-      return;
-    }
-
+    if (shareRequestPendingRef.current) return;
     const capability = screenShareService.getCapability();
     if (!capability.isSupported) {
       setShareError(capability.friendlyNotice);
       return;
     }
+    shareRequestPendingRef.current = true;
+    setShareRequestPending(true);
+    const oldStream = screenShareService.getActiveStream();
+    const sourceToRestore = oldStream
+      ? previousSourceRef.current
+      : activeSource;
 
     try {
       const stream = await screenShareService.startShare();
-
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.onended = () => {
-          // Native "Stop sharing" floating bar clicked in browser
-          handleStopScreenShare();
-        };
+      if (oldStream && oldStream !== stream) {
+        oldStream.getVideoTracks().forEach(track => { track.onended = null; });
+        // Do not call stopShare(oldStream): that would clear the NEW active stream.
+        oldStream.getTracks().forEach(track => { try { track.stop(); } catch { /* ended already */ } });
       }
 
-      setPreviousSource(activeSource);
+      previousSourceRef.current = sourceToRestore;
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.onended = () => { void handleStopScreenShare(stream); };
+      }
+      screenStreamRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
       setActiveSource({
         type: 'screenShare',
-        name: 'Cửa sổ PowerPoint (Animation trực tiếp)',
-        slideCount: activeSource?.slideCount || 1,
+        name: 'Cửa sổ đang chia sẻ',
+        slideCount: sourceToRestore?.slideCount || 1,
         status: 'ready',
         stream,
       });
+      // Recording stays active. When sharing begins partway through, label
+      // the finished clip as a meeting containing more than one view.
+      if (recordingSessionRef.current && recordingSourceRef.current === 'meeting') {
+        setRecordingVideoSource('meeting');
+      }
 
-      // Ensure audio analyzer continues smoothly if browser momentarily blurred the tab
       mediaDeviceService.resumeAudio();
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'name' in err && err.name === 'NotAllowedError') {
-        // User closed or dismissed the browser picker
-        console.log('Người dùng đã đóng hộp thoại chia sẻ màn hình.');
+        // Cancelling the chooser does not interrupt an existing share or recording.
+        console.info('Người dùng đã đóng hộp thoại chia sẻ màn hình.');
       } else {
         const msg = err instanceof Error ? err.message : capability.friendlyNotice;
-        console.error('Lỗi khi kích hoạt Screen Capture:', err);
         setShareError(msg);
       }
+    } finally {
+      shareRequestPendingRef.current = false;
+      setShareRequestPending(false);
     }
   };
 
@@ -702,7 +724,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
                 isNotesOpen={isNotesOpen}
                 presentationSource={activeSource}
                 screenStream={screenStream}
-                onStopScreenShare={handleStopScreenShare}
+                onStopScreenShare={() => { void handleStopScreenShare(); }}
                 onSwitchToDemo={() =>
                   setActiveSource({
                     type: 'demo',
@@ -819,7 +841,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         onShareScreenClick={() => setShowShareGuideModal(true)}
         isScreenSharing={isScreenSharing}
         hasPresentation={showPresentation}
-        onStopScreenShare={handleStopScreenShare}
+        onStopScreenShare={() => { void handleStopScreenShare(); }}
+        onChangeScreenShare={() => setShowShareGuideModal(true)}
+        isScreenSharePending={shareRequestPending}
         onToggleAttendees={() => {
           setIsAttendeesOpen(!isAttendeesOpen);
           setIsNotesOpen(false);
