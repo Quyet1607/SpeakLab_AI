@@ -28,6 +28,7 @@ import {
 } from '../types';
 import { SlideViewer } from '../features/meeting/SlideViewer';
 import { ParticipantGrid } from '../features/meeting/ParticipantGrid';
+import { MeetingGallery } from '../features/meeting/MeetingGallery';
 import { PresenterCameraBox } from '../features/meeting/PresenterCameraBox';
 import { MeetingControls } from '../features/meeting/MeetingControls';
 import { AttendeeDrawer } from '../features/meeting/AttendeeDrawer';
@@ -42,6 +43,7 @@ import { mediaDeviceService, DevicePermissionState } from '../services/mediaDevi
 import { ScreenAudioRecordingSession, PresentationRecordingResult, type RecordingVideoSource } from '../services/presentationRecordingService';
 import { saveLocalVideo } from '../services/localVideoLibrary';
 import { recordingLibraryTitle, recordingDownloadName } from '../services/recordingNames';
+import { MeetingGridCapture } from '../services/meetingGridCapture';
 
 interface MeetingRoomPageProps {
   currentUser: UserProfile;
@@ -102,6 +104,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // Giữ nguồn ghi cố định trong một bản ghi để tránh tự ý thay đổi nội dung đang quay.
   const recordingSessionRef = useRef<ScreenAudioRecordingSession | null>(null);
   const recordingSourceRef = useRef<RecordingVideoSource | null>(null);
+  const meetingCaptureRef = useRef<MeetingGridCapture | null>(null);
   const [recordingVideoSource, setRecordingVideoSource] = useState<RecordingVideoSource>('camera');
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'finalizing' | 'ready' | 'error'>('idle');
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
@@ -160,31 +163,35 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     }
 
     const screen = screenShareService.getActiveStream();
-    const camera = mediaDeviceService.getCameraStream();
     const microphone = mediaDeviceService.getMicrophoneStream();
-    // Prefer the existing PowerPoint recording flow when screen sharing is active.
-    // Otherwise record the actual webcam picture, never a dummy/black slide.
+    // Screen share: preserve PowerPoint recording. Otherwise record all the
+    // meeting tiles (one real user and simulated avatars), not webcam alone.
     const source: RecordingVideoSource = screen?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)
-      ? 'screen' : 'camera';
-    const videoStream = source === 'screen' ? screen : camera;
-    if (!videoStream?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
-      setRecordingNotice('Chưa có nguồn hình ảnh. Hãy bật camera để ghi hình và micro, hoặc chia sẻ màn hình PowerPoint.');
-      return;
-    }
+      ? 'screen' : 'meeting';
     if (!microphone?.getAudioTracks().some(t => t.readyState === 'live' && t.enabled)) {
-      setRecordingNotice('Hãy bật micro thật và kiểm tra tín hiệu trước khi bắt đầu ghi hình.');
+      setRecordingNotice('Hãy bật micro thật trước khi bắt đầu ghi cuộc họp.');
       return;
     }
-
+    let gridCapture: MeetingGridCapture | null = null;
     try {
+      const videoStream = source === 'screen' ? screen : (gridCapture = new MeetingGridCapture(
+        currentUser, participants, () => mediaDeviceService.getCameraStream(),
+      )).getStream();
+      if (!videoStream?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
+        throw new Error('Không lấy được hình ảnh để ghi video.');
+      }
       const sessionRecorder = new ScreenAudioRecordingSession(videoStream, microphone, (input) => {
         void handleStopRecording(input === 'screen'
-          ? 'Nguồn chia sẻ PowerPoint đã ngắt; bản ghi được dừng để tránh hình đen.'
-          : input === 'camera'
-            ? 'Camera đã ngắt; bản ghi được dừng để tránh mất hình.'
-            : 'Nguồn micro đã ngắt; bản ghi được dừng để tránh mất tiếng.');
+          ? 'Chia sẻ màn hình đã dừng; bản ghi được hoàn tất.'
+          : input === 'microphone'
+            ? 'Micro đã ngắt; bản ghi được hoàn tất để tránh mất tiếng.'
+            : 'Nguồn hình ảnh đã ngắt; bản ghi được hoàn tất.');
       }, source);
       sessionRecorder.start();
+      if (gridCapture) {
+        meetingCaptureRef.current = gridCapture;
+        gridCapture.start();
+      }
       recordingSourceRef.current = source;
       setRecordingVideoSource(source);
       recordingSessionRef.current = sessionRecorder;
@@ -195,6 +202,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingStartedAt(Date.now());
       setRecordingStatus('recording');
     } catch (error) {
+      gridCapture?.dispose();
+      meetingCaptureRef.current = null;
       setRecordingStatus('error');
       setRecordingNotice(error instanceof Error ? error.message : 'Không thể khởi động ghi hình.');
     }
@@ -226,6 +235,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingStatus('error');
       setRecordingNotice(error instanceof Error ? error.message : 'Không thể hoàn tất bản ghi.');
     } finally {
+      meetingCaptureRef.current?.dispose();
+      meetingCaptureRef.current = null;
       setRecordingStartedAt(null);
     }
   };
@@ -398,19 +409,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     setScreenStream(null);
     setIsScreenSharing(false);
 
-    if (previousSource) {
-      setActiveSource(previousSource);
-    } else {
-      setActiveSource(
-        session.presentationSource || {
-          type: 'demo',
-          deckId: deck.id,
-          name: deck.title,
-          slideCount: deck.slides.length,
-          status: 'ready',
-        }
-      );
-    }
+    // Never attach a PowerPoint deck when screen sharing ends.
+    setActiveSource(previousSource || session.presentationSource || {
+      type: 'none', name: 'Không trình chiếu', slideCount: 0, status: 'ready',
+    });
 
     // Ensure audio level analyzer is resumed smoothly
     mediaDeviceService.resumeAudio();
@@ -475,6 +477,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       recordingSessionRef.current?.dispose();
       recordingSessionRef.current = null;
       recordingSourceRef.current = null;
+      meetingCaptureRef.current?.dispose();
+      meetingCaptureRef.current = null;
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach((track) => track.stop());
         screenStreamRef.current = null;
@@ -502,7 +506,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const totalSlides = activeSource?.type === 'pptx' ? (activeSource.slideCount || 1) : deck.slides.length;
+  const showPresentation = Boolean(activeSource && activeSource.type !== 'none');
+  const totalSlides = !showPresentation ? 0
+    : activeSource?.type === 'pptx' ? (activeSource.slideCount || 1) : deck.slides.length;
 
   const handlePrevSlide = () => {
     if (currentSlideIndex > 0) {
@@ -577,7 +583,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         {/* Right: Mobile View Tabs & End button */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Mobile Tab switchers (Slide / Audience / Camera) */}
-          <div className="lg:hidden flex items-center bg-[#253027] p-0.5 rounded-lg border border-[#37473A]">
+          {showPresentation && <div className="lg:hidden flex items-center bg-[#253027] p-0.5 rounded-lg border border-[#37473A]">
             <button
               onClick={() => setMobileTab('slide')}
               className={`px-2 py-1 text-[10px] sm:text-xs rounded font-medium transition-colors cursor-pointer ${
@@ -602,7 +608,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
             >
               Camera
             </button>
-          </div>
+          </div>}
 
           <button
             onClick={() => setShowEndModal(true)}
@@ -638,6 +644,17 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       <div className="flex-1 flex overflow-hidden p-1.5 sm:p-2 md:p-4 gap-2 md:gap-3 relative min-h-0">
         {/* Left / Center Work Area */}
         <div className="flex-1 flex flex-col gap-2 md:gap-3 min-w-0 min-h-0 overflow-hidden">
+          {!showPresentation ? (
+            <MeetingGallery
+              currentUser={currentUser}
+              participants={participants}
+              cameraStream={cameraStream}
+              isCameraOff={isCameraOff}
+              isMuted={isMuted}
+              onSimulatedQuestion={handleTriggerSimulatedQuestion}
+            />
+          ) : (
+          <>
           {/* Top Audience & Juror Video Strip (Horizontal Carousel on Desktop or when mobileTab === 'audience') */}
           <div
             className={`shrink-0 ${
@@ -754,6 +771,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Right Drawers */}
@@ -821,7 +840,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         isOpen={showRecordingConfirm}
         onClose={() => setShowRecordingConfirm(false)}
         title="Xác nhận bắt đầu ghi hình"
-        subtitle="Ghi camera hoặc màn hình PowerPoint kèm tiếng micro"
+        subtitle="Ghi cuộc họp mô phỏng hoặc màn hình chia sẻ kèm micro"
         footer={
           <>
             <Button variant="ghost" size="sm" onClick={() => setShowRecordingConfirm(false)}>Hủy</Button>
@@ -830,9 +849,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         }
       >
         <div className="space-y-2 text-xs text-[#3D4740]">
-          <p>Không cần chia sẻ PowerPoint để ghi hình. Khi <strong>chưa chia sẻ màn hình</strong>, hệ thống ghi <strong>camera + micro</strong> đang bật. Khi đang chia sẻ màn hình, hệ thống ghi <strong>PowerPoint + micro</strong> (không ghép thêm camera).</p>
+          <p>Chưa chia sẻ màn hình: ghi <strong>lưới cuộc họp</strong> gồm camera thật của bạn (nếu bật), các tài khoản mô phỏng và tiếng micro. Đã chia sẻ màn hình: ghi PowerPoint và tiếng micro, không ghép thêm camera.</p>
           <p className="text-[#647568]">Video chỉ được ghi sau khi bạn xác nhận, được lưu trên trình duyệt thiết bị này và có thể xem lại hoặc tải xuống trong Lịch sử.</p>
-          <p className="font-medium text-[#873631]">Hãy bật micro và {isScreenSharing ? 'duy trì chia sẻ màn hình' : 'bật camera'} trước khi ghi. Bạn có thể dừng ghi bất kỳ lúc nào.</p>
+          <p className="font-medium text-[#873631]">Hãy bật micro trước khi ghi; camera là tùy chọn. Các nhân vật mô phỏng không có tiếng nói thật.</p>
         </div>
       </Modal>
 
@@ -848,7 +867,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       {recordingResult && recordingStatus === 'ready' && (
         <div className="fixed bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 w-[min(95vw,430px)] bg-[#F7F9F6] border border-[#83A58E] shadow-xl rounded-xl p-3 z-40 text-[#3D4740] flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold">Video {recordingVideoSource === 'screen' ? 'PowerPoint' : 'camera'} + micro đã hoàn tất</p>
+            <p className="text-xs font-bold">Video {recordingVideoSource === 'meeting' ? 'cuộc họp mô phỏng' : recordingVideoSource === 'screen' ? 'PowerPoint' : 'camera'} + micro đã hoàn tất</p>
             <p className="text-[11px] text-[#768078]">{formatTimer(Math.round(recordingResult.durationMs / 1000))} · {(recordingResult.bytes / 1024 / 1024).toFixed(1)} MB · {recordingResult.fileExtension.toUpperCase()}</p>
             <p className="text-[10px] text-[#768078]">{recordingSavedLocal ? 'Đã lưu trên trình duyệt này. Xem lại trong Lịch sử luyện tập.' : recordingDownloaded ? 'Đã yêu cầu tải xuống; hãy kiểm tra thư mục Tải xuống.' : 'Chưa lưu – hãy tải về máy trước khi rời phòng.'}</p>
           </div>
@@ -969,7 +988,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
               🛡️ Cam kết bảo mật và quyền riêng tư:
             </p>
             <p>
-              Camera và micro mặc định tắt để bảo vệ quyền riêng tư. Khi chủ động xác nhận ghi hình, ứng dụng ghi camera + micro (không cần PowerPoint); nếu đang chia sẻ màn hình, ứng dụng ghi màn hình + micro.
+              Camera và micro mặc định tắt. Khi xác nhận ghi hình, ứng dụng ghi bố cục cuộc họp mô phỏng và tiếng micro; nếu đang chia sẻ màn hình, ứng dụng ghi PowerPoint + micro. Không có người khác đang kết nối thật.
             </p>
           </div>
 
