@@ -48,10 +48,12 @@ import { recordingLibraryTitle, recordingDownloadName } from '../services/record
 import { MeetingGridCapture } from '../services/meetingGridCapture';
 import { VietnameseBrowserSpeechSession, isVietnameseSpeechRecognitionSupported, normalizeTranscriptSegments, SPEECH_SEGMENT_LIMIT } from '../services/vietnameseSpeechRecognition';
 import { SpeechTranscriptPanel } from '../features/meeting/SpeechTranscriptPanel';
+import { saveLocalTranscript, deleteLocalTranscript } from '../services/localTranscriptLibrary';
 
 interface MeetingRoomPageProps {
   currentUser: UserProfile;
   session: PracticeSession;
+  sessionOwnerSub: string | null;
   deck: PresentationDeck;
   participants: VirtualParticipant[];
   onNavigate: (page: ActivePage) => void;
@@ -61,6 +63,7 @@ interface MeetingRoomPageProps {
 export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   currentUser,
   session,
+  sessionOwnerSub,
   deck,
   participants,
   onNavigate,
@@ -131,6 +134,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [speechInterim, setSpeechInterim] = useState('');
   const [speechStatus, setSpeechStatus] = useState<'idle' | 'starting' | 'listening' | 'stopped' | 'error'>('idle');
   const [speechNotice, setSpeechNotice] = useState<string | null>(null);
+  const speechStopPromiseRef = useRef<Promise<void> | null>(null);
   const [showSpeechPanel, setShowSpeechPanel] = useState(false);
 
   useEffect(() => { elapsedSecondsRef.current = elapsedSeconds; }, [elapsedSeconds]);
@@ -171,7 +175,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           setSpeechSegments(updated);
           if (updated.length >= SPEECH_SEGMENT_LIMIT) {
             setSpeechNotice('Đã nhận diện tối đa số đoạn cho buổi luyện. Bạn vẫn có thể tiếp tục ghi video.');
-            void speechRecognitionRef.current?.stop();
+            void stopSpeechRecognition();
           }
         },
       });
@@ -186,19 +190,38 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   };
 
   const stopSpeechRecognition = async () => {
-    const current = speechRecognitionRef.current;
-    if (current) await current.stop();
-    if (speechRecognitionRef.current === current) speechRecognitionRef.current = null;
-    setSpeechInterim('');
-    setSpeechStatus(prev => prev === 'error' ? prev : 'stopped');
+    // Coalesce concurrent Stop/End requests and preserve final browser results.
+    if (speechStopPromiseRef.current) return speechStopPromiseRef.current;
+    const task = (async () => {
+      const current = speechRecognitionRef.current;
+      if (current) await current.stop();
+      if (speechRecognitionRef.current === current) speechRecognitionRef.current = null;
+      setSpeechInterim('');
+      setSpeechStatus(prev => prev === 'error' ? prev : 'stopped');
+      if (speechSegmentsRef.current.length > 0) {
+        try {
+          saveLocalTranscript(session.id, session.title, session.topic, sessionOwnerSub, speechSegmentsRef.current);
+          setSpeechNotice('Đã lưu bản ghi chữ riêng trên thiết bị. Mở Lịch sử luyện tập để xem hoặc tải TXT.');
+        } catch (error) {
+          setSpeechNotice(error instanceof Error ? error.message : 'Không lưu được bản ghi chữ.');
+        }
+      }
+    })();
+    speechStopPromiseRef.current = task;
+    try { await task; } finally { speechStopPromiseRef.current = null; }
   };
 
   const clearSpeechRecognition = async () => {
     if (!window.confirm('Xóa toàn bộ bản ghi chữ của buổi luyện này? Video đã ghi sẽ không bị xóa.')) return;
     await stopSpeechRecognition();
-    speechSegmentsRef.current = [];
-    setSpeechSegments([]);
-    setSpeechNotice('Đã xóa bản ghi chữ của buổi luyện này trên giao diện.');
+    try {
+      deleteLocalTranscript(session.id, sessionOwnerSub);
+      speechSegmentsRef.current = [];
+      setSpeechSegments([]);
+      setSpeechNotice('Đã xóa bản ghi chữ riêng của buổi luyện. Video không bị ảnh hưởng.');
+    } catch (error) {
+      setSpeechNotice(error instanceof Error ? error.message : 'Không xóa được bản ghi chữ.');
+    }
   };
 
   // Modals & Notices
