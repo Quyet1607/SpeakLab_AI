@@ -46,7 +46,7 @@ export const MeetingGallery: React.FC<MeetingGalleryProps> = ({
         <span className="inline-flex gap-2 items-center"><Users className="w-4 h-4" />
           Cuộc họp luyện tập · {participants.length + 1} ô tham gia
         </span>
-        <span className="text-[11px] text-[#BED5C2]">1 tài khoản thật · {participants.length} nhân vật mô phỏng</span>
+        <span className="text-[11px] text-[#BED5C2]">1 người luyện tập thật · {participants.length} nhân vật mô phỏng</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-[minmax(165px,1fr)]">
         <div className="relative min-h-44 h-48 sm:h-52 bg-[#27352B] border-2 border-[#84A98D] rounded-xl overflow-hidden flex flex-col justify-center items-center">
