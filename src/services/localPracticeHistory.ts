@@ -3,7 +3,8 @@
  * Browser storage is NOT secure account isolation or cloud synchronization.
  * Never persist PresentationSource.file, File, MediaStream, OAuth data or tokens.
  */
-import type { PracticeSession, PracticeModeType } from '../types';
+import type { PracticeSession, PracticeModeType, SpeechTranscriptSegment } from '../types';
+import { normalizeTranscriptSegments, SPEECH_SEGMENT_LIMIT } from './vietnameseSpeechRecognition';
 import { normalizePracticeBrief, PRACTICE_BRIEF_LIMITS } from './practiceBrief';
 
 const KEY = 'speaklab_completed_practice_v1';
@@ -16,6 +17,7 @@ type StoredEntry = {
   topic: string;
   topicDescription?: string;
   speakingGoal?: string;
+  transcriptSegments?: SpeechTranscriptSegment[];
   durationSeconds: number;
   slideCount: number;
   participantCount: number;
@@ -33,6 +35,8 @@ function validEntry(item: unknown): item is StoredEntry {
     typeof e.topic === 'string' && e.topic.length <= 120 &&
     (e.topicDescription === undefined || typeof e.topicDescription === 'string' && e.topicDescription.length <= PRACTICE_BRIEF_LIMITS.topicDescription) &&
     (e.speakingGoal === undefined || typeof e.speakingGoal === 'string' && e.speakingGoal.length <= PRACTICE_BRIEF_LIMITS.speakingGoal) &&
+    (e.transcriptSegments === undefined || Array.isArray(e.transcriptSegments) && e.transcriptSegments.length <= SPEECH_SEGMENT_LIMIT &&
+      normalizeTranscriptSegments(e.transcriptSegments).length === e.transcriptSegments.length) &&
     Number.isInteger(e.durationSeconds) && e.durationSeconds! >= 0 && e.durationSeconds! < 86400 &&
     Number.isInteger(e.slideCount) && e.slideCount! >= 0 && e.slideCount! <= 10000 &&
     Number.isInteger(e.participantCount) && e.participantCount! >= 0 && e.participantCount! <= 1000 &&
@@ -57,6 +61,7 @@ export function listCompletedPracticeSessions(ownerSub: string | null): Practice
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
     .map(({ completedAt, ownerSub: _ownerSub, ...item }) => ({
       ...item,
+      ...(item.transcriptSegments ? { transcriptSegments: normalizeTranscriptSegments(item.transcriptSegments) } : {}),
       createdAt: new Date(completedAt).toLocaleString('vi-VN'),
       status: 'completed' as const,
     }));
@@ -81,6 +86,9 @@ export function saveCompletedPracticeSession(
     topic: brief.topicTitle,
     ...(brief.topicDescription ? { topicDescription: brief.topicDescription } : {}),
     ...(brief.speakingGoal ? { speakingGoal: brief.speakingGoal } : {}),
+    ...(session.transcriptSegments?.length
+      ? { transcriptSegments: normalizeTranscriptSegments(session.transcriptSegments) }
+      : {}),
     durationSeconds: Math.min(86399, Math.max(0, Math.floor(durationSeconds))),
     slideCount: session.slideCount,
     participantCount: session.participantCount,
@@ -94,4 +102,20 @@ export function saveCompletedPracticeSession(
   } catch {
     throw new Error('Trình duyệt không lưu được lịch sử buổi luyện. Hãy kiểm tra dung lượng hoặc cài đặt quyền lưu trữ.');
   }
+}
+
+/** Delete speech-to-text only, without touching the completed session or video. */
+export function deleteCompletedPracticeTranscript(sessionId: string, ownerSub: string | null): boolean {
+  const all = readAll();
+  const item = all.find(entry => entry.id === sessionId && entry.ownerSub === ownerSub);
+  if (!item || !item.transcriptSegments?.length) return false;
+  const updated = all.map(entry =>
+    entry === item ? { ...entry, transcriptSegments: undefined } : entry
+  );
+  try {
+    localStorage.setItem(KEY, JSON.stringify(updated));
+  } catch {
+    throw new Error('Không xóa được bản ghi chữ trên trình duyệt. Hãy kiểm tra quyền lưu trữ.');
+  }
+  return true;
 }
