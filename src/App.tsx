@@ -219,6 +219,10 @@ export default function App() {
           onNavigate={(page) => setActivePage(page)}
           onSelectSessionForReport={handleSelectSessionForReport}
           onReplaySession={handleReplaySession}
+          onTranscriptDeleted={() => {
+            const owner = accountSession.status === 'signed_in' ? accountSession.identity?.id || null : null;
+            setSessions(listCompletedPracticeSessions(owner));
+          }}
         />
       )}
 
