@@ -784,7 +784,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         />
 
         <PresenterNotesDrawer
-          isOpen={isNotesOpen}
+          isOpen={isNotesOpen && showPresentation}
           onClose={() => setIsNotesOpen(false)}
           slide={deck.slides[currentSlideIndex] || deck.slides[0]}
           currentSlideIndex={currentSlideIndex}
@@ -806,6 +806,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         micError={micError}
         onShareScreenClick={() => setShowShareGuideModal(true)}
         isScreenSharing={isScreenSharing}
+        hasPresentation={showPresentation}
         onStopScreenShare={handleStopScreenShare}
         onToggleAttendees={() => {
           setIsAttendeesOpen(!isAttendeesOpen);
