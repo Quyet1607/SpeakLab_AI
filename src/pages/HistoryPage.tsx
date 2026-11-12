@@ -17,6 +17,7 @@ import {
   FileCheck,
   CheckCircle2,
   Video,
+  FileText,
   Trash2,
   Download,
   Upload,
@@ -28,6 +29,7 @@ import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
+import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 
 interface HistoryPageProps {
@@ -51,6 +53,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<'all' | PracticeModeType>('all');
   // Device-only personal video library; no remote sync.
   const [localVideos, setLocalVideos] = useState<LocalVideoRecord[]>([]);
+  const [localTranscripts, setLocalTranscripts] = useState<LocalTranscriptRecord[]>([]);
   const [account, setAccount] = useState<SessionState>({ status: 'loading', identity: null });
   const [localError, setLocalError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<LocalVideoRecord | null>(null);
@@ -68,6 +71,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setAccount(next);
       setPlaying(null);
       setLocalVideos([]);
+      setLocalTranscripts([]);
       setLocalError(null);
       setImportNotice(null);
       if (next.status === 'loading') return;
@@ -76,6 +80,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         // No signed-in video is displayed under an unverified identity.
         setLocalError('Dịch vụ đăng nhập chưa sẵn sàng. Chỉ hiển thị video chưa gắn tài khoản trên thiết bị.');
       }
+      setLocalTranscripts(listLocalTranscripts(next.identity?.id || null));
       listLocalVideos(next.identity?.id || null)
         .then(items => { if (mounted && revision === sessionRevision.current) setLocalVideos(items); })
         .catch(error => { if (mounted && revision === sessionRevision.current) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
@@ -138,6 +143,28 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     }
   };
 
+  const removeSeparateTranscript = async (item: LocalTranscriptRecord) => {
+    if (!window.confirm('Xóa riêng bản ghi lời nói? Video vẫn được giữ nguyên.')) return;
+    try {
+      const checked = await refreshSession();
+      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+      if (currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
+      deleteLocalTranscript(item.sessionId, item.ownerSub);
+      setLocalTranscripts(prev => prev.filter(t => !(t.sessionId === item.sessionId && t.ownerSub === item.ownerSub)));
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi lời nói.');
+    }
+  };
+
+  const downloadTranscript = (item: LocalTranscriptRecord) => {
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + transcriptToText(item)], { type: 'text/plain;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = transcriptFileName(item.title);
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
+
   const removeTranscript = async (session: PracticeSession) => {
     if (!session.transcriptSegments?.length) return;
     if (!window.confirm('Xóa vĩnh viễn phần chữ nhận diện của buổi luyện này? Video sẽ được giữ lại.')) return;
@@ -154,6 +181,24 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   };
 
   const formatSpeechTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+  const renderTranscript = (item: LocalTranscriptRecord) => (
+    <details key={item.sessionId} className="rounded-xl border border-[#D9E5DC] bg-[#F7F9F6] p-3 text-xs text-[#3D4740]">
+      <summary className="cursor-pointer flex items-center gap-2 font-semibold text-[#324C3B]">
+        <FileText className="w-4 h-4" /> Bản ghi lời nói · {item.segments.length} đoạn
+      </summary>
+      <p className="text-[11px] text-[#768078] mt-2">Nhận diện tự động; thời gian ước lượng. TXT được tải khi người dùng chọn.</p>
+      <div className="max-h-48 overflow-y-auto space-y-2 mt-2">
+        {item.segments.map((part, index) => <p key={index} className="whitespace-pre-wrap break-words">
+          <span className="font-mono text-[#5A7D65]">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span> {part.text}
+        </p>)}
+      </div>
+      <div className="flex flex-wrap gap-2 mt-3">
+        <button type="button" onClick={() => downloadTranscript(item)} className="px-3 py-2 rounded-lg border border-[#D9E5DC] flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Tải TXT</button>
+        <button type="button" onClick={() => void removeSeparateTranscript(item)} className="px-3 py-2 rounded-lg border border-[#EAD5D2] text-[#873631] flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Xóa chữ</button>
+      </div>
+    </details>
+  );
 
   const filteredSessions = sessions.filter((s) => {
     const matchesSearch =
@@ -229,7 +274,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         ) : (
           <div className="space-y-2">
             {localVideos.map(video => (
-              <div key={video.id} className="flex flex-wrap items-center justify-between gap-3 border border-[#E4E9E3] rounded-xl p-3">
+              <div key={video.id} className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 border border-[#E4E9E3] rounded-xl p-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="p-2 bg-[#EEF4F0] rounded-lg text-[#52785D]"><Video className="w-5 h-5" /></div>
                   <div className="min-w-0">
@@ -245,7 +291,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   <button type="button" onClick={() => void removeLocal(video)} className="text-xs px-3 py-2 border border-[#EAD5D2] rounded-lg text-[#873631] hover:bg-[#FFF4F3] flex items-center gap-1 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /> Xóa cục bộ</button>
                 </div>
               </div>
+              {localTranscripts.filter(t => t.sessionId === video.sessionId).map(renderTranscript)}
+              </div>
             ))}
+          </div>
+        )}
+        {localTranscripts.some(t => !localVideos.some(v => v.sessionId === t.sessionId)) && (
+          <div className="space-y-2" aria-label="Bản ghi lời nói không có video">
+            <h4 className="font-semibold text-sm text-[#3D4740]">Bản ghi lời nói riêng (không có video)</h4>
+            {localTranscripts.filter(t => !localVideos.some(v => v.sessionId === t.sessionId)).map(renderTranscript)}
           </div>
         )}
         {playing && (
@@ -377,7 +431,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   </div>
                 )}
 
-                {session.transcriptSegments && session.transcriptSegments.length > 0 && (
+                {session.transcriptSegments && session.transcriptSegments.length > 0 && !localTranscripts.some(t => t.sessionId === session.id) && (
                   <details className="max-w-2xl rounded-xl border border-[#D9E5DC] bg-[#F7F9F6] px-3 py-2.5 text-xs text-[#3D4740]">
                     <summary className="cursor-pointer font-semibold text-[#324C3B]">
                       Lời nói đã nhận diện ({session.transcriptSegments.length} đoạn)
