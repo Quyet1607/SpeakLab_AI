@@ -16,6 +16,7 @@ import {
   safeEquals,
   escapeHtml,
 } from '../../../server/driveOAuthBootstrap.js';
+import { driveVaultKeyConfigured, encryptDriveRefreshToken } from '../../../server/driveTokenVault.js';
 
 function safeHtml(status, message, cookie = clearStateCookie()) {
   return htmlResponse(status, message, { 'Set-Cookie': cookie });
@@ -173,6 +174,41 @@ export default async function handler(req, res) {
         '<p>Ứng dụng đã xác thực giáo viên nhưng không xác nhận được quyền thêm video vào thư mục. ' +
         'Chưa bật lưu trữ Drive.</p>'));
     }
+    // The teacher's refresh token is NEVER returned in plaintext, stored in
+    // the repo, or written to logs. The owner can provision an encrypted value
+    // manually into a private Vercel Preview environment variable.
+    let vaultNotice = '<p class="warning"><strong>Chưa cấu hình Drive Vault.</strong> ' +
+      'Chưa thể lưu quyền Google Drive lâu dài. Không xuất token ra màn hình. ' +
+      'Hãy cấu hình khóa SPEAKLAB_DRIVE_VAULT_KEY ở Preview trước khi cấp lại quyền.</p>';
+    if (driveVaultKeyConfigured()) {
+      if (typeof tokenData.refresh_token === 'string' && tokenData.refresh_token) {
+        try {
+          const encrypted = encryptDriveRefreshToken(tokenData.refresh_token, {
+            clientId: config.clientId,
+            folderId: verified.id,
+            ownerEmail: config.ownerEmail,
+          });
+          // Encrypted envelope is not a raw OAuth token, but handle it as a
+          // sensitive secret. It must be stored as a Vercel Preview secret.
+          vaultNotice = '<p><strong>Đã tạo bản mã hóa quyền Drive.</strong> ' +
+            'Chỉ sao chép giá trị dưới đây vào biến <code>GOOGLE_DRIVE_REFRESH_TOKEN_ENC</code> ' +
+            'trong <strong>Vercel Preview</strong>. Không gửi lên GitHub, ChatGPT, ảnh chụp ' +
+            'hoặc cho học sinh. Giữ kín khóa giải mã ở Vercel.</p>' +
+            '<textarea aria-label="Giá trị Drive đã mã hóa" rows="5" readonly spellcheck="false">' +
+            escapeHtml(encrypted) + '</textarea>' +
+            '<p>Sau khi lưu biến môi trường, Redeploy Preview. Kết nối Drive chỉ đọc ' +
+            'vẫn tắt cho tới khi được kiểm thử an toàn.</p>';
+        } catch {
+          vaultNotice = '<p class="warning">Không mã hóa được quyền Google Drive. ' +
+            'Chưa có thông tin nào được lưu; vui lòng kiểm tra cấu hình khóa.</p>';
+        }
+      } else {
+        vaultNotice = '<p class="warning">Google chưa trả refresh token mới. ' +
+          'Vui lòng cấp lại quyền ở đúng tài khoản giáo viên; ' +
+          'không sử dụng token lấy từ công cụ bên ngoài.</p>';
+      }
+    }
+
     return sendWebResponse(res, safeHtml(200,
       '<h2>' + (created ? 'Đã tạo thư mục Google Drive thành công' :
         'Đã tìm thấy thư mục SpeakLab AI đã tạo trước đó') + '</h2>' +
@@ -184,8 +220,9 @@ export default async function handler(req, res) {
       '<code>GOOGLE_DRIVE_FOLDER_ID</code> tại <strong>Vercel Preview</strong>. ' +
       'Không dùng ID của thư mục cũ được tạo thủ công.</p>' +
       '<p><strong>Quan trọng:</strong> Bước này chỉ tạo và xác minh thư mục. ' +
-      'Không lưu refresh token, chưa tải video lên Drive, chưa chia sẻ thư mục công khai, ' +
-      'chưa bật chức năng xóa video.</p>'));
+      'Không đưa refresh token gốc vào trang web, chưa tải video lên Drive, ' +
+      'chưa chia sẻ thư mục công khai hoặc bật chức năng xóa video.</p>' +
+      vaultNotice));
 
   } catch {
     return sendWebResponse(res, safeHtml(502, '<h2>Không thể kiểm tra Google Drive</h2>' +
