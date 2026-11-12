@@ -93,7 +93,14 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
             Chữ đang nhận diện · cập nhật liên tục
           </span>
           {interimText ? (
-            <p className="text-sm text-white leading-relaxed break-words whitespace-pre-wrap">{interimText}</p>
+            <div className="space-y-1">
+              <p className="text-sm text-white leading-relaxed break-words whitespace-pre-wrap">{interimText}</p>
+              {interimText.endsWith('\n\n') && (
+                <p className="text-[11px] text-[#BFE5C7] italic" role="status">
+                  Đã tự tách đoạn sau khoảng ngừng nói · bạn có thể nói tiếp
+                </p>
+              )}
+            </div>
           ) : (
             <p className="text-xs text-[#BDD2C1]">Đang nghe… Chữ sẽ xuất hiện ngay khi trình duyệt trả kết quả tạm thời.</p>
           )}
