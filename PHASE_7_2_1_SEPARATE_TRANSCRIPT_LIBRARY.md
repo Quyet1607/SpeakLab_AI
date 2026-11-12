@@ -40,3 +40,10 @@ Nhánh: `feature/recording-3-2`. Không sửa `main` / Production.
 - Cần kiểm thử thực tế trên trình duyệt: bật nhận diện tiếng Việt → nói → Dừng → mở Lịch sử trước khi Kết thúc buổi; tải TXT và kiểm tra dấu tiếng Việt; tiếp tục nhận diện; kiểm tra ghi video và xóa độc lập.
 - Kiểm tra dữ liệu cũ và ghi hình/chia sẻ màn hình không bị ảnh hưởng.
 - Không merge main hoặc chuyển Bước 7.3 trước khi người dùng nghiệm thu.
+
+## Quyết định cập nhật theo yêu cầu người dùng
+- Không tự động ngắt đoạn theo khoảng lặng và không chờ 1,8 giây.
+- Giữ văn bản nhận diện liên tục; chỉ lưu các kết quả cuối (isFinal) do trình duyệt xác nhận khi người học bấm Dừng nhận diện.
+- Chỉ lưu văn bản TXT riêng; không tạo MP3/WAV vì video ghi hình đã chứa âm thanh.
+- Bản ghi TXT được liên kết với video bằng sessionId, tải được trong Lịch sử và dành làm dữ liệu đầu vào cho AI ở giai đoạn sau.
+- Đã tăng giới hạn lưu trữ từ 80 lên 500 đoạn, và giới hạn nội dung mỗi đoạn từ 240 lên 2.000 ký tự để giảm nguy cơ cắt cụt transcript dài.
