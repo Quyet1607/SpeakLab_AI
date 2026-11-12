@@ -48,7 +48,7 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
           SpeakLab AI không tự gửi âm thanh hay bản ghi chữ lên API riêng.
         </p>
         <p className="text-[11px] text-[#9FB1A3]">
-          Văn bản đã nhận diện được lưu cục bộ cùng lịch sử khi kết thúc buổi luyện.
+          Khi bấm Dừng nhận diện, văn bản đã xác nhận được lưu riêng trên thiết bị và có thể xem, tải TXT tại Lịch sử luyện tập.
           Thời điểm và thời lượng từng đoạn là ước lượng, không phải phân tích chính xác từng từ.
         </p>
         {!supported && (
