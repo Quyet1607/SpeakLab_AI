@@ -33,6 +33,7 @@ interface MeetingControlsProps {
   onOpenSettings: () => void;
   onEndMeeting: () => void;
   isScreenSharing?: boolean;
+  hasPresentation?: boolean;
   onStopScreenShare?: () => void;
   isCameraLoading?: boolean;
   isMicLoading?: boolean;
@@ -57,6 +58,7 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
   onOpenSettings,
   onEndMeeting,
   isScreenSharing = false,
+  hasPresentation = false,
   onStopScreenShare,
   isCameraLoading = false,
   isMicLoading = false,
@@ -78,7 +80,7 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
             Phòng họp mô phỏng
           </p>
           <p className="text-[10px] text-[#A8B6AB] leading-tight">
-            Ghi camera hoặc PowerPoint + micro
+            Ghi cuộc họp mô phỏng hoặc PowerPoint
           </p>
         </div>
       </div>
@@ -163,13 +165,13 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
           )}
         </button>
 
-        {/* Ghi camera+micro không cần PPT, hoặc ghi màn hình+micro nếu đang chia sẻ. */}
+        {/* Composite simulated meeting tiles or real screen capture; real mic only. */}
         <button
           type="button"
           onClick={onRecordClick}
           disabled={!onRecordClick || recordingStatus === 'finalizing'}
-          aria-label={recordingStatus === 'recording' ? 'Dừng ghi hình' : isScreenSharing ? 'Bắt đầu ghi màn hình và micro' : 'Bắt đầu ghi camera và micro'}
-          title={recordingStatus === 'recording' ? 'Dừng ghi hình' : recordingStatus === 'finalizing' ? 'Đang hoàn tất bản ghi…' : isScreenSharing ? 'Ghi PowerPoint + micro' : 'Ghi camera + micro (không cần PowerPoint)'}
+          aria-label={recordingStatus === 'recording' ? 'Dừng ghi hình' : isScreenSharing ? 'Bắt đầu ghi màn hình và micro' : 'Bắt đầu ghi lưới cuộc họp và micro'}
+          title={recordingStatus === 'recording' ? 'Dừng ghi hình' : recordingStatus === 'finalizing' ? 'Đang hoàn tất bản ghi…' : isScreenSharing ? 'Ghi PowerPoint + micro' : 'Ghi cuộc họp mô phỏng và micro (camera tùy chọn)'}
           className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl border transition-colors flex items-center justify-center shrink-0 ${
             recordingStatus === 'recording'
               ? 'bg-[#873631] text-white border-[#B9544D] hover:bg-[#A33E37]'
@@ -210,12 +212,13 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
         {/* Presenter Notes */}
         <button
           onClick={onToggleNotes}
-          className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+          disabled={!hasPresentation}
+          className={`disabled:opacity-35 disabled:cursor-not-allowed min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
             isNotesOpen
               ? 'bg-[#83A58E] text-white font-semibold'
               : 'bg-[#27332A] text-[#A8B6AB] hover:text-white hover:bg-[#344438] border border-[#3A4A3E]'
           }`}
-          title="Kịch bản thuyết trình"
+          title={hasPresentation ? "Kịch bản trình chiếu" : "Không có tài liệu trình chiếu"}
         >
           <FileText className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
         </button>
