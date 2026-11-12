@@ -3,6 +3,7 @@ import type { RecordingVideoSource } from './presentationRecordingService';
 const SOURCE_NAME: Record<RecordingVideoSource, string> = {
   camera: 'Camera + micro',
   screen: 'PowerPoint + micro',
+  meeting: 'Cuộc họp mô phỏng + micro',
 };
 
 /** Visible title for a NEW video only; existing IndexedDB records are untouched. */
@@ -37,7 +38,7 @@ export function recordingDownloadName(
   extension: 'webm' | 'mp4',
   date: Date = new Date(),
 ): string {
-  return `SpeakLab_${source === 'camera' ? 'Camera' : 'PowerPoint'}_${readableSlug(title)}_${recordingTimestamp(date)}.${extension}`;
+  return `SpeakLab_${source === 'camera' ? 'Camera' : source === 'meeting' ? 'Cuoc_hop' : 'PowerPoint'}_${readableSlug(title)}_${recordingTimestamp(date)}.${extension}`;
 }
 
 /** Also names legacy videos and user-imported files without guessing a camera source. */
