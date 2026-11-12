@@ -66,30 +66,16 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
   );
   const [expandedMobileModeId, setExpandedMobileModeId] = useState<PracticeModeType | null>(null);
 
-  // Active Presentation Source: Demo vs PPTX
-  const [presentationSource, setPresentationSource] = useState<PresentationSource>(() => {
-    if (initialConfig?.presentationSource) {
-      return initialConfig.presentationSource;
-    }
-    const storedPptx = pptxSessionStore.getPptx();
-    if (storedPptx) {
-      return {
-        type: 'pptx',
-        pptxInfo: storedPptx,
-        name: storedPptx.name,
-        slideCount: storedPptx.slideCount,
-        status: 'ready',
-      };
-    }
-    const defaultDeck = availableDecks[0];
-    return {
-      type: 'demo',
-      deckId: defaultDeck?.id || 'deck_ai_waste',
-      name: defaultDeck?.title || 'Slide mẫu',
-      slideCount: defaultDeck?.slides.length || 6,
+  // Meeting begins WITHOUT an auto-attached deck, even if a PPTX was used
+  // in an older session. Showing slides requires a deliberate choice.
+  const [presentationSource, setPresentationSource] = useState<PresentationSource>(() =>
+    initialConfig?.presentationSource || {
+      type: 'none',
+      name: 'Không trình chiếu',
+      slideCount: 0,
       status: 'ready',
-    };
-  });
+    }
+  );
 
   // Sync back to parent whenever config changes so returning to this page retains choices
   useEffect(() => {
@@ -109,6 +95,17 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
     availableModes.find((m) => m.id === selectedModeId) || availableModes[0];
   const selectedDeck =
     availableDecks.find((d) => d.id === selectedDeckId) || availableDecks[0];
+
+  const handleWithoutSlides = () => {
+    setPresentationSource({
+      type: 'none',
+      name: 'Không trình chiếu',
+      slideCount: 0,
+      status: 'ready',
+    });
+    // Clear the previous internal presentation selection.
+    pptxSessionStore.setDemoSource('', 'Không trình chiếu', 0);
+  };
 
   const handleSelectDemoDeck = (deck: PresentationDeck) => {
     setSelectedDeckId(deck.id);
@@ -364,7 +361,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
                 3. Tài liệu trình chiếu
               </h3>
               <p className="text-xs text-[#768078] mt-0.5">
-                Chọn bộ slide mẫu hoặc tải lên tệp PowerPoint (.pptx) cá nhân từ thiết bị của bạn
+                Không cần PowerPoint để luyện tập. Chỉ chọn slide mẫu hoặc PPTX cá nhân nếu muốn trình chiếu.
               </p>
             </div>
 
@@ -374,12 +371,28 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
                   ? 'text-[#2A4433] bg-[#EEF4F0] border-[#83A58E]'
                   : 'text-[#4A6453] bg-[#EEF4F0] border-[#D9E5DC]'
               }`}>
-                {presentationSource.type === 'pptx'
-                  ? `Đang chọn: PowerPoint cá nhân (${presentationSource.slideCount} slides)`
-                  : `Đang chọn: Slide mẫu (${selectedDeck.slides.length} slides)`}
+                {presentationSource.type === 'none'
+                  ? 'Mặc định: Phòng họp không trình chiếu'
+                  : presentationSource.type === 'pptx'
+                    ? `Đã chọn: PowerPoint cá nhân (${presentationSource.slideCount} slides)`
+                    : `Đã chọn: Slide mẫu (${selectedDeck.slides.length} slides)`}
               </span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleWithoutSlides}
+            className={`w-full text-left p-4 rounded-xl border transition-colors ${presentationSource.type === 'none'
+              ? 'bg-[#EEF4F0] border-[#83A58E] ring-1 ring-[#83A58E] text-[#324C3B]'
+              : 'bg-white border-[#E4E9E3] text-[#556057] hover:border-[#83A58E]'}`}
+          >
+            <span className="font-bold text-sm">Không dùng PowerPoint – Phòng họp luyện tập</span>
+            <p className="text-xs mt-1">
+              Mặc định hiển thị người đang đăng nhập và các tài khoản mô phỏng như Google Meet hoặc Teams.
+              Chỉ hiện slide khi bạn chủ động chọn tài liệu hoặc chia sẻ màn hình.
+            </p>
+          </button>
 
           {/* Sub-section A: Available Demo Decks */}
           <div className="space-y-2">
