@@ -53,8 +53,9 @@ export default async function handler(req, res) {
       '<button type="submit">Xác minh và tiếp tục với Google</button></form>' +
       '<p>Nhấn nút để gửi kiểm tra. Nếu khóa trống hoặc không hợp lệ, trang sẽ hiển thị lỗi cụ thể thay vì đứng yên.</p>' +
       '<p class="warning">Không gửi khóa, Client Secret hoặc token qua ChatGPT, ảnh chụp màn hình hay GitHub.</p>' +
-      '<p>Sau bước cấp quyền, backend sẽ kiểm tra đúng tài khoản giáo viên và khả năng truy cập thư mục Drive. ' +
-      'Chưa bật tính năng lưu video.</p>'));
+      '<p>Sau khi cấp quyền, backend sẽ kiểm tra tài khoản giáo viên và thư mục Drive. ' +
+      'Nếu đã cấu hình khóa mã hóa, trang callback tạo bản mã hóa để thầy/cô tự lưu vào ' +
+      'Vercel Preview. Chưa bật tính năng tải video lên Drive.</p>'));
   }
 
   if (req.method !== 'POST') {
