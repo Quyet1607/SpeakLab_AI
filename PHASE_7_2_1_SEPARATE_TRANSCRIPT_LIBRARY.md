@@ -20,6 +20,14 @@ Nhánh: `feature/recording-3-2`. Không sửa `main` / Production.
 - **Giới hạn:** Web Speech API không bảo đảm cung cấp thời điểm im lặng chính xác trên mọi trình duyệt; một kết quả cuối không có dữ liệu tạm hoặc bị nhà cung cấp sửa quá nhiều có thể không tách được.
 - Kiểm thử tự động tại `tests/vietnameseSpeechRecognition.test.js` bổ sung trường hợp nghỉ dài, nghỉ ngắn, thay đổi giả thuyết và sự kiện speechend/speechstart.
 
+## Tự động tách đoạn NGAY KHI ĐANG NGHE (bổ sung)
+- Không cần bấm **Dừng nhận diện** để ngắt đoạn. Ngay sau khoảng ngừng nói xấp xỉ 1,8 giây, văn bản **tạm thời** trên bảng Lời nói → Văn bản tự xuống đoạn và hiện thông báo `Đã tự tách đoạn`.
+- Hệ thống vẫn tiếp tục nghe và cập nhật lời nói sau đó ở đoạn mới; không tự dừng micro hoặc ghi hình.
+- Sử dụng sự kiện `speechend` của trình duyệt (khi có), đồng thời dự phòng bằng khoảng không có cập nhật kết quả nhận diện. Tín hiệu dự phòng không bảo đảm phân biệt hoàn toàn độ trễ của dịch vụ với khoảng ngừng nói.
+- Chỉ các kết quả `isFinal` được lưu vào kho lời nói. Khi trình duyệt xác nhận văn bản, điểm ngắt được áp dụng nếu từ ngữ trước đó vẫn khớp. Nếu nhận diện sửa lại câu, đoạn tạm có thể được sắp xếp lại để tránh ghi sai hoặc lặp chữ.
+- Nhấn **Dừng nhận diện** vẫn lưu bản ghi đã xác nhận, độc lập với hành động ngắt đoạn tự động.
+- Test `tests/vietnameseSpeechRecognition.test.js` kiểm tra có xuống đoạn trong lúc phiên nhận diện vẫn chạy, không cần nhấn Stop.
+
 ## Quyền riêng tư
 - Không tự kích hoạt micro hoặc gửi transcript lên backend của SpeakLab.
 - Web Speech API của trình duyệt có thể xử lý âm thanh tại máy chủ nhà cung cấp, như đã thông báo trước khi đồng ý.
