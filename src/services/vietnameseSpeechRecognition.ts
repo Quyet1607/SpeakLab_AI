@@ -101,6 +101,7 @@ export class VietnameseBrowserSpeechSession {
   private firstSeen = new Map<number, number>();
   private stopped = false;
   private ended = false;
+  private lastError: string | null = null;
   private finishStop!: () => void;
   private stopPromise: Promise<void>;
 
@@ -135,14 +136,17 @@ export class VietnameseBrowserSpeechSession {
     };
     this.engine.onerror = event => {
       if (this.stopped && event.error === 'aborted') return;
-      this.callbacks.onState('error', speechRecognitionErrorMessage(event.error));
+      this.lastError = speechRecognitionErrorMessage(event.error);
+      this.callbacks.onState('error', this.lastError);
     };
     this.engine.onend = () => {
       if (this.ended) return;
       this.ended = true;
       this.callbacks.onInterim('');
-      this.callbacks.onState('stopped', this.stopped ? undefined :
-        'Trình duyệt đã tự kết thúc nhận diện (có thể do tạm ngừng nói). Nhấn Bắt đầu để tiếp tục.');
+      if (!this.lastError) {
+        this.callbacks.onState('stopped', this.stopped ? undefined :
+          'Trình duyệt đã tự kết thúc nhận diện (có thể do tạm ngừng nói). Nhấn Bắt đầu để tiếp tục.');
+      }
       this.finishStop();
     };
   }
