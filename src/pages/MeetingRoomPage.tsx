@@ -129,6 +129,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // The mic and any browser recognition service are never enabled automatically.
   const speechRecognitionRef = useRef<VietnameseBrowserSpeechSession | null>(null);
   const speechSegmentsRef = useRef<SpeechTranscriptSegment[]>([]);
+  const speechSegmentIdsRef = useRef<number[]>([]);
   const elapsedSecondsRef = useRef(0);
   const [speechSegments, setSpeechSegments] = useState<SpeechTranscriptSegment[]>([]);
   const [speechInterim, setSpeechInterim] = useState('');
@@ -168,15 +169,25 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
             speechRecognitionRef.current = null;
           }
         },
-        onSegment: segment => {
+        onSegment: (segment, segmentId) => {
           if (!mountedRef.current) return;
           const updated = normalizeTranscriptSegments([...speechSegmentsRef.current, segment]);
           speechSegmentsRef.current = updated;
+          speechSegmentIdsRef.current = [...speechSegmentIdsRef.current, segmentId].slice(0, updated.length);
           setSpeechSegments(updated);
           if (updated.length >= SPEECH_SEGMENT_LIMIT) {
             setSpeechNotice('Đã nhận diện tối đa số đoạn cho buổi luyện. Bạn vẫn có thể tiếp tục ghi video.');
             void stopSpeechRecognition();
           }
+        },
+        onSegmentUpdate: (segmentId, segment) => {
+          if (!mountedRef.current) return;
+          const index = speechSegmentIdsRef.current.indexOf(segmentId);
+          if (index < 0) return;
+          const updated = [...speechSegmentsRef.current];
+          updated[index] = segment;
+          speechSegmentsRef.current = updated;
+          setSpeechSegments(updated);
         },
       });
       speechRecognitionRef.current = controller;
@@ -217,6 +228,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     try {
       deleteLocalTranscript(session.id, sessionOwnerSub);
       speechSegmentsRef.current = [];
+      speechSegmentIdsRef.current = [];
       setSpeechSegments([]);
       setSpeechNotice('Đã xóa bản ghi chữ riêng của buổi luyện. Video không bị ảnh hưởng.');
     } catch (error) {
