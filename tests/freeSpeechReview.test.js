@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   FREE_REVIEW_MODEL, MAX_REVIEWS_PER_DAY, validateReviewRequest,
   makeEvidenceChunks, buildReviewPrompt, parseGroundedReview,
-  ensureFreePreview, reserveReviewQuota,
+  ensureFreePreview, reserveReviewQuota, classifyReviewProviderError,
 } from '../server/freeSpeechReview.js';
 
 const input = {
@@ -17,7 +17,7 @@ const input = {
 };
 
 test('unpaid Preview is required before any provider call', () => {
-  assert.equal(FREE_REVIEW_MODEL, 'gemini-2.5-flash-lite');
+  assert.equal(FREE_REVIEW_MODEL, 'gemini-3.5-flash-lite');
   assert.equal(MAX_REVIEWS_PER_DAY, 5);
   assert.throws(() => ensureFreePreview({ VERCEL_ENV: 'production', GEMINI_API_KEY: 'key', SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true' }));
   assert.throws(() => ensureFreePreview({ VERCEL_ENV: 'preview', GEMINI_API_KEY: 'key' }));
@@ -89,4 +89,27 @@ test('review quota is fail-closed and shared across instances', async () => {
   for (let i = 0; i < 5; i++) assert.equal(await reserveReviewQuota('12345', env, mocked), 4 - i);
   await assert.rejects(() => reserveReviewQuota('12345', env, mocked), e => e.status === 429);
   await assert.rejects(() => reserveReviewQuota('12345', env, async () => ({ ok: false })), e => e.status === 503);
+});
+
+
+test('classifies provider errors safely without leaking raw provider messages', () => {
+  const cases = [
+    [429, 'GEMINI_FREE_QUOTA', 429],
+    [403, 'GEMINI_ACCESS_DENIED', 503],
+    [401, 'GEMINI_ACCESS_DENIED', 503],
+    [404, 'GEMINI_MODEL_UNAVAILABLE', 503],
+    [503, 'GEMINI_TEMPORARILY_UNAVAILABLE', 503],
+    [400, 'GEMINI_REQUEST_REJECTED', 502],
+    [502, 'GEMINI_UNKNOWN_ERROR', 502],
+  ];
+  for (const [status, code, publicStatus] of cases) {
+    const result = classifyReviewProviderError({
+      status, message: 'PRIVATE_SECRET_FROM_PROVIDER',
+    });
+    assert.equal(result.status, publicStatus);
+    assert.equal(result.code, code);
+    assert.equal(JSON.stringify(result).includes('PRIVATE_SECRET_FROM_PROVIDER'), false);
+  }
+  const modelError = classifyReviewProviderError({ message: 'models/gemini-2.5-flash-lite is not found' });
+  assert.equal(modelError.code, 'GEMINI_MODEL_UNAVAILABLE');
 });
