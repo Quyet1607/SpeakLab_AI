@@ -8,7 +8,7 @@
 2. Khi kết thúc một buổi có PPTX được tải lên bằng ứng dụng, mã trích xuất **chỉ chữ trong slide** trên trình duyệt và lưu riêng vào `speaklab_local_review_slides_v1`, gắn `sessionId` và `ownerSub`. Không lưu bytes PPTX và không gửi gì lên AI khi kết thúc buổi.
 3. Trong **Lịch sử → Bản ghi lời nói**, có nút **Phân tích bài thuyết trình bằng AI**. Người học có thể bổ sung/thay PPTX bất kỳ lúc nào; nếu không có hoặc slide không có chữ vẫn phân tích TXT.
 4. Trước khi gọi API, người học phải chủ động tích chọn đồng ý gửi đề tài, mục tiêu, văn bản TXT và văn bản slide (nếu có) đến Gemini Free Tier. Chỉ lúc nhấn nút mới gửi dữ liệu.
-5. Backend `POST /api/ai/review` xác thực phiên đăng nhập Google phía server, kiểm tra nguồn HTTPS same-origin, nội dung đầu vào, xác nhận Preview Free Tier và bộ giới hạn lượt. Mô hình **cố định** `gemini-2.5-flash-lite`, không fallback sang API có phí.
+5. Backend `POST /api/ai/review` xác thực phiên đăng nhập Google phía server, kiểm tra nguồn HTTPS same-origin, nội dung đầu vào, xác nhận Preview Free Tier và bộ giới hạn lượt. Mô hình **cố định** `gemini-3.5-flash-lite`, không fallback sang API có phí.
 6. Kết quả gồm nhận xét tổng quan, 2 điểm mạnh, 2 điểm cần cải thiện kèm hành động, 0–2 đối chiếu slide (nếu có), các giới hạn đánh giá. AI phải chọn ID của đoạn văn bản đã cung cấp để làm dẫn chứng; backend kiểm tra ID có thật và cung cấp đoạn nguồn nguyên văn. Không tính điểm số hoặc đánh giá hình ảnh/âm thanh từ TXT.
 7. Kết quả chỉ xem trong phiên hiện tại. Việc lưu thành báo cáo lịch sử sẽ làm ở Đợt 7.3.2.
 
@@ -49,3 +49,12 @@ Không đủ cấu hình: HTTP 503, không gọi mô hình. Hết quota 5 lần/
 9. Xác nhận video, ghi chữ, tải TXT, chia sẻ màn hình và lịch sử vẫn hoạt động.
 
 **Lưu ý vận hành:** Nếu GitHub Actions/Vercel Preview chưa build được thì chưa coi là nghiệm thu. Không triển khai Đợt 7.3.2 khi chưa có duyệt.
+
+## Khắc phục thông báo lỗi chung ở bản thử nghiệm (13/11/2026)
+- Chuyển mô hình cố định từ Gemini 2.5 Flash-Lite sang **Gemini 3.5 Flash-Lite**, vì tài liệu Google hạn chế một số dự án mới sử dụng dòng 2.5. Mô hình 3.5 Flash-Lite được Google niêm yết có Standard Free Tier; **không bật thanh toán**.
+- Tăng ngưỡng đầu ra JSON lên 3.200 token để giảm nguy cơ trả câu trả lời thiếu.
+- API trả mã lỗi an toàn, không chứa văn bản của học sinh hoặc khóa bí mật: `GEMINI_ACCESS_DENIED`, `GEMINI_MODEL_UNAVAILABLE`, `GEMINI_REQUEST_REJECTED`, `GEMINI_EMPTY_OUTPUT`, `GEMINI_OUTPUT_LIMIT`, `GEMINI_INVALID_FEEDBACK`, `GEMINI_FREE_QUOTA`, `GEMINI_TEMPORARILY_UNAVAILABLE`.
+- UI hiển thị mã lỗi khi thất bại. Nếu vẫn lỗi, vào **Vercel → Deployments → Preview → Functions/Logs**, lọc `/api/ai/review` và xem **mã HTTP cùng mã lỗi**, không gửi log thô có token, cookie hoặc dữ liệu cá nhân.
+- Giới hạn 5 lượt/tài khoản/ngày vẫn giữ nguyên; **lượt yêu cầu thất bại sau khi qua bộ đếm có thể vẫn bị tính vào hạn mức nội bộ**, do đó tránh thử liên tục.
+- Mã nguồn không tự động xác minh rằng API key thực sự không gắn billing. Chủ dự án phải tự duy trì khóa ở dự án Free Tier không liên kết thanh toán.
+- Không có bản sửa nào được thực hiện ở `main` hoặc Production. Sau khi sửa code, Vercel Preview cần build/redeploy để nhận thay đổi.
