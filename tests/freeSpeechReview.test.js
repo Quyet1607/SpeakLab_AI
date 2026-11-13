@@ -104,8 +104,8 @@ test('review quota is fail-closed and shared across instances', async () => {
     return { ok: true, json: async () => [{ result: count }, { result: 1 }] };
   };
   for (let i = 0; i < 5; i++) assert.equal(await reserveReviewQuota('12345', env, mocked, '2026-11-13'), 4 - i);
-  await assert.rejects(() => reserveReviewQuota('12345', env, mocked), e => e.status === 429);
-  await assert.rejects(() => reserveReviewQuota('12345', env, async () => ({ ok: false })), e => e.status === 503);
+  await assert.rejects(() => reserveReviewQuota('12345', env, mocked, '2026-11-13'), e => e.status === 429);
+  await assert.rejects(() => reserveReviewQuota('12345', env, async () => ({ ok: false }), '2026-11-13'), e => e.status === 503);
 });
 
 
