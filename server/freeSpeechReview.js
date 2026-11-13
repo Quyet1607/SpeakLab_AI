@@ -1,5 +1,7 @@
 /** Phase 7.3.1: text-grounded speaking feedback, Gemini Free Tier only. */
-export const FREE_REVIEW_MODEL = 'gemini-2.5-flash-lite';
+// The legacy 2.5 models have restricted access for some newly created projects.
+// Gemini 3.5 Flash-Lite is listed by Google under Free Tier at the time of this update.
+export const FREE_REVIEW_MODEL = 'gemini-3.5-flash-lite';
 export const MAX_REVIEWS_PER_DAY = 5;
 export const MAX_TRANSCRIPT_CHARS = 24000;
 export const MAX_SLIDES = 40;
@@ -129,7 +131,7 @@ export function ensureFreePreview(env = process.env) {
   if (env.VERCEL_ENV !== 'preview' ||
     env.SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED !== 'true' ||
     typeof env.GEMINI_API_KEY !== 'string' || !env.GEMINI_API_KEY.trim()) {
-    throw Object.assign(new Error('AI miễn phí chưa được cấu hình trên Preview.'), { status: 503 });
+    throw Object.assign(new Error('AI miễn phí chưa được cấu hình trên Preview.'), { status: 503, safePublic: true });
   }
 }
 
@@ -137,7 +139,7 @@ export async function reserveReviewQuota(ownerSub, env = process.env, fetchImpl 
   const baseUrl = String(env.SPEAKLAB_RATE_LIMIT_REST_URL || '').replace(/\/$/u, '');
   const token = String(env.SPEAKLAB_RATE_LIMIT_REST_TOKEN || '');
   if (!/^https:\/\//u.test(baseUrl) || !token) {
-    throw Object.assign(new Error('Chưa có bộ giới hạn lượt AI phía máy chủ.'), { status: 503 });
+    throw Object.assign(new Error('Chưa có bộ giới hạn lượt AI phía máy chủ.'), { status: 503, safePublic: true });
   }
   const date = new Date().toISOString().slice(0, 10);
   const key = 'speaklab:feedback:' + date + ':' + ownerSub;
@@ -150,18 +152,40 @@ export async function reserveReviewQuota(ownerSub, env = process.env, fetchImpl 
       signal: AbortSignal.timeout(5000),
     });
   } catch {
-    throw Object.assign(new Error('Không thể kiểm tra hạn mức AI miễn phí.'), { status: 503 });
+    throw Object.assign(new Error('Không thể kiểm tra hạn mức AI miễn phí.'), { status: 503, safePublic: true });
   }
-  if (!response.ok) throw Object.assign(new Error('Dịch vụ giới hạn lượt chưa sẵn sàng.'), { status: 503 });
+  if (!response.ok) throw Object.assign(new Error('Dịch vụ giới hạn lượt chưa sẵn sàng.'), { status: 503, safePublic: true });
   let data;
   try { data = await response.json(); } catch { data = null; }
   const count = Number(data?.[0]?.result);
   if (!Number.isInteger(count) || count < 1 || data?.[0]?.error || data?.[1]?.error ||
     !Array.isArray(data) || data.length !== 2) {
-    throw Object.assign(new Error('Chưa xác minh được hạn mức AI.'), { status: 503 });
+    throw Object.assign(new Error('Chưa xác minh được hạn mức AI.'), { status: 503, safePublic: true });
   }
   if (count > MAX_REVIEWS_PER_DAY) {
-    throw Object.assign(new Error('Bạn đã dùng hết 5 lượt nhận xét hôm nay.'), { status: 429 });
+    throw Object.assign(new Error('Bạn đã dùng hết 5 lượt nhận xét hôm nay.'), { status: 429, safePublic: true });
   }
   return MAX_REVIEWS_PER_DAY - count;
+}
+
+/** Classify provider errors without exposing their message, prompt or credentials. */
+export function classifyReviewProviderError(error) {
+  const status = Number(error?.status || error?.code || 0);
+  const marker = String(error?.message || '');
+  if (status === 429 || /RESOURCE_EXHAUSTED|quota|rate.limit/iu.test(marker)) {
+    return { status: 429, code: 'GEMINI_FREE_QUOTA', error: 'Gemini đã hết hạn mức miễn phí. Hãy thử lại khi quota được cấp mới; không nâng cấp trả phí.' };
+  }
+  if (status === 401 || status === 403 || /API_KEY_INVALID|PERMISSION_DENIED|API key not valid/iu.test(marker)) {
+    return { status: 503, code: 'GEMINI_ACCESS_DENIED', error: 'Gemini từ chối khóa API hoặc quyền truy cập. Hãy kiểm tra khóa thuộc đúng dự án Free Tier.' };
+  }
+  if (status === 404 || /NOT_FOUND|model.+not found|not supported for generateContent/iu.test(marker)) {
+    return { status: 503, code: 'GEMINI_MODEL_UNAVAILABLE', error: 'Mô hình Gemini chưa được cấp quyền cho dự án này. Không tự chuyển sang mô hình trả phí.' };
+  }
+  if (status === 503 || status === 500 || /UNAVAILABLE|overloaded/iu.test(marker)) {
+    return { status: 503, code: 'GEMINI_TEMPORARILY_UNAVAILABLE', error: 'Máy chủ Gemini tạm thời không sẵn sàng. Hãy thử lại sau.' };
+  }
+  if (status === 400 || /INVALID_ARGUMENT/iu.test(marker)) {
+    return { status: 502, code: 'GEMINI_REQUEST_REJECTED', error: 'Gemini từ chối yêu cầu phân tích. Cần kiểm tra khả năng hỗ trợ định dạng JSON của mô hình.' };
+  }
+  return { status: 502, code: 'GEMINI_UNKNOWN_ERROR', error: 'Chưa xác định được lỗi khi gọi Gemini. Hãy kiểm tra Function Logs trong Vercel.' };
 }
