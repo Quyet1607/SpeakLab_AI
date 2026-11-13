@@ -155,13 +155,15 @@ export function ensureFreePreview(env = process.env) {
   }
 }
 
-export async function reserveReviewQuota(ownerSub, env = process.env, fetchImpl = fetch) {
+export async function reserveReviewQuota(ownerSub, env = process.env, fetchImpl = fetch, date = new Date().toISOString().slice(0, 10)) {
   const baseUrl = String(env.SPEAKLAB_RATE_LIMIT_REST_URL || '').replace(/\/$/u, '');
   const token = String(env.SPEAKLAB_RATE_LIMIT_REST_TOKEN || '');
   if (!/^https:\/\//u.test(baseUrl) || !token) {
     throw Object.assign(new Error('Chưa có bộ giới hạn lượt AI phía máy chủ.'), { status: 503, safePublic: true });
   }
-  const date = new Date().toISOString().slice(0, 10);
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(date)) {
+    throw Object.assign(new Error('Ngày kiểm tra hạn mức không hợp lệ.'), { status: 503, safePublic: true });
+  }
   const key = 'speaklab:feedback:' + date + ':' + ownerSub;
   let response;
   try {
@@ -186,6 +188,40 @@ export async function reserveReviewQuota(ownerSub, env = process.env, fetchImpl 
     throw Object.assign(new Error('Bạn đã dùng hết 5 lượt nhận xét hôm nay.'), { status: 429, safePublic: true });
   }
   return MAX_REVIEWS_PER_DAY - count;
+}
+
+/**
+ * Refund one reserved quota only after a temporary Gemini 500/503 failure.
+ * Lua keeps the decrement atomic and avoids creating a negative counter if the
+ * daily key has already expired. Returns false rather than masking the provider error.
+ */
+export async function releaseReviewQuota(ownerSub, date, env = process.env, fetchImpl = fetch) {
+  const baseUrl = String(env.SPEAKLAB_RATE_LIMIT_REST_URL || '').replace(/\/$/u, '');
+  const token = String(env.SPEAKLAB_RATE_LIMIT_REST_TOKEN || '');
+  if (!/^https:\/\//u.test(baseUrl) || !token ||
+    typeof ownerSub !== 'string' || !ownerSub ||
+    typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(date)) {
+    return false;
+  }
+
+  const key = 'speaklab:feedback:' + date + ':' + ownerSub;
+  const script = "local current = tonumber(redis.call('GET', KEYS[1]) or '0'); if current <= 0 then return 0 end; return redis.call('DECR', KEYS[1])";
+  try {
+    const response = await fetchImpl(baseUrl + '/multi-exec', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify([['EVAL', script, 1, key]]),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return false;
+
+    const data = await response.json();
+    const count = Number(data?.[0]?.result);
+    return Array.isArray(data) && data.length === 1 &&
+      !data[0]?.error && Number.isInteger(count) && count >= 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Classify provider errors without exposing their message, prompt or credentials. */

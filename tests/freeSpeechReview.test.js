@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   FREE_REVIEW_MODEL, MAX_REVIEWS_PER_DAY, validateReviewRequest,
   makeEvidenceChunks, buildReviewPrompt, parseGroundedReview,
-  ensureFreePreview, reserveReviewQuota, classifyReviewProviderError,
+  ensureFreePreview, reserveReviewQuota, releaseReviewQuota, classifyReviewProviderError,
 } from '../server/freeSpeechReview.js';
 
 const input = {
@@ -97,15 +97,37 @@ test('review quota is fail-closed and shared across instances', async () => {
   };
   const mocked = async (url, opts) => {
     assert.equal(url, 'https://test-redis.example.com/multi-exec');
-    assert.equal(JSON.parse(opts.body)[0][0], 'INCR');
+    const command = JSON.parse(opts.body)[0];
+    assert.equal(command[0], 'INCR');
+    assert.equal(command[1], 'speaklab:feedback:2026-11-13:12345');
     count++;
     return { ok: true, json: async () => [{ result: count }, { result: 1 }] };
   };
-  for (let i = 0; i < 5; i++) assert.equal(await reserveReviewQuota('12345', env, mocked), 4 - i);
+  for (let i = 0; i < 5; i++) assert.equal(await reserveReviewQuota('12345', env, mocked, '2026-11-13'), 4 - i);
   await assert.rejects(() => reserveReviewQuota('12345', env, mocked), e => e.status === 429);
   await assert.rejects(() => reserveReviewQuota('12345', env, async () => ({ ok: false })), e => e.status === 503);
 });
 
+
+test('temporary Gemini outage quota refund is atomic, date-stable and fail-safe', async () => {
+  const env = {
+    SPEAKLAB_RATE_LIMIT_REST_URL: 'https://test-redis.example.com/',
+    SPEAKLAB_RATE_LIMIT_REST_TOKEN: 'secret',
+  };
+  const refund = async (url, opts) => {
+    assert.equal(url, 'https://test-redis.example.com/multi-exec');
+    const [command] = JSON.parse(opts.body);
+    assert.equal(command[0], 'EVAL');
+    assert.equal(command[2], 1);
+    assert.equal(command[3], 'speaklab:feedback:2026-11-13:12345');
+    assert.match(command[1], /DECR/u);
+    return { ok: true, json: async () => [{ result: 4 }] };
+  };
+  assert.equal(await releaseReviewQuota('12345', '2026-11-13', env, refund), true);
+  assert.equal(await releaseReviewQuota('12345', '2026-11-13', {}, refund), false);
+  assert.equal(await releaseReviewQuota('12345', '2026-11-13', env, async () => ({ ok: false })), false);
+  assert.equal(await releaseReviewQuota('12345', 'invalid-date', env, refund), false);
+});
 
 test('classifies provider errors safely without leaking raw provider messages', () => {
   const cases = [
@@ -113,6 +135,7 @@ test('classifies provider errors safely without leaking raw provider messages', 
     [403, 'GEMINI_ACCESS_DENIED', 503],
     [401, 'GEMINI_ACCESS_DENIED', 503],
     [404, 'GEMINI_MODEL_UNAVAILABLE', 503],
+    [500, 'GEMINI_TEMPORARILY_UNAVAILABLE', 503],
     [503, 'GEMINI_TEMPORARILY_UNAVAILABLE', 503],
     [400, 'GEMINI_REQUEST_REJECTED', 502],
     [502, 'GEMINI_UNKNOWN_ERROR', 502],

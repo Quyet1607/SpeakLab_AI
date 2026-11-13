@@ -4,7 +4,7 @@ import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js'
 import {
   FREE_REVIEW_MODEL, validateReviewRequest, makeEvidenceChunks,
   buildReviewPrompt, parseGroundedReview, ensureFreePreview, reserveReviewQuota,
-  classifyReviewProviderError,
+  releaseReviewQuota, classifyReviewProviderError,
 } from '../../server/freeSpeechReview.js';
 
 const assessment = {
@@ -77,10 +77,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Thiếu đồng ý hoặc nội dung bài nói không hợp lệ.' });
   }
 
+  const quotaDate = new Date().toISOString().slice(0, 10);
   try {
     // These are independent, mandatory guards. Never fall back to a paid model.
     ensureFreePreview();
-    const remainingToday = await reserveReviewQuota(identity.id);
+    const remainingToday = await reserveReviewQuota(identity.id, process.env, fetch, quotaDate);
     const evidence = makeEvidenceChunks(input.transcript);
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const output = await ai.models.generateContent({
@@ -122,6 +123,17 @@ export default async function handler(req, res) {
     }
     // Never expose provider errors: they can include request metadata.
     const publicError = classifyReviewProviderError(error);
+    if (publicError.code === 'GEMINI_TEMPORARILY_UNAVAILABLE') {
+      const refunded = await releaseReviewQuota(identity.id, quotaDate);
+      if (!refunded) {
+        console.warn('[SpeakLab AI review] Quota refund failed after temporary Gemini outage.');
+      }
+    }
+    // Log only the sanitized code/status; never log request data or raw provider errors.
+    console.warn('[SpeakLab AI review] Provider request failed.', {
+      code: publicError.code,
+      status: publicError.status,
+    });
     return res.status(publicError.status).json(publicError);
   }
 }
