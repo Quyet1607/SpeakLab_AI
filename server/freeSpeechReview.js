@@ -64,7 +64,7 @@ export function buildReviewPrompt(input, chunks) {
     'Chỉ phân tích nội dung đã nói trong các đoạn [E] và văn bản slide [S] cung cấp.',
     'Trả về nhận xét cân bằng: 2 điểm mạnh, 2 điểm cần cải thiện (mỗi mục một hành động luyện tập cụ thể).',
     'Mỗi nhận xét phải chọn evidenceId từ các đoạn E đã cung cấp. Không tự bịa lời nói hoặc dẫn chứng.',
-    'Nếu có slide, nêu tối đa 2 điểm đối chiếu slide và bài nói, có slideNumber và evidenceId.',
+    'Nếu có slide, bắt buộc nêu 1 hoặc 2 điểm đối chiếu slide và bài nói, có slideNumber và evidenceId.',
     'Nếu không có slide, trả slideComparisons là [] và KHÔNG đánh giá slide.',
     'Không tự chấm điểm; không đánh giá ánh mắt, tư thế, giọng điệu, cảm xúc hoặc âm lượng từ văn bản.',
     'Ghi hạn chế do sai số nhận diện tiếng Việt và do chỉ có văn bản, không có dữ liệu âm thanh/hình ảnh để đánh giá.',
@@ -113,6 +113,7 @@ export function parseGroundedReview(raw, evidence, slides) {
     return { ...withEvidence(item, false), slideNumber: item.slideNumber };
   });
   if (!slides.length && slideComparisons.length) throw new Error('Bản nhận xét nhắc tới slide chưa được cung cấp.');
+  if (slides.length && slideComparisons.length === 0) throw new Error('AI chưa đối chiếu nội dung PPTX đã cung cấp.');
   return {
     summary: safeString(data.summary, 20, 850),
     strengths: data.strengths.map(item => withEvidence(item, false)),
