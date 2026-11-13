@@ -21,6 +21,8 @@ import { reportService } from './services/reportService';
 import { AppLayout } from './layouts/AppLayout';
 import { refreshSession, subscribeSession, type SessionState } from './services/accountSession';
 import { listCompletedPracticeSessions, saveCompletedPracticeSession } from './services/localPracticeHistory';
+import { extractPptxTextForReview } from './services/pptxReviewText';
+import { saveLocalReviewSlides } from './services/localReviewSlideLibrary';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -134,12 +136,26 @@ export default function App() {
     // not another Google account that may have signed in midway.
     try {
       saveCompletedPracticeSession({ ...currentSession, transcriptSegments: transcript }, actualSeconds, sessionOwnerSub);
+      // Preserve slide TEXT for this completed session only (not the PPTX file).
+      // Never block recording history if slide extraction is unavailable.
+      let slideNotice = '';
+      const pptx = currentSession.presentationSource;
+      if (pptx?.type === 'pptx' && pptx.pptxInfo?.file) {
+        try {
+          const slideText = await extractPptxTextForReview(pptx.pptxInfo.file);
+          if (!saveLocalReviewSlides(currentSession.id, sessionOwnerSub, slideText)) {
+            slideNotice = ' PPTX không chứa chữ đọc được; phân tích vẫn sử dụng TXT.';
+          }
+        } catch {
+          slideNotice = ' Chưa đọc được PPTX; bạn có thể chọn lại khi phân tích tại Lịch sử.';
+        }
+      }
       setSessions(listCompletedPracticeSessions(activeOwner));
       setHistoryNotice(sessionOwnerSub !== activeOwner
         ? 'Buổi luyện đã lưu dưới tài khoản khi bắt đầu. Đăng nhập lại đúng tài khoản đó để xem trong lịch sử.'
         : destination === 'report'
-          ? 'Đã lưu buổi luyện thực tế trên trình duyệt. Báo cáo AI dựa trên dữ liệu thực chưa được kích hoạt; các báo cáo mẫu hiện chỉ để tham khảo.'
-          : null);
+          ? 'Đã lưu buổi luyện thực tế. Có thể nhận xét AI từ bản ghi tại Lịch sử.' + slideNotice
+          : slideNotice || null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Không lưu được lịch sử buổi luyện.');
     }
