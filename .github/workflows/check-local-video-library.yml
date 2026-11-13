@@ -6,6 +6,10 @@ on:
       - feature/recording-3-2
     paths:
       - 'src/**'
+      - 'api/ai/**'
+      - 'server/freeSpeechReview.js'
+      - 'tests/freeSpeechReview.test.js'
+      - 'tests/pptxReviewText.test.js'
       - 'public/**'
       - 'bun.lock'
       - 'package.json'
@@ -53,6 +57,10 @@ jobs:
         run: bun test tests/meetingScreenSwitch.test.js
       - name: Test no auto-injected presentation
         run: bun test tests/meetingNoAutoSlides.test.js
+      - name: Test Phase 7.3.1 review security, evidence and quotas
+        run: node --test tests/freeSpeechReview.test.js
+      - name: Test Phase 7.3.1 optional PowerPoint evidence
+        run: bun test tests/pptxReviewText.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
