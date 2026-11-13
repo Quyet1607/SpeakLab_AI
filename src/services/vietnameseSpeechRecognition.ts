@@ -88,18 +88,33 @@ export function speechRecognitionErrorMessage(error: string): string {
   }
 }
 
+export const SPEECH_PAUSE_THRESHOLD_MS = 1200;
+
 export interface SpeechRecognitionCallbacks {
   onState: (state: 'listening' | 'stopped' | 'error', message?: string) => void;
   onInterim: (text: string) => void;
-  onSegment: (segment: SpeechTranscriptSegment) => void;
+  onSegment: (segment: SpeechTranscriptSegment, segmentId: number) => void;
+  /** A browser may confirm an interim phrase after the silence timer has already emitted it. */
+  onSegmentUpdate?: (segmentId: number, segment: SpeechTranscriptSegment) => void;
   getElapsedSeconds: () => number;
+}
+
+interface EmittedSpeechSegment {
+  segment: SpeechTranscriptSegment;
+  texts: Map<number, string>;
 }
 
 export class VietnameseBrowserSpeechSession {
   private engine: BrowserSpeechEngine;
-  private indices = new Set<number>();
+  private finalizedIndices = new Set<number>();
   private firstSeen = new Map<number, number>();
-  private latestInterim = new Map<number, string>();
+  private activeTexts = new Map<number, string>();
+  private activeIndices = new Set<number>();
+  private emittedSegmentByIndex = new Map<number, number>();
+  private emittedSegments = new Map<number, EmittedSpeechSegment>();
+  private nextSegmentId = 1;
+  private pauseTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastSpeechElapsedSeconds: number | null = null;
   private stopped = false;
   private ended = false;
   private lastError: string | null = null;
@@ -117,28 +132,54 @@ export class VietnameseBrowserSpeechSession {
     this.stopPromise = new Promise<void>(resolve => { this.finishStop = resolve; });
     this.engine.onstart = () => this.callbacks.onState('listening');
     this.engine.onresult = event => {
-      // Web Speech emits revised hypotheses as the learner speaks. Publish
-      // *all* current interim words immediately, rather than showing only
-      // the last result (which can look as if words arrive very slowly).
-      // The display is provisional; only final results go into history.
+      let interimChanged = false;
+      let receivedFinal = false;
+
+      // Web Speech can keep a phrase provisional for longer than a natural pause.
+      // Keep its latest text and split locally after a short period without updates.
       for (let index = 0; index < event.results.length; index++) {
         const result = event.results[index];
         const text = cleanSpeechText(result[0]?.transcript || '');
-        if (!text || this.indices.has(index)) continue;
+        if (!text || this.finalizedIndices.has(index)) continue;
+
         const now = Math.max(0, Math.floor(this.callbacks.getElapsedSeconds()));
+        const emittedId = this.emittedSegmentByIndex.get(index);
+        if (emittedId !== undefined) {
+          // The pause timer may have saved an interim hypothesis already. If the
+          // browser later confirms or revises it, correct that same segment instead
+          // of creating a duplicate segment.
+          const emitted = this.emittedSegments.get(emittedId);
+          if (emitted) {
+            emitted.texts.set(index, text);
+            if (result.isFinal) this.finalizedIndices.add(index);
+            this.publishSegmentUpdate(emittedId);
+          }
+          continue;
+        }
+
         if (!this.firstSeen.has(index)) this.firstSeen.set(index, now);
+        const previous = this.activeTexts.get(index);
+        this.activeTexts.set(index, text);
+        this.activeIndices.add(index);
+
         if (result.isFinal) {
-          this.indices.add(index);
-          const startSeconds = this.firstSeen.get(index) ?? now;
-          this.firstSeen.delete(index);
-          this.callbacks.onSegment({ startSeconds, endSeconds: now, text });
-          this.latestInterim.delete(index);
-        } else {
-          this.latestInterim.set(index, text);
+          this.finalizedIndices.add(index);
+          receivedFinal = true;
+        } else if (previous !== text) {
+          interimChanged = true;
         }
       }
-      // Display all current interim hypotheses immediately. Only final text is saved.
-      this.callbacks.onInterim([...this.latestInterim].sort(([a], [b]) => a - b).map(([, value]) => value).join(' '));
+
+      if (interimChanged) {
+        this.lastSpeechElapsedSeconds = Math.max(0, Math.floor(this.callbacks.getElapsedSeconds()));
+        this.schedulePauseFlush();
+      } else if (receivedFinal && !this.pauseTimer && this.activeIndices.size > 0) {
+        // Some browser implementations only return final text. Save it without
+        // waiting for a timer that cannot be started from an interim hypothesis.
+        this.flushActiveUtterance();
+      }
+
+      this.callbacks.onInterim(this.getActiveText());
     };
     this.engine.onerror = event => {
       if (this.stopped && event.error === 'aborted') return;
@@ -147,7 +188,8 @@ export class VietnameseBrowserSpeechSession {
     };
     this.engine.onend = () => {
       if (this.ended) return;
-        this.ended = true;
+      this.ended = true;
+      this.flushActiveUtterance();
       this.callbacks.onInterim('');
       if (!this.lastError) {
         this.callbacks.onState('stopped', this.stopped ? undefined :
@@ -161,7 +203,7 @@ export class VietnameseBrowserSpeechSession {
     this.engine.start();
   }
 
-  /** Wait briefly for any final recognition result before ending the practice. */
+  /** Wait briefly for final browser results, then flush any remaining phrase. */
   async stop(): Promise<void> {
     if (this.ended) return;
     if (!this.stopped) {
@@ -173,11 +215,12 @@ export class VietnameseBrowserSpeechSession {
       this.stopPromise,
       new Promise<void>(resolve => setTimeout(resolve, 1800)),
     ]);
+    this.flushActiveUtterance();
   }
 
   dispose(): void {
     this.stopped = true;
-    this.clearPauseTimer();
+    this.flushActiveUtterance();
     this.engine.onstart = null;
     this.engine.onresult = null;
     this.engine.onerror = null;
@@ -185,5 +228,76 @@ export class VietnameseBrowserSpeechSession {
     try { this.engine.abort(); } catch { /* already stopped */ }
     this.ended = true;
     this.finishStop();
+  }
+
+  private schedulePauseFlush(): void {
+    this.clearPauseTimer();
+    this.pauseTimer = setTimeout(() => {
+      this.pauseTimer = null;
+      this.flushActiveUtterance();
+    }, SPEECH_PAUSE_THRESHOLD_MS);
+  }
+
+  private clearPauseTimer(): void {
+    if (this.pauseTimer !== null) {
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = null;
+    }
+  }
+
+  private getActiveText(): string {
+    return [...this.activeTexts]
+      .filter(([index]) => this.activeIndices.has(index))
+      .sort(([a], [b]) => a - b)
+      .map(([, value]) => value)
+      .join(' ');
+  }
+
+  private flushActiveUtterance(): void {
+    this.clearPauseTimer();
+    const indices = [...this.activeIndices]
+      .filter(index => this.activeTexts.has(index))
+      .sort((a, b) => a - b);
+    if (indices.length === 0) {
+      this.lastSpeechElapsedSeconds = null;
+      return;
+    }
+
+    const texts = new Map<number, string>();
+    for (const index of indices) texts.set(index, this.activeTexts.get(index)!);
+    const now = Math.max(0, Math.floor(this.callbacks.getElapsedSeconds()));
+    const starts = indices
+      .map(index => this.firstSeen.get(index))
+      .filter((value): value is number => value !== undefined);
+    const startSeconds = starts.length > 0 ? Math.min(...starts) : now;
+    const endSeconds = Math.max(startSeconds, this.lastSpeechElapsedSeconds ?? now);
+    const segmentId = this.nextSegmentId++;
+    const segment: SpeechTranscriptSegment = {
+      startSeconds,
+      endSeconds,
+      text: indices.map(index => texts.get(index)!).join(' '),
+    };
+
+    this.emittedSegments.set(segmentId, { segment, texts });
+    for (const index of indices) {
+      this.emittedSegmentByIndex.set(index, segmentId);
+      this.firstSeen.delete(index);
+      this.activeTexts.delete(index);
+      this.activeIndices.delete(index);
+    }
+    this.lastSpeechElapsedSeconds = null;
+    this.callbacks.onSegment(segment, segmentId);
+    this.callbacks.onInterim(this.getActiveText());
+  }
+
+  private publishSegmentUpdate(segmentId: number): void {
+    const emitted = this.emittedSegments.get(segmentId);
+    if (!emitted || !this.callbacks.onSegmentUpdate) return;
+    const text = [...emitted.texts]
+      .sort(([a], [b]) => a - b)
+      .map(([, value]) => value)
+      .join(' ');
+    emitted.segment = { ...emitted.segment, text };
+    this.callbacks.onSegmentUpdate(segmentId, emitted.segment);
   }
 }
