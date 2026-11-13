@@ -4,6 +4,7 @@ import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js'
 import {
   FREE_REVIEW_MODEL, validateReviewRequest, makeEvidenceChunks,
   buildReviewPrompt, parseGroundedReview, ensureFreePreview, reserveReviewQuota,
+  classifyReviewProviderError,
 } from '../../server/freeSpeechReview.js';
 
 const assessment = {
@@ -87,22 +88,40 @@ export default async function handler(req, res) {
       contents: buildReviewPrompt(input, evidence),
       config: {
         temperature: 0.35,
-        maxOutputTokens: 1800,
+        // Allow enough output for 4 evidence-grounded items and optional slides.
+        maxOutputTokens: 3200,
         responseMimeType: 'application/json',
         responseSchema: assessment,
       },
     });
-    const review = parseGroundedReview(output.text || '', evidence, input.slides);
+    if (!output.text?.trim()) {
+      // A valid provider response can still be empty, e.g. MAX_TOKENS/SAFETY.
+      const reason = output.candidates?.[0]?.finishReason;
+      const code = reason === 'MAX_TOKENS' ? 'GEMINI_OUTPUT_LIMIT' :
+        reason === 'SAFETY' ? 'GEMINI_SAFETY_BLOCK' : 'GEMINI_EMPTY_OUTPUT';
+      return res.status(502).json({
+        code,
+        error: reason === 'MAX_TOKENS'
+          ? 'Gemini chưa xuất đủ nội dung nhận xét trong giới hạn đầu ra. Vui lòng thử lại.'
+          : 'Gemini chưa trả về bản nhận xét. Hãy thử lại với bản ghi mẫu khác.',
+      });
+    }
+    let review;
+    try {
+      review = parseGroundedReview(output.text, evidence, input.slides);
+    } catch {
+      return res.status(502).json({
+        code: 'GEMINI_INVALID_FEEDBACK',
+        error: 'Gemini đã trả lời nhưng nhận xét chưa đủ cấu trúc hoặc dẫn chứng hợp lệ. Không hiển thị đánh giá thiếu căn cứ.',
+      });
+    }
     return res.status(200).json({ review, remainingToday });
   } catch (error) {
-    if ([429, 503].includes(error?.status)) {
-      return res.status(error.status).json({ error: error.message });
+    if (error?.safePublic === true && [429, 503].includes(error?.status)) {
+      return res.status(error.status).json({ code: 'SPEAKLAB_FREE_TIER_GUARD', error: error.message });
     }
-    const providerStatus = Number(error?.status || error?.code || 0);
-    if (providerStatus === 429 || /RESOURCE_EXHAUSTED|quota|rate.limit/iu.test(String(error?.message || ''))) {
-      return res.status(429).json({ error: 'Đã hết hạn mức Gemini miễn phí. Hệ thống không tự sử dụng API trả phí.' });
-    }
-    // Do not log or return user transcript, model output or provider credentials.
-    return res.status(502).json({ error: 'AI chưa trả về nhận xét có thể kiểm chứng. Vui lòng thử lại sau.' });
+    // Never expose provider errors: they can include request metadata.
+    const publicError = classifyReviewProviderError(error);
+    return res.status(publicError.status).json(publicError);
   }
 }
