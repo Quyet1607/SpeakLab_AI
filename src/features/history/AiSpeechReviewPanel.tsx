@@ -112,10 +112,11 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
           slides: slides?.slides || [],
         }),
       });
-      const data = await response.json() as { review?: Review; error?: string; remainingToday?: number };
+      const data = await response.json() as { review?: Review; error?: string; code?: string; remainingToday?: number };
       if (!response.ok || !data.review || !Array.isArray(data.review.strengths) ||
         !Array.isArray(data.review.improvements)) {
-        throw new Error(data.error || 'Chưa nhận được nhận xét hợp lệ.');
+        const message = data.error || 'Chưa nhận được nhận xét hợp lệ.';
+        throw new Error(data.code ? message + ' (mã lỗi: ' + data.code + ')' : message);
       }
       if (!controller.signal.aborted) {
         setReview(data.review);
