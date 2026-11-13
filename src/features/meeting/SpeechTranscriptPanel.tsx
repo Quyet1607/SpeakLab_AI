@@ -46,6 +46,7 @@ export const SpeechTranscriptPanel: React.FC<SpeechTranscriptPanelProps> = ({
           Chức năng chỉ bắt đầu khi bạn bấm đồng ý. Trình duyệt sẽ nhận diện tiếng Việt qua micro.
           <strong> Tùy trình duyệt, âm thanh có thể được xử lý trên máy chủ của nhà cung cấp trình duyệt.</strong>
           SpeakLab AI không tự gửi âm thanh hay bản ghi chữ lên API riêng.
+          Bản ghi tự tách thành đoạn mới sau khoảng 1,2 giây im lặng.
         </p>
         <p className="text-[11px] text-[#9FB1A3]">
           Khi bấm Dừng nhận diện, toàn bộ văn bản đã được trình duyệt xác nhận sẽ lưu riêng trên thiết bị và có thể xem, tải TXT tại Lịch sử luyện tập. Âm thanh đã nằm trong video; SpeakLab chỉ lưu thêm văn bản, không tạo tệp âm thanh riêng.
