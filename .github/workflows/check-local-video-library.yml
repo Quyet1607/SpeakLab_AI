@@ -9,6 +9,7 @@ on:
       - 'api/ai/**'
       - 'server/freeSpeechReview.js'
       - 'tests/freeSpeechReview.test.js'
+      - 'tests/aiReviewRoute.test.js'
       - 'tests/pptxReviewText.test.js'
       - 'public/**'
       - 'bun.lock'
@@ -59,6 +60,8 @@ jobs:
         run: bun test tests/meetingNoAutoSlides.test.js
       - name: Test Phase 7.3.1 review security, evidence and quotas
         run: node --test tests/freeSpeechReview.test.js
+      - name: Test Phase 7.3.1 authentication and disabled API behavior
+        run: node --test tests/aiReviewRoute.test.js
       - name: Test Phase 7.3.1 optional PowerPoint evidence
         run: bun test tests/pptxReviewText.test.js
       - name: TypeScript check
