@@ -62,6 +62,8 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     try {
       const parsed = await extractPptxTextForReview(file);
       if (!parsed.slides.length) {
+        deleteLocalReviewSlides(sessionId, ownerSub);
+        setSlides(null);
         setNotice('PowerPoint không có văn bản có thể đọc. Chỉ phân tích TXT.');
         return;
       }
