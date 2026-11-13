@@ -31,6 +31,7 @@ import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
 import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
+import { AiSpeechReviewPanel } from '../features/history/AiSpeechReviewPanel';
 
 interface HistoryPageProps {
   sessions: PracticeSession[];
@@ -198,6 +199,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         <button type="button" onClick={() => downloadTranscript(item)} className="px-3 py-2 rounded-lg border border-[#D9E5DC] flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Tải TXT</button>
         <button type="button" onClick={() => void removeSeparateTranscript(item)} className="px-3 py-2 rounded-lg border border-[#EAD5D2] text-[#873631] flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Xóa chữ</button>
       </div>
+      <AiSpeechReviewPanel
+        sessionId={item.sessionId}
+        topic={sessions.find(s => s.id === item.sessionId)?.topic || item.topic}
+        topicDescription={sessions.find(s => s.id === item.sessionId)?.topicDescription}
+        speakingGoal={sessions.find(s => s.id === item.sessionId)?.speakingGoal}
+        ownerSub={item.ownerSub}
+        segments={item.segments}
+        signedIn={account.status === 'signed_in' && account.identity?.id === item.ownerSub}
+      />
     </details>
   );
 
@@ -456,6 +466,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Xóa riêng bản ghi chữ
                     </button>
+                    <AiSpeechReviewPanel
+                      sessionId={session.id}
+                      topic={session.topic}
+                      topicDescription={session.topicDescription}
+                      speakingGoal={session.speakingGoal}
+                      ownerSub={account.status === 'signed_in' ? account.identity?.id || null : null}
+                      segments={session.transcriptSegments}
+                      signedIn={account.status === 'signed_in'}
+                    />
                   </details>
                 )}
 
