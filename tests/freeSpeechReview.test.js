@@ -41,7 +41,12 @@ test('review request requires explicit consent and a real transcript; pptx optio
 test('grounded review uses real evidence IDs and rejects invented slide/source', () => {
   const chunks = makeEvidenceChunks(input.transcript, 65);
   assert.ok(chunks.length >= 2);
-  assert.ok(buildReviewPrompt(input, chunks).includes('E1'));
+  const prompt = buildReviewPrompt(input, chunks);
+  assert.ok(prompt.includes('E1'));
+  assert.match(prompt, /KHÔNG có âm thanh/u);
+  assert.match(prompt, /NGHIÊM CẤM nhận xét hoặc suy đoán về phát âm/u);
+  assert.match(prompt, /lỗi có thể do ASR nhận diện/u);
+
   const makePayload = () => ({
     summary: 'Bài nói đã giới thiệu việc bảo vệ dữ liệu và đề xuất biện pháp cơ bản.',
     strengths: [
@@ -59,6 +64,16 @@ test('grounded review uses real evidence IDs and rejects invented slide/source',
   assert.equal(good.source, 'transcript');
   assert.ok(good.strengths[0].evidence.includes('Hôm nay'));
   assert.equal(good.slideComparisons.length, 0);
+  assert.match(good.limitations[0], /giọng nói/u);
+
+  const unsupportedDelivery = makePayload();
+  unsupportedDelivery.improvements[0].point = 'Phát âm từ AI trong lời nói đôi khi chưa chuẩn xác.';
+  assert.throws(
+    () => parseGroundedReview(JSON.stringify(unsupportedDelivery), chunks, []),
+    /vượt quá dữ liệu văn bản/u,
+    'Không được hiển thị nhận xét phát âm khi chỉ có bản ghi TXT.',
+  );
+
   assert.throws(() => parseGroundedReview(JSON.stringify({
     ...makePayload(), strengths: [
       { point: 'Nhận xét không có chứng cứ.', evidenceId: 'E999' }, makePayload().strengths[1],
