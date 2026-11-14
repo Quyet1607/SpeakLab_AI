@@ -20,7 +20,8 @@ export default async function handler(req, res) {
 
   // Require an explicit future decision to enable read-only Drive listing.
   // This flag is NEVER set by frontend or client cookies.
-  if (process.env.SPEAKLAB_DRIVE_READ_ONLY_ENABLED !== 'true') {
+  if (process.env.VERCEL_ENV !== 'preview' ||
+      process.env.SPEAKLAB_DRIVE_READ_ONLY_ENABLED !== 'true') {
     return res.status(503).json({
       enabled: false,
       error: 'Danh sách video Google Drive chưa được kích hoạt trên Preview.',
