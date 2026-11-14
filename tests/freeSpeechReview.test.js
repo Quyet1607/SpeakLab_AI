@@ -79,9 +79,12 @@ test('grounded review uses real evidence IDs and rejects invented slide/source',
       { point: 'Nhận xét không có chứng cứ.', evidenceId: 'E999' }, makePayload().strengths[1],
     ],
   }), chunks, []));
-  assert.throws(() => parseGroundedReview(JSON.stringify({
+  const ignoredSlide = parseGroundedReview(JSON.stringify({
     ...makePayload(), slideComparisons: [{ slideNumber: 1, point: 'Slide có nội dung.', evidenceId: 'E1' }],
-  }), chunks, []));
+  }), chunks, []);
+  // Never display a slide comparison when the user supplied no PPTX.
+  assert.deepEqual(ignoredSlide.slideComparisons, []);
+  assert.equal(ignoredSlide.slideOverview.length, 0);
   const withSlides = parseGroundedReview(JSON.stringify({
     ...makePayload(), slideComparisons: [{
       slideNumber: 1, status: 'partial', point: 'Slide đề cập tới giải pháp mật khẩu mạnh.',
