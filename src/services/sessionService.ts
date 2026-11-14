@@ -4,6 +4,7 @@
  */
 
 import { PracticeSession, PracticeMode, PresentationDeck, VirtualParticipant, PracticeModeType } from '../types';
+import { normalizePracticeBrief } from './practiceBrief';
 import {
   mockPracticeSessions,
   mockPracticeModes,
@@ -73,6 +74,9 @@ class SessionService {
    */
   createSession(params: {
     title: string;
+    topicTitle?: string;
+    topicDescription?: string;
+    speakingGoal?: string;
     modeId: PracticeModeType;
     deckId: string;
     participantCount: number;
@@ -82,13 +86,16 @@ class SessionService {
     const mode = mockPracticeModes.find((m) => m.id === params.modeId) || mockPracticeModes[0];
     const deck = mockPresentationDecks.find((d) => d.id === params.deckId) || mockPresentationDecks[0];
 
+    const brief = normalizePracticeBrief(params);
     const isPptx = params.presentationSource?.type === 'pptx';
-    const slideCount = isPptx && params.presentationSource
-      ? params.presentationSource.slideCount
-      : deck.slides.length;
-    const topic = isPptx && params.presentationSource
-      ? 'PowerPoint cá nhân'
-      : deck.category;
+    const hasNoSlides = !params.presentationSource || params.presentationSource.type === 'none';
+    const slideCount = hasNoSlides ? 0 : isPptx && params.presentationSource
+      ? params.presentationSource.slideCount : deck.slides.length;
+    // Preserve legacy fallback for older sessions/tests. Phase 7.1 setup requires
+    // the learner's actual topic, so new sessions never silently use demo topics.
+    const topic = brief.topicTitle || (hasNoSlides
+      ? 'Luyện thuyết trình và phản biện không trình chiếu'
+      : isPptx ? 'PowerPoint cá nhân' : deck.category);
 
     const newSession: PracticeSession = {
       id: `ses_${Date.now()}`,
@@ -96,13 +103,15 @@ class SessionService {
       mode: params.modeId,
       modeTitle: mode.title,
       topic,
+      topicDescription: brief.topicDescription || undefined,
+      speakingGoal: brief.speakingGoal || undefined,
       durationSeconds: params.durationMinutes * 60,
       slideCount,
       participantCount: params.participantCount,
       createdAt: 'Vừa xong',
       status: 'in_progress',
       score: undefined,
-      reportId: 'rep_01', // Link to demo report
+      reportId: undefined, // No pretend AI evaluation for real practice
       presentationSource: params.presentationSource,
     };
 

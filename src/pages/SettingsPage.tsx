@@ -48,14 +48,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
     <div className="space-y-6 max-w-4xl mx-auto">
       <DemoNotice
         title="Trang cấu hình hệ thống"
-        message="Các thiết lập dưới đây được lưu trong phiên làm việc hiện tại của trình duyệt. Các kết nối phần cứng và tài khoản cơ sở dữ liệu sẽ được triển khai ở các giai đoạn sau."
+        message="Video luyện tập được lưu trực tiếp trên trình duyệt của thiết bị; không cần kết nối Google Drive. Bạn có thể đăng nhập bằng Google ngay tại khu vực tài khoản ở góc trên bên phải."
       />
 
       <div className="bg-white rounded-2xl border border-[#E4E9E3] shadow-xs overflow-hidden">
         {/* Navigation Tabs Header */}
         <div className="flex border-b border-[#E4E9E3] overflow-x-auto bg-[#F7F9F6] p-1.5 gap-1">
           {[
-            { id: 'profile', label: 'Tài khoản học sinh', icon: User },
+            { id: 'profile', label: 'Hồ sơ cá nhân', icon: User },
             { id: 'devices', label: 'Camera & Micro', icon: Camera },
             { id: 'ai', label: 'Mức độ Hội đồng AI', icon: Sliders },
             { id: 'privacy', label: 'Quyền riêng tư', icon: Shield },
@@ -87,10 +87,10 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
             <div className="space-y-6">
               <div>
                 <h3 className="text-base font-bold text-[#3D4740]">
-                  Thông tin học sinh
+                  Hồ sơ luyện tập cá nhân
                 </h3>
                 <p className="text-xs text-[#768078] mt-0.5">
-                  Dữ liệu định danh dùng để gắn vào báo cáo đánh giá thuyết trình
+                  Thông tin hiển thị trong giao diện và báo cáo luyện tập
                 </p>
               </div>
 
@@ -104,7 +104,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                   </h4>
                   <p className="text-xs text-[#768078]">{currentUser.roleDescription}</p>
                   <span className="inline-block mt-1 text-[10px] text-[#4A6453] bg-[#EEF4F0] px-2 py-0.5 rounded border border-[#D9E5DC]">
-                    Tài khoản demo thử nghiệm
+                    {currentUser.roleDescription.includes('Google') ? 'Đăng nhập Google · Số liệu luyện tập vẫn minh họa' : 'Tài khoản demo thử nghiệm'}
                   </span>
                 </div>
               </div>
@@ -301,6 +301,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                 </p>
               </div>
 
+              <div className="rounded-xl bg-[#EEF4F0] border border-[#D9E5DC] p-4 space-y-2 text-xs">
+                <h4 className="font-bold text-[#2A4433]">Tài liệu quyền riêng tư và điều khoản</h4>
+                <p className="text-[#556057] leading-relaxed">
+                  Đây là nội dung dự thảo cho môi trường thử nghiệm; video chỉ lưu cục bộ theo trình duyệt.
+                  Đọc kỹ cách lưu video cục bộ và giới hạn quyền riêng tư trước khi sử dụng.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-[#3D6447] underline font-semibold">
+                    Chính sách quyền riêng tư
+                  </a>
+                  <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-[#3D6447] underline font-semibold">
+                    Điều khoản sử dụng
+                  </a>
+                </div>
+              </div>
+
               <div className="space-y-3 text-xs text-[#444F47]">
                 <div className="p-4 rounded-xl bg-[#FAFBF9] border border-[#E4E9E3] space-y-1.5">
                   <h4 className="font-bold text-[#3D4740] flex items-center gap-1.5">
@@ -308,7 +324,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                     Xử lý cục bộ tại thiết bị (Edge Processing)
                   </h4>
                   <p className="text-[#768078] text-[11px] leading-relaxed">
-                    Ở Đợt 1, toàn bộ dữ liệu chỉ tồn tại trên trình duyệt máy khách. Không có bất kỳ hình ảnh hay giọng nói nào được tải lên máy chủ ngoài.
+                    Video được ghi và lưu trong IndexedDB của trình duyệt hiện tại, không tự động đồng bộ sang thiết bị khác.
+                    Khi sử dụng đăng nhập Google hoặc các tính năng trực tuyến khác, dữ liệu liên quan có thể được xử lý bởi dịch vụ tương ứng.
+                    Không nên dùng chung trình duyệt để lưu video riêng tư.
                   </p>
                 </div>
 
@@ -317,7 +335,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                     Không yêu cầu quyền truy cập cá nhân nhạy cảm
                   </h4>
                   <p className="text-[#768078] text-[11px] leading-relaxed">
-                    Hệ thống không thu thập thông tin định danh hay yêu cầu API key từ người dùng.
+                    Đăng nhập Google là tùy chọn và dùng thông tin định danh cơ bản để phân nhóm video trên trình duyệt. Không yêu cầu API key; video chưa được bảo mật riêng biệt giữa người dùng chung thiết bị. Hãy dùng máy cá nhân và tải bản sao video quan trọng.
                   </p>
                 </div>
               </div>

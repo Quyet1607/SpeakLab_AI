@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   History,
   Search,
@@ -17,42 +17,80 @@ import {
   FileCheck,
   CheckCircle2,
   Video,
+  FileText,
   Trash2,
   Download,
+  Upload,
   X
 } from 'lucide-react';
 import { PracticeSession, PracticeModeType, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
-import { listLocalVideos, deleteLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
+import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
+import { libraryVideoDownloadName } from '../services/recordingNames';
+import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
+import { deleteLocalAiReview } from '../services/localAiReviewLibrary';
+import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
+import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
+import { AiSpeechReviewPanel } from '../features/history/AiSpeechReviewPanel';
 
 interface HistoryPageProps {
   sessions: PracticeSession[];
+  notice?: string | null;
   onNavigate: (page: ActivePage) => void;
   onSelectSessionForReport: (sessionId: string) => void;
   onReplaySession: (session: PracticeSession) => void;
+  onTranscriptDeleted?: () => void;
 }
 
 export const HistoryPage: React.FC<HistoryPageProps> = ({
   sessions,
+  notice,
   onNavigate,
   onSelectSessionForReport,
   onReplaySession,
+  onTranscriptDeleted,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'all' | PracticeModeType>('all');
-  // Temporary private-by-device video library. It does NOT sync to Google Drive.
+  // Device-only personal video library; no remote sync.
   const [localVideos, setLocalVideos] = useState<LocalVideoRecord[]>([]);
+  const [localTranscripts, setLocalTranscripts] = useState<LocalTranscriptRecord[]>([]);
+  const [account, setAccount] = useState<SessionState>({ status: 'loading', identity: null });
   const [localError, setLocalError] = useState<string | null>(null);
   const [playing, setPlaying] = useState<LocalVideoRecord | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+  const sessionRevision = useRef(0);
 
   useEffect(() => {
     let mounted = true;
-    listLocalVideos()
-      .then(items => { if (mounted) setLocalVideos(items); })
-      .catch(error => { if (mounted) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
-    return () => { mounted = false; };
+    const unsubscribe = subscribeSession(next => {
+      if (!mounted) return;
+      const revision = ++sessionRevision.current;
+      setAccount(next);
+      setPlaying(null);
+      setLocalVideos([]);
+      setLocalTranscripts([]);
+      setLocalError(null);
+      setImportNotice(null);
+      if (next.status === 'loading') return;
+      if (next.status !== 'signed_in' || !next.identity?.id) {
+        if (next.status === 'unavailable') {
+          setLocalError('Dịch vụ đăng nhập Google chưa sẵn sàng. Không thể mở lịch sử khi chưa xác minh tài khoản.');
+        }
+        return;
+      }
+      const ownerSub = next.identity.id;
+      setLocalTranscripts(listLocalTranscripts(ownerSub));
+      listLocalVideos(ownerSub)
+        .then(items => { if (mounted && revision === sessionRevision.current) setLocalVideos(items); })
+        .catch(error => { if (mounted && revision === sessionRevision.current) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
+    });
+    void refreshSession();
+    return () => { mounted = false; sessionRevision.current += 1; unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -69,13 +107,37 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     const blobUrl = URL.createObjectURL(item.blob);
     const anchor = document.createElement('a');
     anchor.href = blobUrl;
-    anchor.download = `SpeakLab_${item.sessionId}_${item.id}.${item.extension}`;
+    anchor.download = libraryVideoDownloadName(item.title, item.extension, item.createdAt);
     anchor.click();
     window.setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
   };
 
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file || importing) return;
+    const revision = sessionRevision.current;
+    setImporting(true);
+    setImportNotice(null);
+    setLocalError(null);
+    try {
+      const imported = await importLocalVideo(file);
+      // Never show the new record under another account if the session changed.
+      const checked = await refreshSession();
+      if (revision === sessionRevision.current && checked.status === 'signed_in' && checked.identity?.id === imported.ownerSub) {
+        setLocalVideos(await listLocalVideos(imported.ownerSub));
+        setImportNotice('Đã nhập video vào thư viện của tài khoản trên trình duyệt này.');
+      } else if (revision === sessionRevision.current) {
+        setImportNotice('Đã lưu video cục bộ. Hãy đăng nhập lại đúng tài khoản để xem.');
+      }
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Không nhập được video.');
+    } finally {
+      setImporting(false);
+      if (importInput.current) importInput.current.value = '';
+    }
+  };
+
   const removeLocal = async (item: LocalVideoRecord) => {
-    if (!window.confirm('Xóa bản ghi này khỏi trình duyệt hiện tại? Hành động này không thể khôi phục. Video chưa được đồng bộ Google Drive.')) return;
+    if (!window.confirm('Xóa bản ghi này khỏi trình duyệt hiện tại? Hành động này không thể khôi phục. Video chỉ lưu trên thiết bị này.')) return;
     try {
       await deleteLocalVideo(item.id);
       setLocalVideos(prev => prev.filter(video => video.id !== item.id));
@@ -84,6 +146,74 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi.');
     }
   };
+
+  const removeSeparateTranscript = async (item: LocalTranscriptRecord) => {
+    if (!window.confirm('Xóa bản ghi lời nói và nhận xét AI liên quan? Video vẫn được giữ nguyên.')) return;
+    try {
+      const checked = await refreshSession();
+      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+      if (!currentOwner || currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
+      deleteLocalTranscript(item.sessionId, item.ownerSub);
+      deleteLocalAiReview(item.sessionId, item.ownerSub);
+      setLocalTranscripts(prev => prev.filter(t => !(t.sessionId === item.sessionId && t.ownerSub === item.ownerSub)));
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi lời nói.');
+    }
+  };
+
+  const downloadTranscript = (item: LocalTranscriptRecord) => {
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + transcriptToText(item)], { type: 'text/plain;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = transcriptFileName(item.title);
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  };
+
+  const removeTranscript = async (session: PracticeSession) => {
+    if (!session.transcriptSegments?.length) return;
+    if (!window.confirm('Xóa vĩnh viễn phần chữ nhận diện của buổi luyện này? Video sẽ được giữ lại.')) return;
+    try {
+      const checked = await refreshSession();
+      const originalOwner = account.status === 'signed_in' ? account.identity?.id || null : null;
+      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+      if (!originalOwner || !currentOwner || originalOwner !== currentOwner) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử và thử lại.');
+      const removed = deleteCompletedPracticeTranscript(session.id, currentOwner);
+      if (removed) onTranscriptDeleted?.();
+    } catch (error) {
+      setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi chữ.');
+    }
+  };
+
+  const formatSpeechTime = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+
+  const renderTranscript = (item: LocalTranscriptRecord) => (
+    <details key={item.sessionId} className="rounded-xl border border-[#D9E5DC] bg-[#F7F9F6] p-3 text-xs text-[#3D4740]">
+      <summary className="cursor-pointer flex items-center gap-2 font-semibold text-[#324C3B]">
+        <FileText className="w-4 h-4" /> Bản ghi lời nói · {item.segments.length} đoạn
+      </summary>
+      <p className="text-[11px] text-[#768078] mt-2">Nhận diện tự động; thời gian ước lượng. TXT được tải khi người dùng chọn.</p>
+      <div className="max-h-48 overflow-y-auto space-y-2 mt-2">
+        {item.segments.map((part, index) => <div key={index} className="space-y-1">
+          <span className="block font-mono text-[#5A7D65]">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>
+          <p className="break-words leading-relaxed whitespace-pre-wrap">{part.text}</p>
+        </div>)}
+      </div>
+      <div className="flex flex-wrap gap-2 mt-3">
+        <button type="button" onClick={() => downloadTranscript(item)} className="px-3 py-2 rounded-lg border border-[#D9E5DC] flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Tải TXT</button>
+        <button type="button" onClick={() => void removeSeparateTranscript(item)} className="px-3 py-2 rounded-lg border border-[#EAD5D2] text-[#873631] flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Xóa chữ</button>
+      </div>
+      <AiSpeechReviewPanel
+        sessionId={item.sessionId}
+        topic={sessions.find(s => s.id === item.sessionId)?.topic || item.topic}
+        topicDescription={sessions.find(s => s.id === item.sessionId)?.topicDescription}
+        speakingGoal={sessions.find(s => s.id === item.sessionId)?.speakingGoal}
+        ownerSub={item.ownerSub}
+        segments={item.segments}
+        signedIn={account.status === 'signed_in' && account.identity?.id === item.ownerSub}
+      />
+    </details>
+  );
 
   const filteredSessions = sessions.filter((s) => {
     const matchesSearch =
@@ -98,10 +228,12 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     <div className="space-y-6">
       <DemoNotice
         title="Lịch sử các buổi luyện tập"
-        message="Danh sách các phiên luyện tập đã thực hiện. Bạn có thể xem lại báo cáo phân tích hoặc khởi chạy lại buổi luyện tập với các thông số tương tự."
+        message="Chỉ thống kê các buổi luyện thực tế đã hoàn thành trên trình duyệt này. Dữ liệu mẫu không được tính là kết quả học tập. Video được lưu riêng ở mục bên dưới."
       />
 
-      {/* 3.2C-1: local recordings are NOT synchronized with Google Drive. */}
+      {notice && <div role="status" className="rounded-xl bg-[#EEF4F0] border border-[#D9E5DC] text-sm p-4 text-[#324C3B]">{notice}</div>}
+
+      {/* Local-only recordings grouped by Google identity, not server-enforced private storage. */}
       <section className="bg-white border border-[#E4E9E3] rounded-2xl p-5 md:p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -109,30 +241,60 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             <h3 className="text-base font-bold text-[#3D4740]">Video đã ghi ({localVideos.length})</h3>
           </div>
           <span className="text-[11px] font-medium rounded-full border border-[#D9E5DC] bg-[#F7F9F6] text-[#47644F] px-3 py-1">
-            Lưu tạm trên thiết bị · Chưa đồng bộ Drive
+            Lưu trên thiết bị này
           </span>
         </div>
         <p className="text-xs text-[#768078]">
-          Video đang lưu trong trình duyệt trên thiết bị này, chưa lưu lên Google Drive của giáo viên.
-          Có thể mất nếu xóa dữ liệu trang web hoặc đổi thiết bị. Hãy tải bản quan trọng về máy.
+          Video được lưu trong trình duyệt của thiết bị này và nhóm theo tài khoản Google. Đây <strong>không phải phân quyền bảo mật</strong> giữa những người dùng chung trình duyệt. Video không tự xuất hiện trên thiết bị khác; hãy tải về để giữ bản sao hoặc nhập lại trên máy khác.
         </p>
+        <div className="text-xs border border-[#D9E5DC] rounded-lg bg-[#F7F9F6] p-3 text-[#3D4740]">
+          {account.status === 'signed_in'
+            ? <>Đang xem video ghi trên thiết bị dưới tài khoản: <strong>{account.identity?.name || 'Google'}</strong>. Chỉ hiển thị video thuộc tài khoản này.</>
+            : account.status === 'loading'
+              ? 'Đang kiểm tra phiên đăng nhập…'
+              : 'Cần đăng nhập Google để xem thư viện video.'}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            ref={importInput}
+            type="file"
+            accept=".webm,.mp4,video/webm,video/mp4"
+            className="hidden"
+            aria-label="Chọn video WebM hoặc MP4 để nhập"
+            onChange={event => void handleImportFile(event.currentTarget.files?.[0])}
+          />
+          <button
+            type="button"
+            disabled={account.status !== 'signed_in' || importing}
+            onClick={() => importInput.current?.click()}
+            className="text-xs font-semibold px-3 py-2 bg-[#EEF4F0] border border-[#D9E5DC] text-[#324C3B] rounded-lg flex items-center gap-2 hover:bg-[#DDEBDD] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Upload className="w-4 h-4" />
+            {importing ? 'Đang nhập video…' : 'Nhập video từ máy'}
+          </button>
+          <span className="text-[11px] text-[#768078]">
+            Đăng nhập Google để nhập WebM/MP4 (tối đa 1 GB) vào thư viện trên thiết bị này.
+          </span>
+        </div>
+        {importNotice && <p role="status" className="text-xs border border-[#D9E5DC] bg-[#EEF4F0] text-[#324C3B] rounded-lg p-3">{importNotice}</p>}
         {localError && (
           <p role="alert" className="text-xs border border-[#DFBAB8] bg-[#FFF4F3] text-[#873631] rounded-lg p-3">{localError}</p>
         )}
         {localVideos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[#D9E5DC] bg-[#F7F9F6] py-6 text-center text-xs text-[#768078]">
-            Chưa có video lưu tạm. Hãy ghi PowerPoint trong phòng họp, sau đó nhấn Dừng ghi.
+            Chưa có video trên thiết bị trong nhóm tài khoản này. Hãy ghi video trong phòng luyện tập hoặc chọn Nhập video từ máy.
           </div>
         ) : (
           <div className="space-y-2">
             {localVideos.map(video => (
-              <div key={video.id} className="flex flex-wrap items-center justify-between gap-3 border border-[#E4E9E3] rounded-xl p-3">
+              <div key={video.id} className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 border border-[#E4E9E3] rounded-xl p-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="p-2 bg-[#EEF4F0] rounded-lg text-[#52785D]"><Video className="w-5 h-5" /></div>
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-[#3D4740] truncate">{video.title}</div>
                     <p className="text-[11px] text-[#768078]">
-                      {new Date(video.createdAt).toLocaleString('vi-VN')} · {Math.max(0, Math.round(video.durationMs / 1000))} giây · {(video.sizeBytes / 1024 / 1024).toFixed(1)} MB
+                      {new Date(video.createdAt).toLocaleString('vi-VN')} · {video.durationMs > 0 ? `${Math.round(video.durationMs / 1000)} giây · ` : ''}{(video.sizeBytes / 1024 / 1024).toFixed(1)} MB
                     </p>
                   </div>
                 </div>
@@ -142,7 +304,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   <button type="button" onClick={() => void removeLocal(video)} className="text-xs px-3 py-2 border border-[#EAD5D2] rounded-lg text-[#873631] hover:bg-[#FFF4F3] flex items-center gap-1 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /> Xóa cục bộ</button>
                 </div>
               </div>
+              {localTranscripts.filter(t => t.sessionId === video.sessionId).map(renderTranscript)}
+              </div>
             ))}
+          </div>
+        )}
+        {localTranscripts.some(t => !localVideos.some(v => v.sessionId === t.sessionId)) && (
+          <div className="space-y-2" aria-label="Bản ghi lời nói không có video">
+            <h4 className="font-semibold text-sm text-[#3D4740]">Bản ghi lời nói riêng (không có video)</h4>
+            {localTranscripts.filter(t => !localVideos.some(v => v.sessionId === t.sessionId)).map(renderTranscript)}
           </div>
         )}
         {playing && (
@@ -161,10 +331,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-base md:text-lg font-bold text-[#3D4740]">
-              Tất cả các buổi luyện tập ({sessions.length})
+              Các buổi luyện đã hoàn thành ({sessions.length})
             </h3>
             <p className="text-xs text-[#768078] mt-0.5">
-              Theo dõi sự tiến bộ và điểm số qua từng lần tập dượt
+              Chỉ tính buổi luyện hoàn thành trên trình duyệt này; không cộng dữ liệu minh họa
             </p>
           </div>
 
@@ -243,10 +413,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           <div className="bg-white rounded-2xl border border-[#E4E9E3] p-12 text-center">
             <History className="w-10 h-10 text-[#768078] mx-auto mb-2 opacity-50" />
             <p className="text-sm font-semibold text-[#3D4740]">
-              Không tìm thấy buổi luyện tập phù hợp
+              {sessions.length ? 'Không tìm thấy buổi luyện phù hợp' : 'Chưa có buổi luyện hoàn thành'}
             </p>
             <p className="text-xs text-[#768078] mt-1">
-              Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc chế độ.
+              {sessions.length ? 'Hãy thử thay đổi từ khóa tìm kiếm hoặc bộ lọc chế độ.' : 'Bắt đầu một buổi luyện, sau đó chọn Kết thúc để lưu lịch sử thực tế.'}
             </p>
           </div>
         ) : (
@@ -267,6 +437,48 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                     {session.topic}
                   </span>
                 </div>
+                {(session.topicDescription || session.speakingGoal) && (
+                  <div className="text-xs text-[#556057] space-y-1 max-w-2xl">
+                    {session.topicDescription && <p className="break-words whitespace-pre-wrap"><strong>Mô tả:</strong> {session.topicDescription}</p>}
+                    {session.speakingGoal && <p className="break-words whitespace-pre-wrap"><strong>Mục tiêu:</strong> {session.speakingGoal}</p>}
+                  </div>
+                )}
+
+                {session.transcriptSegments && session.transcriptSegments.length > 0 && !localTranscripts.some(t => t.sessionId === session.id) && (
+                  <details className="max-w-2xl rounded-xl border border-[#D9E5DC] bg-[#F7F9F6] px-3 py-2.5 text-xs text-[#3D4740]">
+                    <summary className="cursor-pointer font-semibold text-[#324C3B]">
+                      Lời nói đã nhận diện ({session.transcriptSegments.length} đoạn)
+                    </summary>
+                    <p className="text-[11px] text-[#768078] my-2">
+                      Văn bản từ nhận diện giọng nói của trình duyệt; thời gian mỗi đoạn chỉ là ước lượng. Không phải đánh giá AI.
+                    </p>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {session.transcriptSegments.map((part, index) => (
+                        <p key={index} className="break-words whitespace-pre-wrap leading-relaxed">
+                          <span className="block font-mono text-[#5A7D65] mb-1">[{formatSpeechTime(part.startSeconds)}–{formatSpeechTime(part.endSeconds)}]</span>
+                          <span className="block leading-relaxed whitespace-pre-wrap">{part.text}</span>
+                        </p>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void removeTranscript(session); }}
+                      className="mt-3 inline-flex items-center gap-1 text-[#873631] font-semibold hover:underline"
+                      title="Chỉ xóa bản ghi chữ, không xóa video hay buổi luyện"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Xóa riêng bản ghi chữ
+                    </button>
+                    <AiSpeechReviewPanel
+                      sessionId={session.id}
+                      topic={session.topic}
+                      topicDescription={session.topicDescription}
+                      speakingGoal={session.speakingGoal}
+                      ownerSub={account.identity?.id || item.ownerSub}
+                      segments={session.transcriptSegments}
+                      signedIn={account.status === 'signed_in'}
+                    />
+                  </details>
+                )}
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-[#768078]">
                   <span className="flex items-center gap-1.5">
@@ -311,17 +523,21 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   Luyện lại
                 </Button>
 
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={<FileCheck className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    onSelectSessionForReport(session.id);
-                    onNavigate('report');
-                  }}
-                >
-                  Xem báo cáo
-                </Button>
+                {session.reportId ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={<FileCheck className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      onSelectSessionForReport(session.id);
+                      onNavigate('report');
+                    }}
+                  >
+                    Xem báo cáo
+                  </Button>
+                ) : (
+                  <span className="text-[11px] text-[#768078]">Chưa có báo cáo AI thực tế</span>
+                )}
               </div>
             </div>
           ))

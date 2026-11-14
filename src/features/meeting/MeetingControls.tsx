@@ -10,6 +10,7 @@ import {
   Video,
   VideoOff,
   Share2,
+  RefreshCw,
   Users,
   FileText,
   Settings,
@@ -33,12 +34,16 @@ interface MeetingControlsProps {
   onOpenSettings: () => void;
   onEndMeeting: () => void;
   isScreenSharing?: boolean;
+  hasPresentation?: boolean;
   onStopScreenShare?: () => void;
+  onChangeScreenShare?: () => void;
+  isScreenSharePending?: boolean;
   isCameraLoading?: boolean;
   isMicLoading?: boolean;
   cameraError?: string | null;
   micError?: string | null;
   recordingStatus?: 'idle' | 'recording' | 'finalizing' | 'ready' | 'error';
+  recordingDuration?: number;
   onRecordClick?: () => void;
 }
 
@@ -56,12 +61,16 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
   onOpenSettings,
   onEndMeeting,
   isScreenSharing = false,
+  hasPresentation = false,
   onStopScreenShare,
+  onChangeScreenShare,
+  isScreenSharePending = false,
   isCameraLoading = false,
   isMicLoading = false,
   cameraError,
   micError,
   recordingStatus = 'idle',
+  recordingDuration = 0,
   onRecordClick,
 }) => {
   return (
@@ -76,7 +85,7 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
             Phòng họp mô phỏng
           </p>
           <p className="text-[10px] text-[#A8B6AB] leading-tight">
-            Đợt 3.2A · Ghi PowerPoint + tiếng micro
+            Ghi cuộc họp mô phỏng hoặc PowerPoint
           </p>
         </div>
       </div>
@@ -148,7 +157,8 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
         {/* Share Screen */}
         <button
           onClick={isScreenSharing && onStopScreenShare ? onStopScreenShare : onShareScreenClick}
-          className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center relative ${
+          disabled={isScreenSharePending}
+          className={`disabled:opacity-50 disabled:cursor-wait min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center relative ${
             isScreenSharing
               ? 'bg-[#83A58E] text-white hover:bg-[#6F917A] shadow-md ring-2 ring-[#83A58E]/40'
               : 'bg-[#27332A] text-[#A8B6AB] hover:text-white hover:bg-[#344438] border border-[#3A4A3E]'
@@ -160,14 +170,26 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#E5484D] animate-ping" />
           )}
         </button>
+        {isScreenSharing && onChangeScreenShare && (
+          <button
+            type="button"
+            onClick={onChangeScreenShare}
+            disabled={isScreenSharePending}
+            className="min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 rounded-xl bg-[#27332A] text-[#D8E6DC] hover:bg-[#344438] border border-[#3A4A3E] flex items-center justify-center disabled:opacity-50"
+            aria-label="Đổi cửa sổ hoặc màn hình đang chia sẻ"
+            title="Đổi màn hình chia sẻ (giữ nguyên bản ghi)"
+          >
+            <RefreshCw className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+          </button>
+        )}
 
-        {/* Bắt đầu hoặc dừng bản ghi màn hình + micro (3.2A) */}
+        {/* Composite simulated meeting tiles or real screen capture; real mic only. */}
         <button
           type="button"
           onClick={onRecordClick}
           disabled={!onRecordClick || recordingStatus === 'finalizing'}
-          aria-label={recordingStatus === 'recording' ? 'Dừng ghi hình PowerPoint và micro' : 'Bắt đầu ghi hình PowerPoint và micro'}
-          title={recordingStatus === 'recording' ? 'Dừng ghi hình' : recordingStatus === 'finalizing' ? 'Đang hoàn tất bản ghi…' : 'Ghi màn hình PowerPoint + micro (chưa gồm webcam)'}
+          aria-label={recordingStatus === 'recording' ? 'Dừng ghi hình' : isScreenSharing ? 'Bắt đầu ghi màn hình và micro' : 'Bắt đầu ghi lưới cuộc họp và micro'}
+          title={recordingStatus === 'recording' ? 'Dừng ghi hình' : recordingStatus === 'finalizing' ? 'Đang hoàn tất bản ghi…' : isScreenSharing ? 'Ghi PowerPoint + micro' : 'Ghi cuộc họp mô phỏng và micro (camera tùy chọn)'}
           className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl border transition-colors flex items-center justify-center shrink-0 ${
             recordingStatus === 'recording'
               ? 'bg-[#873631] text-white border-[#B9544D] hover:bg-[#A33E37]'
@@ -178,6 +200,16 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
         >
           {recordingStatus === 'recording' ? <Square className="w-4.5 h-4.5 sm:w-5 sm:h-5" fill="currentColor" /> : <Circle className="w-4.5 h-4.5 sm:w-5 sm:h-5" fill="currentColor" />}
         </button>
+
+        {recordingStatus === 'recording' && (
+          <span className="inline-flex items-center gap-1 px-2 py-1.5 shrink-0 rounded-lg bg-[#3D2625] border border-[#873631] text-[#FFE2DF] text-[11px] sm:text-xs font-mono tabular-nums" role="timer" aria-live="off" aria-label={`Đang ghi hình, ${Math.floor(recordingDuration / 60)} phút ${recordingDuration % 60} giây`}>
+            <span className="w-2 h-2 bg-[#F09995] rounded-full animate-pulse" aria-hidden="true" />
+            REC {String(Math.floor(recordingDuration / 60)).padStart(2, '0')}:{String(recordingDuration % 60).padStart(2, '0')}
+          </span>
+        )}
+        {recordingStatus === 'finalizing' && (
+          <span className="text-[11px] text-[#FFE2DF] shrink-0" role="status">Đang lưu…</span>
+        )}
 
         {/* Attendees List Toggle */}
         <button
@@ -198,12 +230,13 @@ export const MeetingControls: React.FC<MeetingControlsProps> = ({
         {/* Presenter Notes */}
         <button
           onClick={onToggleNotes}
-          className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+          disabled={!hasPresentation}
+          className={`disabled:opacity-35 disabled:cursor-not-allowed min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] p-2 sm:p-2.5 md:p-3 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
             isNotesOpen
               ? 'bg-[#83A58E] text-white font-semibold'
               : 'bg-[#27332A] text-[#A8B6AB] hover:text-white hover:bg-[#344438] border border-[#3A4A3E]'
           }`}
-          title="Kịch bản thuyết trình"
+          title={hasPresentation ? "Kịch bản trình chiếu" : "Không có tài liệu trình chiếu"}
         >
           <FileText className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
         </button>

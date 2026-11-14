@@ -1,10 +1,11 @@
 /**
- * Phase 3.2C-1: durable local fallback for recorded sessions.
- * IMPORTANT: IndexedDB is device/browser local; it is NOT a Google Drive backup.
- * The Drive backend will later supersede this fallback after authenticated upload.
+ * Local-only practice video library. IndexedDB belongs to this browser/device.
+ * Login-based grouping is for convenience, NOT a secure access-control boundary.
+ * No Google Drive or other remote video storage is used.
  */
 import type { PracticeSession } from '../types';
 import type { PresentationRecordingResult } from './presentationRecordingService';
+import { refreshSession } from './accountSession';
 
 const DATABASE_NAME = 'speaklab_local_recordings_v1';
 const STORE = 'recordings';
@@ -18,7 +19,10 @@ export interface LocalVideoRecord {
   sizeBytes: number;
   mimeType: string;
   extension: 'webm' | 'mp4';
-  storage: 'local_pending_drive';
+  /** Legacy records use local_pending_drive; both values mean device-only storage. */
+  storage: 'local_pending_drive' | 'local_device';
+  /** Browser-only label, not an access-control boundary. Legacy recordings omit this field. */
+  ownerSub?: string;
   blob: Blob;
 }
 
@@ -68,6 +72,12 @@ export async function saveLocalVideo(
   session: PracticeSession,
   recording: PresentationRecordingResult,
 ): Promise<LocalVideoRecord> {
+  // Video records must always belong to a verified Google account.
+  const account = await refreshSession();
+  if (account.status !== 'signed_in' || !account.identity?.id) {
+    throw new Error('Vui lòng đăng nhập Google trước khi lưu video.');
+  }
+  const ownerSub = account.identity.id;
   const entry: LocalVideoRecord = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -77,7 +87,8 @@ export async function saveLocalVideo(
     sizeBytes: recording.bytes,
     mimeType: recording.mimeType,
     extension: recording.fileExtension,
-    storage: 'local_pending_drive',
+    storage: 'local_device',
+    ownerSub,
     blob: recording.blob,
   };
   try {
@@ -89,9 +100,72 @@ export async function saveLocalVideo(
   }
 }
 
-export async function listLocalVideos(): Promise<LocalVideoRecord[]> {
+/**
+ * Import a previously downloaded video into this browser, under the currently
+ * verified Google account. This is NOT an upload to a web server.
+ */
+export async function importLocalVideo(file: File): Promise<LocalVideoRecord> {
+  const account = await refreshSession();
+  if (account.status !== 'signed_in' || !account.identity?.id) {
+    throw new Error('Vui lòng đăng nhập Google trước khi nhập video vào thư viện cá nhân.');
+  }
+  if (!(file instanceof File) || file.size <= 0) {
+    throw new Error('Tệp video trống hoặc không hợp lệ.');
+  }
+  if (file.size > 1024 * 1024 * 1024) {
+    throw new Error('Tệp video lớn hơn 1 GB. Hãy lưu tệp trên máy, không nhập vào trình duyệt.');
+  }
+  const extension = /\.webm$/i.test(file.name) ? 'webm' :
+    /\.mp4$/i.test(file.name) ? 'mp4' : null;
+  if (!extension) throw new Error('Chỉ hỗ trợ tệp video .webm hoặc .mp4.');
+  if (file.type && !['video/webm', 'video/mp4', 'application/octet-stream'].includes(file.type)) {
+    throw new Error('Loại tệp không phải video WebM hoặc MP4.');
+  }
+
+  const entry: LocalVideoRecord = {
+    id: crypto.randomUUID(),
+    sessionId: 'import_' + crypto.randomUUID(),
+    title: file.name.slice(0, 180),
+    createdAt: new Date().toISOString(),
+    durationMs: 0, // Duration is unknown until the video is played.
+    sizeBytes: file.size,
+    mimeType: extension === 'webm' ? 'video/webm' : 'video/mp4',
+    extension,
+    storage: 'local_device',
+    ownerSub: account.identity.id,
+    blob: file,
+  };
+  try {
+    await transaction('readwrite', store => store.put(entry));
+    return entry;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Không thể lưu dữ liệu.';
+    throw new Error('Không nhập được video vào trình duyệt, có thể đã hết dung lượng. ' + detail);
+  }
+}
+
+export async function listLocalVideos(ownerSub: string): Promise<LocalVideoRecord[]> {
+  if (!/^[0-9]{5,64}$/.test(ownerSub)) {
+    throw new Error('Vui lòng đăng nhập Google để xem thư viện video.');
+  }
   const entries = await transaction('readonly', store => store.getAll());
-  return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // UI grouping only. IndexedDB is not secure against other browser users.
+  return entries.filter(item => item.ownerSub === ownerSub)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Delete guest and legacy-unassigned video blobs from this browser's IndexedDB. */
+export async function clearGuestLocalVideos(): Promise<number> {
+  if (typeof indexedDB === 'undefined') return 0;
+  const entries = await transaction('readonly', store => store.getAll());
+  const guestIds = entries.filter(item => !item.ownerSub).map(item => item.id);
+  if (!guestIds.length) return 0;
+  await transaction('readwrite', store => {
+    const first = store.delete(guestIds[0]);
+    guestIds.slice(1).forEach(id => store.delete(id));
+    return first;
+  });
+  return guestIds.length;
 }
 
 export async function deleteLocalVideo(id: string): Promise<void> {

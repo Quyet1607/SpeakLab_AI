@@ -16,6 +16,7 @@ import {
   Video,
   Layers,
   HelpCircle,
+  ScrollText,
   Download
 } from 'lucide-react';
 import {
@@ -24,10 +25,12 @@ import {
   PresentationDeck,
   VirtualParticipant,
   ActivePage,
-  PresentationSource
+  PresentationSource,
+  type SpeechTranscriptSegment
 } from '../types';
 import { SlideViewer } from '../features/meeting/SlideViewer';
 import { ParticipantGrid } from '../features/meeting/ParticipantGrid';
+import { MeetingGallery } from '../features/meeting/MeetingGallery';
 import { PresenterCameraBox } from '../features/meeting/PresenterCameraBox';
 import { MeetingControls } from '../features/meeting/MeetingControls';
 import { AttendeeDrawer } from '../features/meeting/AttendeeDrawer';
@@ -39,21 +42,28 @@ import { Button } from '../components/ui/Button';
 import { pptxSessionStore } from '../services/pptxService';
 import { screenShareService } from '../services/screenShareService';
 import { mediaDeviceService, DevicePermissionState } from '../services/mediaDeviceService';
-import { ScreenAudioRecordingSession, PresentationRecordingResult } from '../services/presentationRecordingService';
+import { ScreenAudioRecordingSession, PresentationRecordingResult, type RecordingVideoSource } from '../services/presentationRecordingService';
 import { saveLocalVideo } from '../services/localVideoLibrary';
+import { recordingLibraryTitle, recordingDownloadName } from '../services/recordingNames';
+import { MeetingGridCapture } from '../services/meetingGridCapture';
+import { VietnameseBrowserSpeechSession, isVietnameseSpeechRecognitionSupported, normalizeTranscriptSegments, SPEECH_SEGMENT_LIMIT } from '../services/vietnameseSpeechRecognition';
+import { SpeechTranscriptPanel } from '../features/meeting/SpeechTranscriptPanel';
+import { saveLocalTranscript, deleteLocalTranscript } from '../services/localTranscriptLibrary';
 
 interface MeetingRoomPageProps {
   currentUser: UserProfile;
   session: PracticeSession;
+  sessionOwnerSub: string;
   deck: PresentationDeck;
   participants: VirtualParticipant[];
   onNavigate: (page: ActivePage) => void;
-  onFinishSession: () => void;
+  onFinishSession: (actualSeconds: number, destination: 'report' | 'dashboard', transcript: SpeechTranscriptSegment[]) => void;
 }
 
 export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   currentUser,
   session,
+  sessionOwnerSub,
   deck,
   participants,
   onNavigate,
@@ -66,7 +76,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isAttendeesOpen, setIsAttendeesOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(145); // start with realistic ~2m25s demo time
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // Actual elapsed time; no simulated starting offset.
   const [isTimerRunning, setIsTimerRunning] = useState(true);
 
   // Real Camera & Microphone State (Phase 3.1: default to OFF for privacy)
@@ -93,12 +103,19 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // Screen Share State (Independent stream from camera & microphone)
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [previousSource, setPreviousSource] = useState<PresentationSource | undefined>(undefined);
+  const previousSourceRef = useRef<PresentationSource | undefined>(undefined);
+  const shareRequestPendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const [shareRequestPending, setShareRequestPending] = useState(false);
   const [showShareGuideModal, setShowShareGuideModal] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
 
-  // Đợt 3.2A: ghi màn hình PowerPoint đang chia sẻ + tiếng micro (chưa ghép webcam).
+  // Ghi hình tự chọn nguồn: màn hình đang chia sẻ hoặc camera đang bật, kèm micro.
+  // Giữ nguồn ghi cố định trong một bản ghi để tránh tự ý thay đổi nội dung đang quay.
   const recordingSessionRef = useRef<ScreenAudioRecordingSession | null>(null);
+  const recordingSourceRef = useRef<RecordingVideoSource | null>(null);
+  const meetingCaptureRef = useRef<MeetingGridCapture | null>(null);
+  const [recordingVideoSource, setRecordingVideoSource] = useState<RecordingVideoSource>('camera');
   const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'finalizing' | 'ready' | 'error'>('idle');
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -107,6 +124,117 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const [recordingSavedLocal, setRecordingSavedLocal] = useState(false);
   const [recordingNotice, setRecordingNotice] = useState<string | null>(null);
   const [showRecordingConfirm, setShowRecordingConfirm] = useState(false);
+
+  // Phase 7.2 — optional browser-native speech recognition, independent of video.
+  // The mic and any browser recognition service are never enabled automatically.
+  const speechRecognitionRef = useRef<VietnameseBrowserSpeechSession | null>(null);
+  const speechSegmentsRef = useRef<SpeechTranscriptSegment[]>([]);
+  const speechSegmentIdsRef = useRef<number[]>([]);
+  const elapsedSecondsRef = useRef(0);
+  const [speechSegments, setSpeechSegments] = useState<SpeechTranscriptSegment[]>([]);
+  const [speechInterim, setSpeechInterim] = useState('');
+  const [speechStatus, setSpeechStatus] = useState<'idle' | 'starting' | 'listening' | 'stopped' | 'error'>('idle');
+  const [speechNotice, setSpeechNotice] = useState<string | null>(null);
+  const speechStopPromiseRef = useRef<Promise<void> | null>(null);
+  const [showSpeechPanel, setShowSpeechPanel] = useState(false);
+
+  useEffect(() => { elapsedSecondsRef.current = elapsedSeconds; }, [elapsedSeconds]);
+
+  const startSpeechRecognition = () => {
+    if (speechRecognitionRef.current || speechStatus === 'starting' || speechStatus === 'listening') return;
+    const activeMic = mediaDeviceService.getMicrophoneStream();
+    if (!activeMic?.getAudioTracks().some(t => t.readyState === 'live' && t.enabled)) {
+      setSpeechNotice('Hãy bật micro thật trên thanh điều khiển trước khi bắt đầu nhận diện.');
+      return;
+    }
+    if (speechSegmentsRef.current.length >= SPEECH_SEGMENT_LIMIT) {
+      setSpeechNotice('Đã đạt giới hạn bản ghi chữ của buổi luyện. Video vẫn có thể ghi tiếp.');
+      return;
+    }
+    setSpeechNotice(null);
+    setSpeechStatus('starting');
+    try {
+      const controller = new VietnameseBrowserSpeechSession({
+        getElapsedSeconds: () => elapsedSecondsRef.current,
+        onInterim: text => { if (mountedRef.current) setSpeechInterim(text); },
+        onState: (state, message) => {
+          if (!mountedRef.current) return;
+          setSpeechStatus(state);
+          if (message) setSpeechNotice(message);
+          if (state === 'error') {
+            const failed = speechRecognitionRef.current;
+            speechRecognitionRef.current = null;
+            failed?.dispose(); // Errors must not leave a browser-owned mic listening.
+          } else if (state === 'stopped') {
+            speechRecognitionRef.current = null;
+          }
+        },
+        onSegment: (segment, segmentId) => {
+          if (!mountedRef.current) return;
+          const updated = normalizeTranscriptSegments([...speechSegmentsRef.current, segment]);
+          speechSegmentsRef.current = updated;
+          speechSegmentIdsRef.current = [...speechSegmentIdsRef.current, segmentId].slice(0, updated.length);
+          setSpeechSegments(updated);
+          if (updated.length >= SPEECH_SEGMENT_LIMIT) {
+            setSpeechNotice('Đã nhận diện tối đa số đoạn cho buổi luyện. Bạn vẫn có thể tiếp tục ghi video.');
+            void stopSpeechRecognition();
+          }
+        },
+        onSegmentUpdate: (segmentId, segment) => {
+          if (!mountedRef.current) return;
+          const index = speechSegmentIdsRef.current.indexOf(segmentId);
+          if (index < 0) return;
+          const updated = [...speechSegmentsRef.current];
+          updated[index] = segment;
+          speechSegmentsRef.current = updated;
+          setSpeechSegments(updated);
+        },
+      });
+      speechRecognitionRef.current = controller;
+      controller.start(); // Synchronous with the user's explicit opt-in click.
+    } catch (error) {
+      speechRecognitionRef.current?.dispose();
+      speechRecognitionRef.current = null;
+      setSpeechStatus('error');
+      setSpeechNotice(error instanceof Error ? error.message : 'Không bắt đầu nhận diện được.');
+    }
+  };
+
+  const stopSpeechRecognition = async () => {
+    // Coalesce concurrent Stop/End requests and preserve final browser results.
+    if (speechStopPromiseRef.current) return speechStopPromiseRef.current;
+    const task = (async () => {
+      const current = speechRecognitionRef.current;
+      if (current) await current.stop();
+      if (speechRecognitionRef.current === current) speechRecognitionRef.current = null;
+      setSpeechInterim('');
+      setSpeechStatus(prev => prev === 'error' ? prev : 'stopped');
+      if (speechSegmentsRef.current.length > 0) {
+        try {
+          saveLocalTranscript(session.id, session.title, session.topic, sessionOwnerSub, speechSegmentsRef.current);
+          setSpeechNotice('Đã lưu bản ghi chữ riêng trên thiết bị. Mở Lịch sử luyện tập để xem hoặc tải TXT.');
+        } catch (error) {
+          setSpeechNotice(error instanceof Error ? error.message : 'Không lưu được bản ghi chữ.');
+        }
+      }
+    })();
+    speechStopPromiseRef.current = task;
+    try { await task; } finally { speechStopPromiseRef.current = null; }
+  };
+
+  const clearSpeechRecognition = async () => {
+    if (!window.confirm('Xóa toàn bộ bản ghi chữ của buổi luyện này? Video đã ghi sẽ không bị xóa.')) return;
+    await stopSpeechRecognition();
+    try {
+      deleteLocalTranscript(session.id, sessionOwnerSub);
+      speechSegmentsRef.current = [];
+      speechSegmentIdsRef.current = [];
+      setSpeechSegments([]);
+      setSpeechNotice('Đã xóa bản ghi chữ riêng của buổi luyện. Video không bị ảnh hưởng.');
+    } catch (error) {
+      setSpeechNotice(error instanceof Error ? error.message : 'Không xóa được bản ghi chữ.');
+    }
+  };
 
   // Modals & Notices
   const [showEndModal, setShowEndModal] = useState(false);
@@ -117,6 +245,23 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     judge: string;
     text: string;
   } | null>(null);
+  const activeQuestionRef = useRef<typeof activeQuestion>(null);
+  useEffect(() => {
+    activeQuestionRef.current = activeQuestion;
+  }, [activeQuestion]);
+
+  const finishMeetingWithTranscript = async (destination: 'report' | 'dashboard') => {
+    if (!canLeaveMeeting(true)) { setShowEndModal(false); return; }
+    // The browser may send a final recognition event in response to stop().
+    // Wait briefly before taking the canonical segmentsRef snapshot.
+    await stopSpeechRecognition();
+    if (!mountedRef.current) return;
+    void handleStopScreenShare();
+    mediaDeviceService.stopAll();
+    setIsTimerRunning(false);
+    setShowEndModal(false);
+    onFinishSession(elapsedSecondsRef.current, destination, [...speechSegmentsRef.current]);
+  };
 
   // Mobile View Switcher: 'slide' | 'audience' | 'camera'
   const [mobileTab, setMobileTab] = useState<'slide' | 'audience' | 'camera'>('slide');
@@ -135,7 +280,12 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     }
   };
 
-  const canLeaveMeeting = (): boolean => {
+  const canLeaveMeeting = (savingTranscript = false): boolean => {
+    if (!savingTranscript && (speechRecognitionRef.current || speechSegmentsRef.current.length > 0)) {
+      setShowSpeechPanel(true);
+      setSpeechNotice('Có bản ghi chữ chưa được lưu. Hãy kết thúc buổi luyện để lưu vào Lịch sử hoặc xóa bản ghi chữ trước khi thoát.');
+      return false;
+    }
     if (recordingSessionRef.current || recordingStatus === 'finalizing') {
       setRecordingNotice('Hãy dừng ghi hình và đợi hoàn tất tệp trước khi rời phòng.');
       return false;
@@ -157,22 +307,37 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
 
     const screen = screenShareService.getActiveStream();
     const microphone = mediaDeviceService.getMicrophoneStream();
-    if (!screen?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
-      setRecordingNotice('Để ghi PowerPoint có hiệu ứng, hãy bắt đầu chia sẻ đúng cửa sổ PowerPoint trước.');
-      return;
-    }
+    // Always use a single canvas video track. The canvas can show either
+    // meeting tiles or the shared screen without restarting the recording.
+    const source: RecordingVideoSource = screen?.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)
+      ? 'screen' : 'meeting';
     if (!microphone?.getAudioTracks().some(t => t.readyState === 'live' && t.enabled)) {
-      setRecordingNotice('Hãy bật micro thật và kiểm tra tín hiệu trước khi bắt đầu ghi hình.');
+      setRecordingNotice('Hãy bật micro thật trước khi bắt đầu ghi cuộc họp.');
       return;
     }
-
+    let gridCapture: MeetingGridCapture | null = null;
     try {
-      const sessionRecorder = new ScreenAudioRecordingSession(screen, microphone, (input) => {
-        void handleStopRecording(input === 'screen'
-          ? 'Nguồn chia sẻ PowerPoint đã ngắt; bản ghi được dừng để tránh hình đen.'
-          : 'Nguồn micro đã ngắt; bản ghi được dừng để tránh mất tiếng.');
-      });
+      gridCapture = new MeetingGridCapture(
+        currentUser,
+        participants,
+        () => mediaDeviceService.getCameraStream(),
+        () => activeQuestionRef.current,
+        () => screenShareService.getActiveStream(),
+      );
+      const videoStream = gridCapture.getStream();
+      if (!videoStream.getVideoTracks().some(t => t.readyState === 'live' && t.enabled)) {
+        throw new Error('Không lấy được hình ảnh để ghi video.');
+      }
+      const sessionRecorder = new ScreenAudioRecordingSession(videoStream, microphone, (input) => {
+        void handleStopRecording(input === 'microphone'
+          ? 'Micro đã ngắt; bản ghi được hoàn tất để tránh mất tiếng.'
+          : 'Nguồn hình ảnh cuộc họp đã ngắt; bản ghi được hoàn tất.');
+      }, 'meeting');
       sessionRecorder.start();
+      meetingCaptureRef.current = gridCapture;
+      gridCapture.start();
+      recordingSourceRef.current = source;
+      setRecordingVideoSource(source);
       recordingSessionRef.current = sessionRecorder;
       setRecordingResult(null);
       setRecordingDownloaded(false);
@@ -181,6 +346,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingStartedAt(Date.now());
       setRecordingStatus('recording');
     } catch (error) {
+      gridCapture?.dispose();
+      meetingCaptureRef.current = null;
       setRecordingStatus('error');
       setRecordingNotice(error instanceof Error ? error.message : 'Không thể khởi động ghi hình.');
     }
@@ -189,7 +356,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const handleStopRecording = async (reason?: string) => {
     const active = recordingSessionRef.current;
     if (!active) return;
+    const finishedSource = recordingSourceRef.current ?? recordingVideoSource;
     recordingSessionRef.current = null;
+    recordingSourceRef.current = null;
     setRecordingStatus('finalizing');
     try {
       const result = await active.stop();
@@ -198,10 +367,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingSavedLocal(false);
       setRecordingDuration(Math.round(result.durationMs / 1000));
       try {
-        // IndexedDB is a temporary same-browser fallback; this is NOT a cloud upload.
-        await saveLocalVideo(session, result);
+        // Keep the same IndexedDB schema; only use clearer titles for NEW recordings.
+        await saveLocalVideo({ ...session, title: recordingLibraryTitle(session.title, finishedSource) }, result);
         setRecordingSavedLocal(true);
-        if (reason) setRecordingNotice(reason + ' Đã lưu tạm trên trình duyệt, chưa đồng bộ Google Drive.');
+        if (reason) setRecordingNotice(reason + ' Đã lưu video trên trình duyệt này.');
       } catch (saveError) {
         setRecordingNotice((reason ? reason + ' ' : '') + (saveError instanceof Error ? saveError.message : 'Không lưu được video.') + ' Hãy nhấn “Lưu video” để tải về thiết bị ngay.');
       }
@@ -210,6 +379,8 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       setRecordingStatus('error');
       setRecordingNotice(error instanceof Error ? error.message : 'Không thể hoàn tất bản ghi.');
     } finally {
+      meetingCaptureRef.current?.dispose();
+      meetingCaptureRef.current = null;
       setRecordingStartedAt(null);
     }
   };
@@ -219,7 +390,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     const url = URL.createObjectURL(recordingResult.blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `SpeakLab_AI_ghi_man_hinh_${new Date().toISOString().replace(/[:.]/g, '-')}.${recordingResult.fileExtension}`;
+    link.download = recordingDownloadName(session.title, recordingVideoSource, recordingResult.fileExtension);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -251,6 +422,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     setCameraError(null);
     if (!isCameraOff && cameraStream) {
       // Turn OFF
+      if (recordingSessionRef.current && recordingSourceRef.current === 'camera') {
+        await handleStopRecording('Camera đã tắt; bản ghi được hoàn tất.');
+      }
       mediaDeviceService.stopCamera();
       setCameraStream(null);
       setIsCameraOff(true);
@@ -283,6 +457,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     if (isCameraOff) return;
     setIsCameraLoading(true);
     try {
+      if (recordingSessionRef.current && recordingSourceRef.current === 'camera') {
+        await handleStopRecording('Đã đổi camera; bản ghi trước đó được hoàn tất.');
+      }
       const stream = await mediaDeviceService.switchCamera();
       setCameraStream(stream);
       setCameraFacingMode(mediaDeviceService.getCurrentFacingMode());
@@ -298,6 +475,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   const handleToggleMic = async () => {
     setMicError(null);
     if (!isMuted) {
+      await stopSpeechRecognition();
       if (recordingSessionRef.current) {
         await handleStopRecording('Micro đã được tắt; bản ghi kết thúc để bảo đảm quyền riêng tư.');
       }
@@ -331,6 +509,11 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     const unsubscribeDevice = mediaDeviceService.subscribe(() => {
       const camStatus = mediaDeviceService.getCameraStatus();
       const micStatus = mediaDeviceService.getMicrophoneStatus();
+      // If the learner disables/unplugs the mic, recognition must not keep
+      // listening through a separate browser-owned microphone session.
+      if (!micStatus.isEnabled && speechRecognitionRef.current) {
+        void speechRecognitionRef.current.stop();
+      }
 
       setCameraStream(mediaDeviceService.getCameraStream());
       setIsCameraOff(!camStatus.isEnabled);
@@ -367,76 +550,99 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     };
   }, []);
 
-  // Stop Screen Share handler (stops ONLY screen capture tracks, never touches camera/mic)
-  const handleStopScreenShare = async () => {
-    if (recordingSessionRef.current) {
-      await handleStopRecording('Chia sẻ màn hình đã dừng; bản ghi được hoàn tất.');
+  // Screen sharing can be started, stopped or replaced at any time, including
+  // during a recording. The recorder has a stable canvas video track and will
+  // switch between gallery and shared screen without being stopped.
+  const handleStopScreenShare = async (expectedStream?: MediaStream) => {
+    const active = screenShareService.getActiveStream();
+    if (expectedStream && active !== expectedStream) return; // Ignore stale ended events.
+    if (active) {
+      // Detach our handler before stopping tracks to avoid recursive cleanups.
+      active.getVideoTracks().forEach(track => { track.onended = null; });
+      // Active stream is cleared synchronously by stopShare; avoid a late
+      // completion resetting the UI if a new share starts immediately.
+      void screenShareService.stopShare(active);
     }
-    screenShareService.stopShare(screenStream);
+    screenStreamRef.current = null;
     setScreenStream(null);
     setIsScreenSharing(false);
 
-    if (previousSource) {
-      setActiveSource(previousSource);
-    } else {
-      setActiveSource(
-        session.presentationSource || {
-          type: 'demo',
-          deckId: deck.id,
-          name: deck.title,
-          slideCount: deck.slides.length,
-          status: 'ready',
-        }
-      );
+    if (recordingSessionRef.current && recordingSourceRef.current === 'screen') {
+      recordingSourceRef.current = 'meeting'; // This clip now includes both views.
+      setRecordingVideoSource('meeting');
     }
 
-    // Ensure audio level analyzer is resumed smoothly
+    setActiveSource(previousSourceRef.current || session.presentationSource || {
+      type: 'none', name: 'Không trình chiếu', slideCount: 0, status: 'ready',
+    });
+    previousSourceRef.current = undefined;
     mediaDeviceService.resumeAudio();
   };
 
-  // Start Screen Share handler (preserves active camera and microphone tracks)
+  // User-initiated getDisplayMedia must run directly after the click in the guide.
+  // A second selection replaces the first only AFTER the new source was granted.
   const handleStartScreenShare = async () => {
     setShowShareGuideModal(false);
-
+    if (shareRequestPendingRef.current) return;
     const capability = screenShareService.getCapability();
     if (!capability.isSupported) {
       setShareError(capability.friendlyNotice);
       return;
     }
+    shareRequestPendingRef.current = true;
+    setShareRequestPending(true);
+    const oldStream = screenShareService.getActiveStream();
+    const sourceToRestore = oldStream
+      ? previousSourceRef.current
+      : activeSource;
 
     try {
       const stream = await screenShareService.startShare();
-
-      const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.onended = () => {
-          // Native "Stop sharing" floating bar clicked in browser
-          handleStopScreenShare();
-        };
+      if (!mountedRef.current) {
+        // A browser picker may finish even after the learner left the room.
+        // Release the new capture stream instead of leaving it active.
+        void screenShareService.stopShare(stream);
+        return;
+      }
+      if (oldStream && oldStream !== stream) {
+        oldStream.getVideoTracks().forEach(track => { track.onended = null; });
+        // Do not call stopShare(oldStream): that would clear the NEW active stream.
+        oldStream.getTracks().forEach(track => { try { track.stop(); } catch { /* ended already */ } });
       }
 
-      setPreviousSource(activeSource);
+      previousSourceRef.current = sourceToRestore;
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.onended = () => { void handleStopScreenShare(stream); };
+      }
+      screenStreamRef.current = stream;
       setScreenStream(stream);
       setIsScreenSharing(true);
       setActiveSource({
         type: 'screenShare',
-        name: 'Cửa sổ PowerPoint (Animation trực tiếp)',
-        slideCount: activeSource?.slideCount || 1,
+        name: 'Cửa sổ đang chia sẻ',
+        slideCount: sourceToRestore?.slideCount || 1,
         status: 'ready',
         stream,
       });
+      // Recording stays active. When sharing begins partway through, label
+      // the finished clip as a meeting containing more than one view.
+      if (recordingSessionRef.current && recordingSourceRef.current === 'meeting') {
+        setRecordingVideoSource('meeting');
+      }
 
-      // Ensure audio analyzer continues smoothly if browser momentarily blurred the tab
       mediaDeviceService.resumeAudio();
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'name' in err && err.name === 'NotAllowedError') {
-        // User closed or dismissed the browser picker
-        console.log('Người dùng đã đóng hộp thoại chia sẻ màn hình.');
+        // Cancelling the chooser does not interrupt an existing share or recording.
+        console.info('Người dùng đã đóng hộp thoại chia sẻ màn hình.');
       } else {
         const msg = err instanceof Error ? err.message : capability.friendlyNotice;
-        console.error('Lỗi khi kích hoạt Screen Capture:', err);
         setShareError(msg);
       }
+    } finally {
+      shareRequestPendingRef.current = false;
+      setShareRequestPending(false);
     }
   };
 
@@ -449,11 +655,20 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   // CRITICAL FIX: Cleanup media tracks ONLY when leaving the meeting room (unmount)!
   // Empty dependency array [] ensures this NEVER triggers on screenStream changes!
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      speechRecognitionRef.current?.dispose();
+      speechRecognitionRef.current = null;
       recordingSessionRef.current?.dispose();
       recordingSessionRef.current = null;
+      recordingSourceRef.current = null;
+      meetingCaptureRef.current?.dispose();
+      meetingCaptureRef.current = null;
       if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((track) => track.stop());
+        const oldScreen = screenStreamRef.current;
+        oldScreen.getVideoTracks().forEach(track => { track.onended = null; });
+        void screenShareService.stopShare(oldScreen);
         screenStreamRef.current = null;
       }
       mediaDeviceService.stopAll();
@@ -479,7 +694,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
     return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  const totalSlides = activeSource?.type === 'pptx' ? (activeSource.slideCount || 1) : deck.slides.length;
+  const showPresentation = Boolean(activeSource && activeSource.type !== 'none');
+  const totalSlides = !showPresentation ? 0
+    : activeSource?.type === 'pptx' ? (activeSource.slideCount || 1) : deck.slides.length;
 
   const handlePrevSlide = () => {
     if (currentSlideIndex > 0) {
@@ -494,10 +711,13 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
   };
 
   const handleTriggerSimulatedQuestion = (judgeName: string) => {
-    setActiveQuestion({
-      judge: judgeName,
-      text: `Chào em Quân, thầy muốn hỏi thêm về tính khả thi của hệ thống camera khi căng-tin vào giờ cao điểm, ánh sáng yếu hoặc học sinh bỏ rác liên tục thì thuật toán xử lý thế nào?`,
-    });
+    // A written practice prompt only; no participant is connected or speaking.
+    const prompts = {
+      basic: 'Bạn hãy nêu ngắn gọn ý chính của bài thuyết trình và ví dụ để làm rõ.',
+      defense: 'Bạn có thể giải thích bằng chứng cho đề tài này, giới hạn của giải pháp và cách kiểm chứng?',
+      debate: 'Bạn sẽ phản hồi thế nào nếu có ý kiến phản đối luận điểm chính của mình?',
+    };
+    setActiveQuestion({ judge: judgeName, text: prompts[session.mode] });
   };
 
   return (
@@ -554,7 +774,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         {/* Right: Mobile View Tabs & End button */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Mobile Tab switchers (Slide / Audience / Camera) */}
-          <div className="lg:hidden flex items-center bg-[#253027] p-0.5 rounded-lg border border-[#37473A]">
+          {showPresentation && <div className="lg:hidden flex items-center bg-[#253027] p-0.5 rounded-lg border border-[#37473A]">
             <button
               onClick={() => setMobileTab('slide')}
               className={`px-2 py-1 text-[10px] sm:text-xs rounded font-medium transition-colors cursor-pointer ${
@@ -579,8 +799,19 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
             >
               Camera
             </button>
-          </div>
+          </div>}
 
+          <button
+            type="button"
+            onClick={() => setShowSpeechPanel(prev => !prev)}
+            aria-label="Mở bản ghi lời nói tiếng Việt"
+            aria-expanded={showSpeechPanel}
+            className="text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#2B3A2E] text-[#D4E9D8] border border-[#436047] hover:bg-[#38503C] flex items-center gap-1.5 cursor-pointer"
+          >
+            <ScrollText className="w-4 h-4" />
+            <span className="hidden sm:inline">Lời nói</span>
+            {speechStatus === 'listening' && <span className="w-2 h-2 bg-[#A8DDB3] rounded-full animate-pulse" aria-hidden="true" />}
+          </button>
           <button
             onClick={() => setShowEndModal(true)}
             className="text-xs px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-[#873631] hover:bg-[#A33E37] text-white font-medium transition-colors cursor-pointer shrink-0 min-h-[32px] sm:min-h-[36px] flex items-center justify-center"
@@ -615,6 +846,17 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       <div className="flex-1 flex overflow-hidden p-1.5 sm:p-2 md:p-4 gap-2 md:gap-3 relative min-h-0">
         {/* Left / Center Work Area */}
         <div className="flex-1 flex flex-col gap-2 md:gap-3 min-w-0 min-h-0 overflow-hidden">
+          {!showPresentation ? (
+            <MeetingGallery
+              currentUser={currentUser}
+              participants={participants}
+              cameraStream={cameraStream}
+              isCameraOff={isCameraOff}
+              isMuted={isMuted}
+              onSimulatedQuestion={handleTriggerSimulatedQuestion}
+            />
+          ) : (
+          <>
           {/* Top Audience & Juror Video Strip (Horizontal Carousel on Desktop or when mobileTab === 'audience') */}
           <div
             className={`shrink-0 ${
@@ -650,7 +892,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
                 isNotesOpen={isNotesOpen}
                 presentationSource={activeSource}
                 screenStream={screenStream}
-                onStopScreenShare={handleStopScreenShare}
+                onStopScreenShare={() => { void handleStopScreenShare(); }}
                 onSwitchToDemo={() =>
                   setActiveSource({
                     type: 'demo',
@@ -731,7 +973,27 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
+
+        {showSpeechPanel && (
+          <SpeechTranscriptPanel
+            segments={speechSegments}
+            interimText={speechInterim}
+            status={speechStatus}
+            notice={speechNotice}
+            supported={isVietnameseSpeechRecognitionSupported()}
+            micEnabled={!isMuted}
+            onStart={startSpeechRecognition}
+            onStop={() => { void stopSpeechRecognition(); }}
+            onClear={() => { void clearSpeechRecognition(); }}
+            onClose={() => {
+              void stopSpeechRecognition();
+              setShowSpeechPanel(false);
+            }}
+          />
+        )}
 
         {/* Right Drawers */}
         <AttendeeDrawer
@@ -742,7 +1004,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         />
 
         <PresenterNotesDrawer
-          isOpen={isNotesOpen}
+          isOpen={isNotesOpen && showPresentation}
           onClose={() => setIsNotesOpen(false)}
           slide={deck.slides[currentSlideIndex] || deck.slides[0]}
           currentSlideIndex={currentSlideIndex}
@@ -764,7 +1026,10 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         micError={micError}
         onShareScreenClick={() => setShowShareGuideModal(true)}
         isScreenSharing={isScreenSharing}
-        onStopScreenShare={handleStopScreenShare}
+        hasPresentation={showPresentation}
+        onStopScreenShare={() => { void handleStopScreenShare(); }}
+        onChangeScreenShare={() => setShowShareGuideModal(true)}
+        isScreenSharePending={shareRequestPending}
         onToggleAttendees={() => {
           setIsAttendeesOpen(!isAttendeesOpen);
           setIsNotesOpen(false);
@@ -782,15 +1047,23 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         }}
         onEndMeeting={() => setShowEndModal(true)}
         recordingStatus={recordingStatus}
+        recordingDuration={recordingDuration}
         onRecordClick={() => recordingStatus === 'recording' ? void handleStopRecording() : setShowRecordingConfirm(true)}
       />
 
-      {/* Đợt 3.2A: xác nhận ghi màn hình PowerPoint + micro */}
+      {recordingStatus === 'recording' &&
+        (micState === 'interrupted' || (recordingSourceRef.current === 'camera' && cameraState === 'interrupted')) && (
+        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 w-[min(94vw,520px)] z-40 p-3 rounded-xl border border-[#E9C999] bg-[#FFF7E7] text-[#665125] shadow-lg text-xs">
+          <strong>Đường ghi đang bị gián đoạn.</strong> Camera hoặc micro tạm mất tín hiệu. Hãy kiểm tra thiết bị; nếu nguồn bị ngắt hẳn, bản ghi sẽ tự kết thúc để tránh thiếu hình hoặc tiếng.
+        </div>
+      )}
+
+      {/* Xác nhận nguồn hình ảnh: camera hoặc PowerPoint chia sẻ + micro */}
       <Modal
         isOpen={showRecordingConfirm}
         onClose={() => setShowRecordingConfirm(false)}
         title="Xác nhận bắt đầu ghi hình"
-        subtitle="Đợt 3.2A – Ghi màn hình PowerPoint và tiếng micro"
+        subtitle="Ghi cuộc họp mô phỏng hoặc màn hình chia sẻ kèm micro"
         footer={
           <>
             <Button variant="ghost" size="sm" onClick={() => setShowRecordingConfirm(false)}>Hủy</Button>
@@ -799,9 +1072,9 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         }
       >
         <div className="space-y-2 text-xs text-[#3D4740]">
-          <p>Chỉ ghi <strong>màn hình PowerPoint đang chia sẻ</strong> và <strong>âm thanh micro</strong>. Camera chưa được đưa vào video ở bước 3.2A.</p>
-          <p className="text-[#647568]">Video tự động được lưu tạm trên trình duyệt này để xem trong Lịch sử. Chưa đồng bộ lên Google Drive. Có thể tải video về thiết bị.</p>
-          <p className="font-medium text-[#873631]">Hãy bật micro và chia sẻ đúng cửa sổ trình chiếu PowerPoint trước khi bắt đầu.</p>
+          <p>Chưa chia sẻ màn hình: ghi <strong>lưới cuộc họp</strong> gồm camera thật của bạn (nếu bật), các tài khoản mô phỏng và tiếng micro. Đã chia sẻ màn hình: ghi PowerPoint và tiếng micro, không ghép thêm camera.</p>
+          <p className="text-[#647568]">Video chỉ được ghi sau khi bạn xác nhận, được lưu trên trình duyệt thiết bị này và có thể xem lại hoặc tải xuống trong Lịch sử.</p>
+          <p className="font-medium text-[#873631]">Hãy bật micro trước khi ghi; camera là tùy chọn. Các nhân vật mô phỏng không có tiếng nói thật.</p>
         </div>
       </Modal>
 
@@ -817,12 +1090,12 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       {recordingResult && recordingStatus === 'ready' && (
         <div className="fixed bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 w-[min(95vw,430px)] bg-[#F7F9F6] border border-[#83A58E] shadow-xl rounded-xl p-3 z-40 text-[#3D4740] flex items-center gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold">Video PowerPoint + micro đã hoàn tất</p>
+            <p className="text-xs font-bold">Video {recordingVideoSource === 'meeting' ? 'cuộc họp mô phỏng' : recordingVideoSource === 'screen' ? 'PowerPoint' : 'camera'} + micro đã hoàn tất</p>
             <p className="text-[11px] text-[#768078]">{formatTimer(Math.round(recordingResult.durationMs / 1000))} · {(recordingResult.bytes / 1024 / 1024).toFixed(1)} MB · {recordingResult.fileExtension.toUpperCase()}</p>
-            <p className="text-[10px] text-[#768078]">{recordingSavedLocal ? 'Đã lưu tạm trên trình duyệt (chưa đồng bộ Drive). Xem lại trong Lịch sử.' : recordingDownloaded ? 'Đã yêu cầu tải xuống; hãy kiểm tra thư mục Tải xuống.' : 'Chưa lưu – hãy tải về máy trước khi rời phòng.'}</p>
+            <p className="text-[10px] text-[#768078]">{recordingSavedLocal ? 'Đã lưu trên trình duyệt này. Xem lại trong Lịch sử luyện tập.' : recordingDownloaded ? 'Đã yêu cầu tải xuống; hãy kiểm tra thư mục Tải xuống.' : 'Chưa lưu – hãy tải về máy trước khi rời phòng.'}</p>
           </div>
           <button onClick={handleDownloadRecording} className="bg-[#83A58E] text-white hover:bg-[#6F917A] font-semibold text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer">
-            <Download className="w-4 h-4" /> Lưu video
+            <Download className="w-4 h-4" /> Tải về
           </button>
         </div>
       )}
@@ -843,17 +1116,33 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
       >
         <div className="space-y-3 text-xs text-[#3D4740]">
           <div>
-            <span className="text-[#768078] block text-[11px]">Tên đề tài:</span>
+            <span className="text-[#768078] block text-[11px]">Tên buổi luyện:</span>
             <p className="font-bold text-sm mt-0.5">{session.title}</p>
           </div>
+          <div>
+            <span className="text-[#768078] block text-[11px]">Đề tài học sinh đã nhập:</span>
+            <p className="font-semibold text-sm mt-0.5">{session.topic}</p>
+          </div>
+          {session.topicDescription && (
+            <div>
+              <span className="text-[#768078] block text-[11px]">Mô tả đề tài:</span>
+              <p className="whitespace-pre-wrap break-words mt-0.5">{session.topicDescription}</p>
+            </div>
+          )}
+          {session.speakingGoal && (
+            <div>
+              <span className="text-[#768078] block text-[11px]">Mục tiêu bài nói:</span>
+              <p className="whitespace-pre-wrap break-words mt-0.5">{session.speakingGoal}</p>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E4E9E3]">
             <div>
               <span className="text-[#768078] text-[11px]">Chế độ:</span>
               <p className="font-semibold text-[#4A6453]">{session.modeTitle}</p>
             </div>
             <div>
-              <span className="text-[#768078] text-[11px]">Chủ đề:</span>
-              <p className="font-semibold">{session.topic}</p>
+              <span className="text-[#768078] text-[11px]">Số trang trình chiếu:</span>
+              <p className="font-semibold">{session.slideCount || 'Không có'}</p>
             </div>
             <div>
               <span className="text-[#768078] text-[11px]">Thời lượng mục tiêu:</span>
@@ -872,26 +1161,13 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
         isOpen={showEndModal}
         onClose={() => setShowEndModal(false)}
         elapsedSeconds={elapsedSeconds}
-        onConfirmViewReport={() => {
-          if (!canLeaveMeeting()) { setShowEndModal(false); return; }
-          void handleStopScreenShare();
-          mediaDeviceService.stopAll();
-          setIsTimerRunning(false);
-          setShowEndModal(false);
-          onFinishSession();
-        }}
-        onReturnToDashboard={() => {
-          if (!canLeaveMeeting()) { setShowEndModal(false); return; }
-          void handleStopScreenShare();
-          mediaDeviceService.stopAll();
-          setIsTimerRunning(false);
-          setShowEndModal(false);
-          onNavigate('dashboard');
-        }}
+        onConfirmViewReport={() => { void finishMeetingWithTranscript('report'); }}
+        onReturnToDashboard={() => { void finishMeetingWithTranscript('dashboard'); }}
       />
 
       {/* Screen Share 5-Step Guidance Modal (Phase 2.3) */}
       <ScreenShareGuideModal
+        isReplacingShare={isScreenSharing}
         isOpen={showShareGuideModal}
         onClose={() => setShowShareGuideModal(false)}
         onConfirmStartShare={handleStartScreenShare}
@@ -938,13 +1214,13 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
               🛡️ Cam kết bảo mật và quyền riêng tư:
             </p>
             <p>
-              Camera và micro mặc định chỉ để xem trước. Ghi màn hình PowerPoint kèm tiếng micro chỉ bắt đầu khi bạn chủ động xác nhận. Không ghi camera trong Đợt 3.2A.
+              Camera và micro mặc định tắt. Khi xác nhận ghi hình, ứng dụng ghi bố cục cuộc họp mô phỏng và tiếng micro; nếu đang chia sẻ màn hình, ứng dụng ghi PowerPoint + micro. Không có người khác đang kết nối thật.
             </p>
           </div>
 
           <div className="space-y-2 text-[11px] text-[#556057] leading-relaxed">
             <p>
-              • <strong>Lưu cục bộ:</strong> Video được giữ trong bộ nhớ phiên cho đến khi bạn chủ động tải về thiết bị; không lưu trên máy chủ.
+              • <strong>Lưu cục bộ:</strong> Sau khi dừng ghi, video được lưu trong thư viện IndexedDB của trình duyệt và có thể tải về; không lưu trên máy chủ.
             </p>
             <p>
               • <strong>Không gửi dữ liệu:</strong> Webcam và micro được xử lý cục bộ trong trình duyệt; bản ghi không được tải lên dịch vụ ngoài.
@@ -979,10 +1255,18 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
               {availableCameras.length > 0 ? (
                 <select
                   value={selectedCameraId}
-                  onChange={(e) => {
-                    setSelectedCameraId(e.target.value);
+                  onChange={async (e) => {
+                    const deviceId = e.target.value;
+                    setSelectedCameraId(deviceId);
                     if (!isCameraOff) {
-                      mediaDeviceService.startCamera({ deviceId: e.target.value });
+                      if (recordingSessionRef.current && recordingSourceRef.current === 'camera') {
+                        await handleStopRecording('Đã đổi camera; bản ghi trước đó được hoàn tất.');
+                      }
+                      try {
+                        await mediaDeviceService.startCamera({ deviceId });
+                      } catch (error) {
+                        setCameraError(error instanceof Error ? error.message : 'Không đổi được camera.');
+                      }
                     }
                   }}
                   className="w-full p-2 rounded-lg border border-[#D9E5DC] bg-white text-xs text-[#3D4740]"
@@ -1064,7 +1348,7 @@ export const MeetingRoomPage: React.FC<MeetingRoomPageProps> = ({
           </div>
 
           <div className="p-2.5 rounded-lg bg-[#FAFBF9] border border-[#E4E9E3] text-[11px] text-[#768078]">
-            Lưu ý: Chỉ khi xác nhận ghi, ứng dụng mới thu màn hình chia sẻ và tiếng micro. Đợt 3.2A chưa ghi webcam.
+            Lưu ý: Chỉ khi bạn xác nhận, ứng dụng mới ghi camera hoặc màn hình chia sẻ kèm tiếng micro. Không tự tải video lên máy chủ.
           </div>
         </div>
       </Modal>
