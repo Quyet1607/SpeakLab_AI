@@ -16,7 +16,7 @@ interface Props {
   topic: string;
   topicDescription?: string;
   speakingGoal?: string;
-  ownerSub: string | null;
+  ownerSub: string;
   segments: SpeechTranscriptSegment[];
   signedIn: boolean;
 }
