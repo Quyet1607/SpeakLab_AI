@@ -172,7 +172,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
   return (
     <section className="mt-3 rounded-xl border border-[#A7C8AC] bg-[#F2F8F3] p-3 space-y-3 text-[#304C38]"
       aria-label="Nhận xét bài thuyết trình bằng AI">
-      <h4 className="font-bold text-sm">AI nhận xét bài thuyết trình · Đợt 7.3.2</h4>
+      <h4 className="font-bold text-sm">AI nhận xét bài thuyết trình · Bước 7.3.3.2</h4>
       <p className="text-xs">Dựa trên lời nói thực tế đã chuyển thành chữ. Không chấm điểm, không nhận xét giọng điệu hoặc hình ảnh chỉ từ TXT.</p>
 
       <div className="rounded-lg bg-white border border-[#D9E5DC] p-2 text-xs space-y-1">
