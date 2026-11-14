@@ -54,7 +54,7 @@ export function clearGuestPracticeHistory(): number {
   const retained = data.filter(item => {
     if (!item || typeof item !== 'object') return true;
     const owner = (item as { ownerSub?: unknown }).ownerSub;
-    return owner !== null && owner !== undefined;
+    return typeof owner === 'string' && /^[0-9]{5,64}$/.test(owner);
   });
   const removed = data.length - retained.length;
   if (removed > 0) {
