@@ -236,10 +236,41 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
             <p className="text-xs mt-1"><strong>Gợi ý:</strong> {item.action}</p>{renderEvidence(item)}
           </div>)}
         </div>
-        {review.slideComparisons.length > 0 && <div>
+        {(review.slideComparisons.length > 0 || !!review.slideOverview?.length) && <div className="space-y-2">
           <h5 className="text-xs font-bold mb-1">Đối chiếu bài nói và PowerPoint</h5>
-          {review.slideComparisons.map((item, i) => <div key={i} className="bg-white rounded-lg border border-[#D9E5DC] p-2 my-1">
-            <p className="text-xs"><strong>Slide {item.slideNumber}:</strong> {item.point}</p>{renderEvidence(item)}
+          {review.slideOverview && review.slideOverview.length > 0 && <details className="rounded-lg bg-white border border-[#D9E5DC] p-2 text-xs">
+            <summary className="cursor-pointer font-semibold">Tổng quan chữ trên {review.slideOverview.length} slide · dò từ khóa, chưa phải kết luận nội dung</summary>
+            <p className="my-2 text-[#687B6D]">Dò từ khóa toàn bộ slide có chữ. Không trùng từ khóa không có nghĩa là người học bỏ qua slide, vì có thể diễn đạt khác hoặc ASR nhận sai. Chỉ những slide liệt kê chi tiết bên dưới mới được AI đối chiếu sâu.</p>
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {review.slideOverview.map(item => <p key={item.slideNumber} className="border-b border-[#E6EDE7] py-1 break-words">
+                <strong>Slide {item.slideNumber}:</strong> {item.slideExcerpt}
+                <span className="block text-[#687B6D]">{item.keywordSignal === 'shared_keywords'
+                  ? 'Có từ khóa trùng: ' + item.sharedKeywords.join(', ')
+                  : item.keywordSignal === 'no_shared_keywords'
+                    ? 'Chưa thấy từ khóa trùng trong bản ghi; cần kiểm tra ngữ nghĩa thủ công.'
+                    : 'Slide có quá ít chữ để dò từ khóa.'}
+                  {review.slideComparisons.some(detail => detail.slideNumber === item.slideNumber)
+                    ? ' · Đã đối chiếu chi tiết' : ' · Chưa đối chiếu chi tiết'}
+                </span>
+              </p>)}
+            </div>
+          </details>}
+          {review.slideComparisons.map((item, i) => <div key={i} className="bg-white rounded-lg border border-[#D9E5DC] p-3 my-1 space-y-2">
+            <p className="text-xs font-semibold"><strong>Slide {item.slideNumber}:</strong> {item.point}</p>
+            {item.status ? <>
+              <p className="text-[11px] text-[#617466]">Nhận định nội dung: {{
+                matched: 'Đã tìm thấy nội dung tương ứng',
+                partial: 'Mới tìm thấy một phần',
+                not_found: 'Chưa tìm thấy trong bản ghi ASR',
+                possible_difference: 'Có khác biệt cần kiểm tra',
+              }[item.status]}</p>
+              <p className="text-xs"><strong>Chữ trên slide:</strong> “{item.slideQuote}”</p>
+              {item.spokenQuote && <p className="text-xs"><strong>Lời nói tương ứng:</strong> “{item.spokenQuote}” ({item.evidenceId})</p>}
+              <p className="text-xs"><strong>Đã tìm thấy:</strong> {item.covered}</p>
+              <p className="text-xs"><strong>Chưa thấy / cần kiểm tra:</strong> {item.missing}</p>
+              <p className="text-xs"><strong>Gợi ý:</strong> {item.action}</p>
+              {item.evidenceId && renderEvidence(item)}
+            </> : renderEvidence(item)}
           </div>)}
         </div>}
         <div className="text-xs">
@@ -248,7 +279,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
             ? <ul className="list-disc pl-5 mt-1">{review.limitations.map((l, i) => <li key={i}>{l}</li>)}</ul>
             : <p>Nhận diện giọng nói có thể sai; cần đối chiếu video khi cần.</p>}
         </div>
-        <p className="text-[11px] text-[#687B6D]">Nhận xét được lưu cục bộ theo buổi luyện và tài khoản. Mở lại Lịch sử không gọi Gemini hoặc tiêu tốn lượt phân tích. Đây không phải đồng bộ đám mây hay phân quyền bảo mật giữa các tài khoản dùng chung thiết bị.</p>
+        <p className="text-[11px] text-[#687B6D]">Nhận xét lưu trên thiết bị, mở lại không tốn lượt Gemini. Đối chiếu PowerPoint chỉ dựa trên chữ có thể đọc và bản ghi ASR; không chứng minh người học đã chuyển tới slide nào. Dữ liệu cục bộ không phải đồng bộ đám mây hay phân quyền bảo mật giữa các tài khoản dùng chung thiết bị.</p>
       </div>}
     </section>
   );
