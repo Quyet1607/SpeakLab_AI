@@ -111,7 +111,7 @@ function validSlideReviewStats(value: unknown, validCount: number): value is AiS
     Number.isInteger(stats.received) && stats.received! >= 0 && stats.received! <= 100 &&
     Number.isInteger(stats.accepted) && stats.accepted === validCount &&
     Number.isInteger(stats.rejected) && stats.rejected! >= 0 &&
-    stats.received === stats.accepted + stats.rejected;
+    stats.received === stats.accepted! + stats.rejected!;
 }
 
 function validReview(value: unknown): value is AiSpeechReview {
