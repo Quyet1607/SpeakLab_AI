@@ -22,7 +22,7 @@ function readRecords(): LocalTranscriptRecord[] {
     const raw = localStorage.getItem(KEY);
     const data: unknown = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(data)) return [];
-    return data.filter((item): item is LocalTranscriptRecord =>
+    return data.map(item => item && typeof item === 'object' && !('ownerSub' in item && item.ownerSub != null) ? { ...item, ownerSub: 'guest' } : item).filter((item): item is LocalTranscriptRecord =>
       item !== null && typeof item === 'object' &&
       typeof item.sessionId === 'string' && /^ses_[\w-]{5,100}$/.test(item.sessionId) &&
       typeof item.title === 'string' && typeof item.topic === 'string' &&
