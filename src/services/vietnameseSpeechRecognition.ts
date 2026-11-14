@@ -378,24 +378,18 @@ export class VietnameseBrowserSpeechSession {
       if (remainder) joined = cleanSpeechText(joined + ' ' + remainder);
     }
 
-    // A single browser result can itself end with a repeated word/phrase.
-    return this.removeRepeatedTrailingPhrase(joined);
+    // A single browser result can itself repeat its final word.
+    return this.removeRepeatedTrailingWord(joined);
   }
 
-  private removeRepeatedTrailingPhrase(text: string): string {
+  private removeRepeatedTrailingWord(text: string): string {
     const words = cleanSpeechText(text).split(/\s+/u).filter(Boolean);
+    if (words.length < 2) return words.join(' ');
     const normalizeWord = (word: string) =>
       word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
-    const maxOverlap = Math.min(3, Math.floor(words.length / 2));
-
-    for (let count = maxOverlap; count >= 1; count--) {
-      const previous = words.slice(-count * 2, -count).map(normalizeWord);
-      const trailing = words.slice(-count).map(normalizeWord);
-      if (previous.every((word, index) => word && word === trailing[index])) {
-        words.splice(-count, count);
-        break;
-      }
-    }
+    const previous = normalizeWord(words[words.length - 2]);
+    const last = normalizeWord(words[words.length - 1]);
+    if (previous && previous === last) words.pop();
     return words.join(' ');
   }
 
