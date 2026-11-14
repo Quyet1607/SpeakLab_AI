@@ -111,6 +111,8 @@ export class VietnameseBrowserSpeechSession {
   private activeTexts = new Map<number, string>();
   private activeIndices = new Set<number>();
   private emittedSegmentByIndex = new Map<number, number>();
+  /** Text already emitted before the current segment when Chrome reuses an interim result index. */
+  private cumulativePrefixByIndex = new Map<number, string>();
   private emittedSegments = new Map<number, EmittedSpeechSegment>();
   private nextSegmentId = 1;
   private pauseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -145,27 +147,73 @@ export class VietnameseBrowserSpeechSession {
         const now = Math.max(0, Math.floor(this.callbacks.getElapsedSeconds()));
         const emittedId = this.emittedSegmentByIndex.get(index);
         if (emittedId !== undefined) {
-          // The pause timer may have saved an interim hypothesis already. If the
-          // browser later confirms or revises it, correct that same segment instead
-          // of creating a duplicate segment.
           const emitted = this.emittedSegments.get(emittedId);
           if (emitted) {
-            emitted.texts.set(index, text);
-            if (result.isFinal) this.finalizedIndices.add(index);
-            this.publishSegmentUpdate(emittedId);
+            const previousSegmentText = emitted.texts.get(index) ?? '';
+            const previousPrefix = this.cumulativePrefixByIndex.get(index) ?? '';
+            const previousCumulativeText = this.joinSpeechText(previousPrefix, previousSegmentText);
+            const appendedText = this.extractSpeechSuffix(text, previousCumulativeText);
+
+            if (appendedText) {
+              // Chrome may keep extending the same interim result index after a
+              // long pause. Treat the newly appended words as a new utterance,
+              // rather than attaching them to the segment already emitted.
+              this.cumulativePrefixByIndex.set(index, previousCumulativeText);
+              this.emittedSegmentByIndex.delete(index);
+              this.firstSeen.set(index, now);
+              this.activeTexts.set(index, appendedText);
+              this.activeIndices.add(index);
+              if (result.isFinal) {
+                this.finalizedIndices.add(index);
+                receivedFinal = true;
+              } else {
+                interimChanged = true;
+              }
+            } else if (result.isFinal) {
+              // A late final result usually confirms/corrects the previous
+              // phrase. Remove the earlier cumulative prefix so it is not copied
+              // into the current segment a second time.
+              const correctedText = this.extractSpeechSuffix(text, previousPrefix);
+              if (correctedText && correctedText !== previousSegmentText) {
+                emitted.texts.set(index, correctedText);
+                this.publishSegmentUpdate(emittedId);
+              }
+              this.finalizedIndices.add(index);
+            } else {
+              const correctedText = this.extractSpeechSuffix(text, previousPrefix);
+              if (correctedText && correctedText !== previousSegmentText) {
+                // If the browser restarted its interim result instead of
+                // returning cumulative text, start a fresh segment. Otherwise
+                // this branch is only a correction to the current phrase.
+                const continuesCurrentPhrase = this.extractSpeechSuffix(text, previousCumulativeText) !== null;
+                if (continuesCurrentPhrase) {
+                  emitted.texts.set(index, correctedText);
+                  this.publishSegmentUpdate(emittedId);
+                } else {
+                  this.cumulativePrefixByIndex.set(index, '');
+                  this.emittedSegmentByIndex.delete(index);
+                  this.firstSeen.set(index, now);
+                  this.activeTexts.set(index, text);
+                  this.activeIndices.add(index);
+                  interimChanged = true;
+                }
+              }
+            }
           }
           continue;
         }
 
+        const prefix = this.cumulativePrefixByIndex.get(index) ?? '';
+        const segmentText = this.extractSpeechSuffix(text, prefix) ?? text;
         if (!this.firstSeen.has(index)) this.firstSeen.set(index, now);
         const previous = this.activeTexts.get(index);
-        this.activeTexts.set(index, text);
+        this.activeTexts.set(index, segmentText);
         this.activeIndices.add(index);
 
         if (result.isFinal) {
           this.finalizedIndices.add(index);
           receivedFinal = true;
-        } else if (previous !== text) {
+        } else if (previous !== segmentText) {
           interimChanged = true;
         }
       }
@@ -243,6 +291,22 @@ export class VietnameseBrowserSpeechSession {
       clearTimeout(this.pauseTimer);
       this.pauseTimer = null;
     }
+  }
+
+  private joinSpeechText(prefix: string, text: string): string {
+    return [prefix.trim(), text.trim()].filter(Boolean).join(' ');
+  }
+
+  /** Return the part after a known cumulative prefix, or null if it is not a prefix. */
+  private extractSpeechSuffix(text: string, prefix: string): string | null {
+    const cleanText = cleanSpeechText(text);
+    const cleanPrefix = cleanSpeechText(prefix);
+    if (!cleanPrefix) return cleanText;
+    if (cleanText === cleanPrefix) return '';
+    if (!cleanText.toLowerCase().startsWith(cleanPrefix.toLowerCase())) return null;
+    const boundary = cleanText.charAt(cleanPrefix.length);
+    if (boundary && !/[\\s,.;:!?…—-]/u.test(boundary)) return null;
+    return cleanText.slice(cleanPrefix.length).replace(/^[\\s,.;:!?…—-]+/u, '').trim();
   }
 
   private getActiveText(): string {
