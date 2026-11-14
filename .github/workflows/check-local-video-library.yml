@@ -30,6 +30,8 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'tests/localPracticeHistory.test.js'
+      - 'tests/localReviewSlideLibrary.test.js'
+      - 'tests/localVideoLibrary.test.js'
       - 'tests/practiceBrief.test.js'
       - 'tests/vietnameseSpeechRecognition.test.js'
       - 'tests/localTranscriptLibrary.test.js'
@@ -61,8 +63,12 @@ jobs:
         run: bun test tests/localTranscriptLibrary.test.js
       - name: Test Phase 7.1 learner topic setup
         run: bun test tests/practiceBrief.test.js
-      - name: Test local account history
+      - name: Test local account history and guest cleanup
         run: bun test tests/localPracticeHistory.test.js
+      - name: Test guest slide-text cleanup
+        run: bun test tests/localReviewSlideLibrary.test.js
+      - name: Test guest video cleanup
+        run: bun test tests/localVideoLibrary.test.js
       - name: Test webcam and screen recording modes
         run: bun test tests/presentationRecordingService.test.js
       - name: Test recording names
