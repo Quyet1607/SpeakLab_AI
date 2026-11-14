@@ -340,11 +340,63 @@ export class VietnameseBrowserSpeechSession {
   }
 
   private getActiveText(): string {
-    return [...this.activeTexts]
-      .filter(([index]) => this.activeIndices.has(index))
-      .sort(([a], [b]) => a - b)
-      .map(([, value]) => value)
-      .join(' ');
+    return this.joinSpeechParts(
+      [...this.activeTexts]
+        .filter(([index]) => this.activeIndices.has(index))
+        .sort(([a], [b]) => a - b)
+        .map(([, value]) => value),
+    );
+  }
+
+  /** Join SpeechRecognition result fragments without repeating shared boundary words. */
+  private joinSpeechParts(parts: string[]): string {
+    let joined = '';
+    const normalizeWord = (word: string) =>
+      word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
+
+    for (const part of parts) {
+      const cleanPart = cleanSpeechText(part);
+      if (!cleanPart) continue;
+      if (!joined) {
+        joined = cleanPart;
+        continue;
+      }
+
+      const previousWords = joined.split(/\s+/u);
+      const nextWords = cleanPart.split(/\s+/u);
+      const maxOverlap = Math.min(3, previousWords.length, nextWords.length);
+      let overlap = 0;
+      for (let count = maxOverlap; count >= 1; count--) {
+        const previousTail = previousWords.slice(-count).map(normalizeWord);
+        const nextHead = nextWords.slice(0, count).map(normalizeWord);
+        if (previousTail.every((word, index) => word && word === nextHead[index])) {
+          overlap = count;
+          break;
+        }
+      }
+      const remainder = nextWords.slice(overlap).join(' ');
+      if (remainder) joined = cleanSpeechText(joined + ' ' + remainder);
+    }
+
+    // A single browser result can itself end with a repeated word/phrase.
+    return this.removeRepeatedTrailingPhrase(joined);
+  }
+
+  private removeRepeatedTrailingPhrase(text: string): string {
+    const words = cleanSpeechText(text).split(/\s+/u).filter(Boolean);
+    const normalizeWord = (word: string) =>
+      word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
+    const maxOverlap = Math.min(3, Math.floor(words.length / 2));
+
+    for (let count = maxOverlap; count >= 1; count--) {
+      const previous = words.slice(-count * 2, -count).map(normalizeWord);
+      const trailing = words.slice(-count).map(normalizeWord);
+      if (previous.every((word, index) => word && word === trailing[index])) {
+        words.splice(-count, count);
+        break;
+      }
+    }
+    return words.join(' ');
   }
 
   private flushActiveUtterance(): void {
@@ -366,14 +418,12 @@ export class VietnameseBrowserSpeechSession {
     const startSeconds = starts.length > 0 ? Math.min(...starts) : now;
     const endSeconds = Math.max(startSeconds, this.lastSpeechElapsedSeconds ?? now);
     const segmentId = this.nextSegmentId++;
-    const rawText = indices.map(index => texts.get(index)!).join(' ');
-    const previousText = [...this.emittedSegments.values()].at(-1)?.segment.text ?? '';
     const segment: SpeechTranscriptSegment = {
       startSeconds,
       endSeconds,
-      // SpeechRecognition can repeat the last one or two words at a pause
-      // boundary. Remove only that boundary overlap, not words inside a phrase.
-      text: this.removeLeadingOverlap(previousText, rawText) || rawText,
+      // Multiple browser result indexes can overlap inside one utterance.
+      // Join those pieces without repeating words at their internal boundaries.
+      text: this.joinSpeechParts(indices.map(index => texts.get(index)!)),
     };
 
     this.emittedSegments.set(segmentId, { segment, texts });
@@ -388,49 +438,17 @@ export class VietnameseBrowserSpeechSession {
     this.callbacks.onInterim(this.getActiveText());
   }
 
-  /**
-   * Remove a short repeated suffix/prefix at adjacent segment boundaries.
-   * Compare words case-insensitively and ignore surrounding punctuation.
-   */
-  private removeLeadingOverlap(previousText: string, currentText: string): string {
-    const previousWords = cleanSpeechText(previousText).split(/\s+/u).filter(Boolean);
-    const currentWords = cleanSpeechText(currentText).split(/\s+/u).filter(Boolean);
-    const normalizeWord = (word: string) =>
-      word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
-
-    const maxOverlap = Math.min(3, previousWords.length, currentWords.length);
-    for (let overlap = maxOverlap; overlap >= 1; overlap--) {
-      const previousTail = previousWords.slice(-overlap).map(normalizeWord);
-      const currentHead = currentWords.slice(0, overlap).map(normalizeWord);
-      if (!previousTail.every((word, index) => word && word === currentHead[index])) continue;
-
-      const remaining = currentWords.slice(overlap).join(' ')
-        .replace(/^[,.;:!?…—–-]+\s*/u, '').trim();
-      // Do not discard an entire segment if it contains only the repeated word(s).
-      if (remaining) return remaining;
-    }
-    return cleanSpeechText(currentText);
-  }
-
   private publishSegmentUpdate(segmentId: number): void {
-    if (!this.emittedSegments.has(segmentId)) return;
-
-    // A late browser confirmation can revise an earlier segment. Recalculate
-    // following boundaries too, so a changed final word cannot leave a duplicate
-    // at the beginning of the next segment.
-    let previousText = '';
-    for (const [id, emitted] of this.emittedSegments) {
-      const rawText = [...emitted.texts]
+    const emitted = this.emittedSegments.get(segmentId);
+    if (!emitted) return;
+    const text = this.joinSpeechParts(
+      [...emitted.texts]
         .sort(([a], [b]) => a - b)
-        .map(([, value]) => value)
-        .join(' ');
-      const text = this.removeLeadingOverlap(previousText, rawText) || rawText;
-      const changed = emitted.segment.text !== text;
-      if (changed) {
-        emitted.segment = { ...emitted.segment, text };
-        this.callbacks.onSegmentUpdate?.(id, emitted.segment);
-      }
-      previousText = emitted.segment.text;
+        .map(([, value]) => value),
+    );
+    if (emitted.segment.text !== text) {
+      emitted.segment = { ...emitted.segment, text };
+      this.callbacks.onSegmentUpdate?.(segmentId, emitted.segment);
     }
   }
 }
