@@ -31,7 +31,7 @@ const assessment = (slideCount) => ({
       },
     },
     slideComparisons: {
-      type: Type.ARRAY, minItems: Math.min(6, slideCount), maxItems: Math.min(MAX_DETAILED_SLIDES, slideCount),
+      type: Type.ARRAY, minItems: Math.min(6, slideCount), maxItems: slideCount ? Math.min(MAX_DETAILED_SLIDES, slideCount) : 2,
       items: {
         type: Type.OBJECT,
         properties: {
