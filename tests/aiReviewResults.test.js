@@ -91,8 +91,8 @@ describe('Phase 7.3.3.3 AI report presentation', () => {
 
   test('shows verified slide counts without technical yellow warning while preserving lexical overview', () => {
     const html = render(review);
-    expect(html).toContain('3</strong> mục đối chiếu có dẫn chứng hợp lệ');
-    expect(html).toContain('4</strong> mục AI trả về');
+    expect(html).toContain('Đã đối chiếu chi tiết: 3/4 slide có chữ');
+    expect(html).toContain('Còn 1 slide chưa có nhận xét chi tiết đủ căn cứ');
     expect(html).not.toContain('Nhận xét đối chiếu chưa đầy đủ');
     expect(html).not.toContain('1 mục bị loại');
     expect(html).not.toContain('bg-[#FFF8ED]');
