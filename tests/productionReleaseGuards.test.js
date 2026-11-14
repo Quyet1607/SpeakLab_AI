@@ -58,7 +58,8 @@ test('SpeakLab permits local guest access without automatically deleting guest d
   assert.match(videos, /ownerSub = account\.status === 'signed_in'/u);
   assert.match(videos, /ownerSub === 'guest'/u);
   assert.match(history, /listLocalVideos\(ownerSub\)/u);
-  assert.match(app, /GoogleAccountControl/u);
+  const header = readFileSync(new URL('../src/components/common/Header.tsx', import.meta.url), 'utf8');
+  assert.match(header, /GoogleAccountControl/u);
 });
 
 test('Production refuses Drive OAuth setup even with otherwise valid credentials', () => {
