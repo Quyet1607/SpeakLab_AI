@@ -190,8 +190,7 @@ export function reviewInputFingerprint(input: {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-export function getLocalAiReview(sessionId: string, ownerSub: string | null): LocalAiReviewReport | null {
-  if (!ownerSub) return null;
+export function getLocalAiReview(sessionId: string, ownerSub: string): LocalAiReviewReport | null {
   return readAll().find(item => item.sessionId === sessionId && item.ownerSub === ownerSub) || null;
 }
 
@@ -215,8 +214,7 @@ export function saveLocalAiReview(
   return record;
 }
 
-export function deleteLocalAiReview(sessionId: string, ownerSub: string | null): boolean {
-  if (!ownerSub) return false;
+export function deleteLocalAiReview(sessionId: string, ownerSub: string): boolean {
   const records = readAll();
   const filtered = records.filter(item => !(item.sessionId === sessionId && item.ownerSub === ownerSub));
   if (records.length === filtered.length) return false;
