@@ -340,7 +340,7 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     // Chrome sometimes repeats the last words when extending an interim result.
     engine.onresult({
       resultIndex: 0,
-      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung nội dung tiếp theo' } }],
+      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung dung tiếp theo' } }],
     });
     await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
     expect(segments.map(part => part.text)).toEqual([
@@ -417,7 +417,7 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await session.stop();
   });
 
-  test('removes a repeated trailing phrase from the old segment without changing the next segment', async () => {
+  test('removes a duplicated final word from the old segment without changing the next segment', async () => {
     const segments = [];
     const session = new VietnameseBrowserSpeechSession({
       onState: () => {},
@@ -430,7 +430,7 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
 
     engine.onresult({
       resultIndex: 0,
-      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung nội dung' } }],
+      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung dung' } }],
     });
     await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
     expect(segments.map(part => part.text)).toEqual(['Em xin trình bày nội dung']);
@@ -438,7 +438,7 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     engine.onresult({
       resultIndex: 0,
       results: [
-        { isFinal: false, 0: { transcript: 'Em xin trình bày nội dung nội dung' } },
+        { isFinal: false, 0: { transcript: 'Em xin trình bày nội dung dung' } },
         { isFinal: false, 0: { transcript: 'Tiếp theo là mục tiêu nghiên cứu' } },
       ],
     });
