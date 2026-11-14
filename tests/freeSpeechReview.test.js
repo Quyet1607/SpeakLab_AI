@@ -235,13 +235,15 @@ test('detailed slides require exact slide and spoken excerpts, distinct slide ID
   assertFiltered({ ...row, status: 'not_found', spokenQuote: '' });
 });
 
-test('reviews six to eight distinct slides while prechecking all 40 text slides', () => {
+test('requests detailed analysis of every slide and validates all 40 possible slide results', () => {
   const slides = Array.from({ length: 40 }, (_, i) => ({
     number: i + 1, text: 'Nội dung chuyên đề slide ' + (i + 1),
   }));
   const evidence = makeEvidenceChunks(input.transcript);
   const prompt = buildReviewPrompt({ ...input, slides }, evidence);
-  assert.match(prompt, /6 đến 8 slide/u);
+  assert.match(prompt, /TỪNG slide có chữ/u);
+  assert.match(prompt, /tối đa 40 slide/u);
+  assert.doesNotMatch(prompt, /Chọn từ 6 đến 8 slide/u);
   assert.match(prompt, /không có dữ liệu đồng bộ slide/u);
   const report = {
     summary: 'Bản ghi có giới thiệu chủ đề bảo vệ dữ liệu cá nhân và biện pháp bảo vệ.',
@@ -253,7 +255,7 @@ test('reviews six to eight distinct slides while prechecking all 40 text slides'
       { point: 'Cần thêm ví dụ thực tế khi bảo vệ dữ liệu.', evidenceId: 'E1', action: 'Thêm một ví dụ về mật khẩu yếu.' },
       { point: 'Cần giải thích hậu quả lộ thông tin.', evidenceId: 'E1', action: 'Giải thích tác động khi tài khoản bị xâm nhập.' },
     ],
-    slideComparisons: slides.slice(0, 6).map(s => ({
+    slideComparisons: slides.map(s => ({
       slideNumber: s.number, status: 'not_found',
       point: 'Chưa tìm thấy nội dung chuyên đề tương ứng trong bản ghi.',
       slideQuote: s.text, spokenQuote: '', evidenceId: '',
@@ -264,22 +266,25 @@ test('reviews six to eight distinct slides while prechecking all 40 text slides'
     limitations: [],
   };
   const result = parseGroundedReview(JSON.stringify(report), evidence, slides);
-  assert.equal(result.slideComparisons.length, 6);
+  assert.equal(result.slideComparisons.length, 40);
   assert.equal(result.slideOverview.length, 40);
-  assert.ok(!result.slideComparisons.some(x => x.slideNumber === 39));
+  assert.ok(result.slideComparisons.some(x => x.slideNumber === 39));
+  assert.deepEqual(result.slideReviewStats, {
+    target: 40, received: 40, accepted: 40, rejected: 0,
+  });
   const shorter = parseGroundedReview(JSON.stringify({
-    ...report, slideComparisons: report.slideComparisons.slice(0, 5),
+    ...report, slideComparisons: report.slideComparisons.slice(0, 18),
   }), evidence, slides);
-  assert.equal(shorter.slideComparisons.length, 5);
-  assert.equal(shorter.slideReviewStats.target, 6);
-  assert.equal(shorter.slideReviewStats.accepted, 5);
-  const oversized = parseGroundedReview(JSON.stringify({
-    ...report, slideComparisons: [...report.slideComparisons, ...slides.slice(6, 9).map(s => ({
-      ...report.slideComparisons[0], slideNumber: s.number, slideQuote: s.text,
-    }))],
+  assert.equal(shorter.slideComparisons.length, 18);
+  assert.equal(shorter.slideReviewStats.target, 40);
+  assert.equal(shorter.slideReviewStats.accepted, 18);
+  const partiallyInvalid = parseGroundedReview(JSON.stringify({
+    ...report, slideComparisons: report.slideComparisons.map((row, index) =>
+      index === 22 ? { ...row, slideQuote: 'Chữ AI không có trong slide' } : row),
   }), evidence, slides);
-  assert.equal(oversized.slideComparisons.length, 8);
-  assert.equal(oversized.slideReviewStats.rejected, 1);
+  assert.equal(partiallyInvalid.slideComparisons.length, 39);
+  assert.equal(partiallyInvalid.slideReviewStats.rejected, 1);
+  assert.ok(!partiallyInvalid.slideComparisons.some(x => x.slideNumber === 23));
 });
 
 test('18-slide real-world sized deck preserves verified findings when a quote is invented', () => {
@@ -311,7 +316,7 @@ test('18-slide real-world sized deck preserves verified findings when a quote is
   const result = parseGroundedReview(JSON.stringify(inputReport), evidence, slides);
   assert.deepEqual(result.slideComparisons.map(row => row.slideNumber), [2, 5, 11, 15, 18]);
   assert.equal(result.slideOverview.length, 18);
-  assert.deepEqual(result.slideReviewStats, { target: 6, received: 6, accepted: 5, rejected: 1 });
+  assert.deepEqual(result.slideReviewStats, { target: 18, received: 6, accepted: 5, rejected: 1 });
   assert.equal(result.slideComparisons.some(row => row.slideQuote.includes('AI bịa')), false);
   const allBad = parseGroundedReview(JSON.stringify({
     ...inputReport,
