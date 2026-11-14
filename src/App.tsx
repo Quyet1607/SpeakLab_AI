@@ -224,7 +224,7 @@ export default function App() {
             <p className="text-xs text-[#768078]">SpeakLab AI không hỗ trợ tài khoản khách.</p>
           </div>
           {checkingSession && <p className="text-xs text-[#768078]" role="status">Đang kiểm tra phiên đăng nhập…</p>}
-          {cleaningGuestData && <p className="text-xs text-[#52785D]" role="status">Đang xóa lịch sử và video của chế độ khách trên thiết bị…</p>}
+          {cleaningGuestData && <p className="text-xs text-[#52785D]" role="status">Đang xóa lịch sử, video và dữ liệu phụ trợ của chế độ khách trên thiết bị…</p>}
           {guestCleanupStatus === 'failed' && (
             <div className="space-y-3" role="alert">
               <p className="text-xs text-[#873631]">{guestCleanupError || 'Không thể dọn dữ liệu khách.'}</p>
