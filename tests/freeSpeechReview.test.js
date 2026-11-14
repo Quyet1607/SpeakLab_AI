@@ -379,7 +379,7 @@ test('requires accented Vietnamese in model-generated prose without modifying AS
       slideQuote: 'Báo cáo nghiên cứu về cảnh báo sạt lở đất',
       spokenQuote: 'Bài thuyết trình đề cập đến các biện pháp',
     }],
-  }), false); // The other model-authored sections are correctly accented.
+  }), true); // Unaccented recommendations cannot be masked by an accented summary.
   void unaccentedError;
 });
 
