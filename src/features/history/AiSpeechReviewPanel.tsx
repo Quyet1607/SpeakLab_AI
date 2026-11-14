@@ -7,9 +7,9 @@ import {
 } from '../../services/localReviewSlideLibrary';
 import {
   deleteLocalAiReview, getLocalAiReview, reviewInputFingerprint, saveLocalAiReview,
-  type AiReviewPoint as Point, type AiSpeechReview as Review,
-  type LocalAiReviewReport,
+  type AiSpeechReview as Review, type LocalAiReviewReport,
 } from '../../services/localAiReviewLibrary';
+import { AiReviewResults } from './AiReviewResults';
 
 interface Props {
   sessionId: string;
@@ -164,19 +164,10 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     setNotice('Đã xóa riêng nhận xét AI trên trình duyệt.');
   };
 
-  const renderEvidence = (item: Point) => (
-    <details className="mt-1 text-xs text-[#687B6D]">
-      <summary className="cursor-pointer">Đối chiếu lời nói: {item.evidenceId}</summary>
-      <p className="mt-1 rounded-lg border border-[#D9E5DC] bg-white p-2 whitespace-pre-wrap break-words">
-        {item.evidence}
-      </p>
-    </details>
-  );
-
   return (
     <section className="mt-3 rounded-xl border border-[#A7C8AC] bg-[#F2F8F3] p-3 space-y-3 text-[#304C38]"
       aria-label="Nhận xét bài thuyết trình bằng AI">
-      <h4 className="font-bold text-sm">AI nhận xét bài thuyết trình · Bước 7.3.3.2</h4>
+      <h4 className="font-bold text-sm">AI nhận xét bài thuyết trình · Bước 7.3.3.3</h4>
       <p className="text-xs">Dựa trên lời nói thực tế đã chuyển thành chữ. Không chấm điểm, không nhận xét giọng điệu hoặc hình ảnh chỉ từ TXT.</p>
 
       <div className="rounded-lg bg-white border border-[#D9E5DC] p-2 text-xs space-y-1">
@@ -225,74 +216,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       {notice && <p role="status" className="text-xs text-[#395C42]">{notice}</p>}
       {error && <p role="alert" className="text-xs rounded-lg bg-[#FDEFEF] border border-[#E2BABA] p-2 text-[#873631]">{error}</p>}
 
-      {review && <div className="space-y-3 border-t border-[#B4CDBA] pt-3">
-        <p className="text-xs font-semibold">Nhận xét tổng quan</p>
-        <p className="text-sm whitespace-pre-wrap break-words">{review.summary}</p>
-        <div>
-          <h5 className="text-xs font-bold mb-1">Điểm mạnh</h5>
-          {review.strengths.map((item, i) => <div key={i} className="bg-white rounded-lg border border-[#D9E5DC] p-2 my-1">
-            <p className="text-xs">{i + 1}. {item.point}</p>{renderEvidence(item)}
-          </div>)}
-        </div>
-        <div>
-          <h5 className="text-xs font-bold mb-1">Điểm cần cải thiện</h5>
-          {review.improvements.map((item, i) => <div key={i} className="bg-white rounded-lg border border-[#D9E5DC] p-2 my-1">
-            <p className="text-xs">{i + 1}. {item.point}</p>
-            <p className="text-xs mt-1"><strong>Gợi ý:</strong> {item.action}</p>{renderEvidence(item)}
-          </div>)}
-        </div>
-        {(review.slideComparisons.length > 0 || !!review.slideOverview?.length) && <div className="space-y-2">
-          <h5 className="text-xs font-bold mb-1">Đối chiếu bài nói và PowerPoint</h5>
-          {review.slideReviewStats && <div role="status" className="text-xs rounded-lg border border-[#D9E5DC] bg-white p-2 space-y-1">
-            <p><strong>Đối chiếu có dẫn chứng:</strong> {review.slideReviewStats.accepted} mục hợp lệ / {review.slideReviewStats.received} mục Gemini trả về. Mục tiêu phân tích chi tiết: {review.slideReviewStats.target} slide.</p>
-            {(review.slideReviewStats.rejected > 0 || review.slideReviewStats.accepted < review.slideReviewStats.target) &&
-              <p className="text-[#873631]">Kết quả chưa đầy đủ. {review.slideReviewStats.rejected} mục không vượt qua kiểm tra dẫn chứng đã bị bỏ qua. Chỉ hiển thị các mục được xác thực; không tự gọi Gemini lại. Những slide khác mới được dò từ khóa sơ bộ, chưa thể kết luận nội dung.</p>}
-            {review.slideReviewStats.accepted === 0 &&
-              <p className="text-[#873631]">Chưa có mục đối chiếu chi tiết nào đủ căn cứ. Có thể xem phần tổng quan chữ trên slide bên dưới, nhưng không coi đó là đánh giá của AI về nội dung đã nói.</p>}
-          </div>}
-          {review.slideOverview && review.slideOverview.length > 0 && <details className="rounded-lg bg-white border border-[#D9E5DC] p-2 text-xs">
-            <summary className="cursor-pointer font-semibold">Tổng quan chữ trên {review.slideOverview.length} slide · dò từ khóa, chưa phải kết luận nội dung</summary>
-            <p className="my-2 text-[#687B6D]">Dò từ khóa toàn bộ slide có chữ. Không trùng từ khóa không có nghĩa là người học bỏ qua slide, vì có thể diễn đạt khác hoặc ASR nhận sai. Chỉ những slide liệt kê chi tiết bên dưới mới được AI đối chiếu sâu.</p>
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {review.slideOverview.map(item => <p key={item.slideNumber} className="border-b border-[#E6EDE7] py-1 break-words">
-                <strong>Slide {item.slideNumber}:</strong> {item.slideExcerpt}
-                <span className="block text-[#687B6D]">{item.keywordSignal === 'shared_keywords'
-                  ? 'Có từ khóa trùng: ' + item.sharedKeywords.join(', ')
-                  : item.keywordSignal === 'no_shared_keywords'
-                    ? 'Chưa thấy từ khóa trùng trong bản ghi; cần kiểm tra ngữ nghĩa thủ công.'
-                    : 'Slide có quá ít chữ để dò từ khóa.'}
-                  {review.slideComparisons.some(detail => detail.slideNumber === item.slideNumber)
-                    ? ' · Đã đối chiếu chi tiết' : ' · Chưa đối chiếu chi tiết'}
-                </span>
-              </p>)}
-            </div>
-          </details>}
-          {review.slideComparisons.map((item, i) => <div key={i} className="bg-white rounded-lg border border-[#D9E5DC] p-3 my-1 space-y-2">
-            <p className="text-xs font-semibold"><strong>Slide {item.slideNumber}:</strong> {item.point}</p>
-            {item.status ? <>
-              <p className="text-[11px] text-[#617466]">Nhận định nội dung: {{
-                matched: 'Đã tìm thấy nội dung tương ứng',
-                partial: 'Mới tìm thấy một phần',
-                not_found: 'Chưa tìm thấy trong bản ghi ASR',
-                possible_difference: 'Có khác biệt cần kiểm tra',
-              }[item.status]}</p>
-              <p className="text-xs"><strong>Chữ trên slide:</strong> “{item.slideQuote}”</p>
-              {item.spokenQuote && <p className="text-xs"><strong>Lời nói tương ứng:</strong> “{item.spokenQuote}” ({item.evidenceId})</p>}
-              <p className="text-xs"><strong>{item.status === 'not_found' ? 'Kết quả tìm kiếm trong ASR:' : 'Đã tìm thấy:'}</strong> {item.covered}</p>
-              <p className="text-xs"><strong>Chưa thấy / cần kiểm tra:</strong> {item.missing}</p>
-              <p className="text-xs"><strong>Gợi ý:</strong> {item.action}</p>
-              {item.evidenceId && renderEvidence(item)}
-            </> : renderEvidence(item)}
-          </div>)}
-        </div>}
-        <div className="text-xs">
-          <strong>Giới hạn đánh giá:</strong>
-          {review.limitations.length
-            ? <ul className="list-disc pl-5 mt-1">{review.limitations.map((l, i) => <li key={i}>{l}</li>)}</ul>
-            : <p>Nhận diện giọng nói có thể sai; cần đối chiếu video khi cần.</p>}
-        </div>
-        <p className="text-[11px] text-[#687B6D]">Nhận xét lưu trên thiết bị, mở lại không tốn lượt Gemini. Đối chiếu PowerPoint chỉ dựa trên chữ có thể đọc và bản ghi ASR; không chứng minh người học đã chuyển tới slide nào. Dữ liệu cục bộ không phải đồng bộ đám mây hay phân quyền bảo mật giữa các tài khoản dùng chung thiết bị.</p>
-      </div>}
+      {review && <AiReviewResults key={sessionId} review={review} />}
     </section>
   );
 };
