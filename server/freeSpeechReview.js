@@ -184,7 +184,7 @@ export function isMissingVietnameseDiacritics(value) {
   // improvement or slide recommendation. Ignore short technical labels.
   if (meaningfulFields.some(field => {
     const { letters, accents } = counts(field);
-    return letters >= 65 && accents < 2;
+    return (letters >= 38 && accents === 0) || (letters >= 65 && accents < 2);
   })) return true;
   const { letters, accents } = counts(meaningfulFields.join(' '));
   return letters >= 100 && accents < Math.max(3, Math.ceil(letters * 0.012));
