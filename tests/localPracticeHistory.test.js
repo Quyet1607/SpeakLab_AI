@@ -3,6 +3,7 @@ import {
   listCompletedPracticeSessions,
   saveCompletedPracticeSession,
   deleteCompletedPracticeTranscript,
+  clearGuestPracticeHistory,
 } from '../src/services/localPracticeHistory.ts';
 
 let store = new Map();
@@ -60,17 +61,23 @@ describe('device-only completed practice history', () => {
     expect(JSON.stringify([...store.values()])).not.toContain('fakeSensitiveBinary');
   });
   test('legacy records without optional brief fields still remain readable', () => {
-    saveCompletedPracticeSession(session, 31, null);
-    const [legacy] = listCompletedPracticeSessions(null);
+    saveCompletedPracticeSession(session, 31, '12345678901234567890');
+    const [legacy] = listCompletedPracticeSessions('12345678901234567890');
     expect(legacy).toBeDefined();
     expect(legacy.topicDescription).toBeUndefined();
     expect(legacy.speakingGoal).toBeUndefined();
   });
-  test('only shows the selected account or guest grouping', () => {
+  test('guest history is removed while Google-owned history is preserved', () => {
     saveCompletedPracticeSession(session, 43, '12345678901234567890');
-    expect(listCompletedPracticeSessions('11111111111111111111')).toHaveLength(0);
-    expect(listCompletedPracticeSessions(null)).toHaveLength(0);
+    const [googleEntry] = JSON.parse(store.get('speaklab_completed_practice_v1'));
+    store.set('speaklab_completed_practice_v1', JSON.stringify([
+      { ...googleEntry, id: 'ses_guest_12345', ownerSub: null, title: 'Lịch sử khách' },
+      googleEntry,
+    ]));
+    expect(clearGuestPracticeHistory()).toBe(1);
     expect(listCompletedPracticeSessions('12345678901234567890')).toHaveLength(1);
+    expect(listCompletedPracticeSessions('11111111111111111111')).toHaveLength(0);
+    expect(JSON.parse(store.get('speaklab_completed_practice_v1'))).toHaveLength(1);
   });
   test('saves actual recognized speech and can delete text without deleting the session or video', () => {
     const spoken = {
@@ -92,13 +99,13 @@ describe('device-only completed practice history', () => {
   });
 
   test('same session ID is updated rather than duplicated', () => {
-    saveCompletedPracticeSession(session, 30, null);
-    saveCompletedPracticeSession(session, 45, null);
-    expect(listCompletedPracticeSessions(null)).toHaveLength(1);
-    expect(listCompletedPracticeSessions(null)[0].durationSeconds).toBe(45);
+    saveCompletedPracticeSession(session, 30, '12345678901234567890');
+    saveCompletedPracticeSession(session, 45, '12345678901234567890');
+    expect(listCompletedPracticeSessions('12345678901234567890')).toHaveLength(1);
+    expect(listCompletedPracticeSessions('12345678901234567890')[0].durationSeconds).toBe(45);
   });
   test('corrupt browser data is ignored, not executed', () => {
     store.set('speaklab_completed_practice_v1', '{invalid_json');
-    expect(listCompletedPracticeSessions(null)).toEqual([]);
+    expect(listCompletedPracticeSessions('12345678901234567890')).toEqual([]);
   });
 });
