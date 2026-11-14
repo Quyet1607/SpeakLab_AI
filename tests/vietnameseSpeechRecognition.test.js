@@ -352,20 +352,20 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
 
   test('removes repeated words when the next phrase uses a new result index', async () => {
     const segments = [];
+    const ids = [];
     const session = new VietnameseBrowserSpeechSession({
       onState: () => {},
       onInterim: () => {},
-      onSegment: part => segments.push(part),
+      onSegment: (part, id) => {
+        segments.push(part);
+        ids.push(id);
+      },
       onSegmentUpdate: (id, part) => {
         const index = ids.indexOf(id);
         if (index >= 0) segments[index] = part;
       },
       getElapsedSeconds: () => 24,
     });
-    const ids = [];
-    // Keep IDs in sync with emitted segments.
-    const originalOnSegment = session;
-    void originalOnSegment;
     session.start();
     const engine = FakeRecognition.current;
 
