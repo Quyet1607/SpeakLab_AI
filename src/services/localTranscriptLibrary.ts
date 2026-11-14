@@ -71,6 +71,31 @@ export function deleteLocalTranscript(sessionId: string, ownerSub: string | null
   return true;
 }
 
+/** Split recognized text into readable lines without changing or dropping words. */
+export function formatTranscriptLines(text: string, maxLength = 90): string[] {
+  const normalized = text.replace(/\\s+/gu, ' ').trim();
+  if (!normalized) return [];
+  const width = Number.isFinite(maxLength) && maxLength > 0 ? Math.floor(maxLength) : 90;
+  const sentences = normalized.match(/[^.!?…]+(?:[.!?…]+|$)/gu) || [normalized];
+  const lines: string[] = [];
+
+  for (const sentence of sentences) {
+    const words = sentence.trim().split(/\\s+/u).filter(Boolean);
+    let line = '';
+    for (const word of words) {
+      const candidate = line ? line + ' ' + word : word;
+      if (line && candidate.length > width) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
 export function transcriptFileName(title: string): string {
   const safe = title.normalize('NFKC').replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
     .replace(/\s+/g, ' ').trim().slice(0, 80) || 'Buoi-luyen';
@@ -89,7 +114,12 @@ export function transcriptToText(record: LocalTranscriptRecord): string {
     'Ngày lưu: ' + stamp,
     'Thời gian các đoạn chỉ mang tính ước lượng.',
     '',
-    ...record.segments.map(s => '[' + time(s.startSeconds) + '–' + time(s.endSeconds) + '] ' + s.text),
+    ...record.segments.flatMap(s => {
+      const lines = formatTranscriptLines(s.text);
+      return lines.map((line, index) =>
+        (index === 0 ? '[' + time(s.startSeconds) + '–' + time(s.endSeconds) + '] ' : '') + line
+      );
+    }),
     '',
   ].join('\n');
 }
