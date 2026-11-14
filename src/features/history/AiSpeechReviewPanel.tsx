@@ -5,18 +5,11 @@ import {
   deleteLocalReviewSlides, getLocalReviewSlides, saveLocalReviewSlides,
   type LocalReviewSlides,
 } from '../../services/localReviewSlideLibrary';
-
-type Point = { point: string; evidenceId: string; evidence: string; action?: string };
-type SlidePoint = Point & { slideNumber: number };
-type Review = {
-  summary: string;
-  strengths: Point[];
-  improvements: Point[];
-  slideComparisons: SlidePoint[];
-  limitations: string[];
-  source: 'transcript' | 'transcript_and_pptx';
-  model: string;
-};
+import {
+  deleteLocalAiReview, getLocalAiReview, reviewInputFingerprint, saveLocalAiReview,
+  type AiReviewPoint as Point, type AiReviewSlidePoint as SlidePoint,
+  type AiSpeechReview as Review, type LocalAiReviewReport,
+} from '../../services/localAiReviewLibrary';
 
 interface Props {
   sessionId: string;
@@ -28,25 +21,33 @@ interface Props {
   signedIn: boolean;
 }
 
-/** Phase 7.3.1: preview of evidence-based review; no persistence/scoring yet. */
+/** Phase 7.3.2: evidence-based AI review saved locally with the practice session. */
 export const AiSpeechReviewPanel: React.FC<Props> = ({
   sessionId, topic, topicDescription, speakingGoal, ownerSub, segments, signedIn,
 }) => {
   const [slides, setSlides] = useState<LocalReviewSlides | null>(() => getLocalReviewSlides(sessionId, ownerSub));
+  const [savedReport, setSavedReport] = useState<LocalAiReviewReport | null>(() => getLocalAiReview(sessionId, ownerSub));
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [review, setReview] = useState<Review | null>(null);
+  const [review, setReview] = useState<Review | null>(() => getLocalAiReview(sessionId, ownerSub)?.review ?? null);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const transcript = segments.map(s => s.text).filter(Boolean).join('\n').trim();
 
+  const currentFingerprint = reviewInputFingerprint({
+    topic, topicDescription, speakingGoal, transcript, slides: slides?.slides || [],
+  });
+  const savedReportIsStale = !!savedReport && savedReport.inputFingerprint !== currentFingerprint;
+
   useEffect(() => {
     setSlides(getLocalReviewSlides(sessionId, ownerSub));
+    const storedReport = getLocalAiReview(sessionId, ownerSub);
+    setSavedReport(storedReport);
+    setReview(storedReport?.review ?? null);
     setConsent(false);
-    setReview(null);
     setError(null);
     abortRef.current?.abort();
     return () => abortRef.current?.abort();
@@ -57,7 +58,6 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     setReading(true);
     setError(null);
     setNotice(null);
-    setReview(null);
     setConsent(false); // Consent must cover the new slide text as well.
     try {
       const parsed = await extractPptxTextForReview(file);
@@ -82,7 +82,6 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     abortRef.current?.abort();
     deleteLocalReviewSlides(sessionId, ownerSub);
     setSlides(null);
-    setReview(null);
     setConsent(false);
     setNotice('Đã bỏ văn bản slide; bạn vẫn có thể phân tích bài nói bằng TXT.');
   };
@@ -96,7 +95,6 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     const controller = new AbortController();
     abortRef.current = controller;
     setBusy(true);
-    setReview(null);
     setNotice(null);
     setError(null);
     try {
@@ -120,7 +118,29 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       }
       if (!controller.signal.aborted) {
         setReview(data.review);
-        setNotice('AI đã trả kết quả thử nghiệm. Còn ' + (data.remainingToday ?? '?') + ' lượt trong hạn mức nội bộ hôm nay.');
+        if (ownerSub) {
+          try {
+            const saved = saveLocalAiReview({
+              sessionId,
+              ownerSub,
+              inputFingerprint: currentFingerprint,
+              topic: topic.slice(0, 120),
+              topicDescription: (topicDescription || '').slice(0, 800),
+              speakingGoal: (speakingGoal || '').slice(0, 400),
+              transcriptLength: transcript.length,
+              slideName: slides?.name || '',
+              slideCount: slides?.slides.length || 0,
+              review: data.review,
+            });
+            setSavedReport(saved);
+            setNotice('Đã lưu nhận xét trên trình duyệt. Còn ' + (data.remainingToday ?? '?') + ' lượt trong hạn mức nội bộ hôm nay.');
+          } catch (saveError) {
+            setNotice('AI đã trả kết quả nhưng trình duyệt chưa lưu được nhận xét. ' +
+              (saveError instanceof Error ? saveError.message : 'Hãy kiểm tra dung lượng lưu trữ.'));
+          }
+        } else {
+          setNotice('AI đã trả kết quả nhưng không xác định được tài khoản để lưu nhận xét.');
+        }
       }
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Không thể kết nối API AI miễn phí.');
@@ -130,6 +150,14 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         setBusy(false);
       }
     }
+  };
+
+  const removeSavedReview = () => {
+    if (!window.confirm('Xóa riêng nhận xét AI đã lưu của buổi luyện này? Video và bản ghi lời nói vẫn được giữ nguyên.')) return;
+    deleteLocalAiReview(sessionId, ownerSub);
+    setSavedReport(null);
+    setReview(null);
+    setNotice('Đã xóa riêng nhận xét AI trên trình duyệt.');
   };
 
   const renderEvidence = (item: Point) => (
@@ -144,7 +172,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
   return (
     <section className="mt-3 rounded-xl border border-[#A7C8AC] bg-[#F2F8F3] p-3 space-y-3 text-[#304C38]"
       aria-label="Nhận xét bài thuyết trình bằng AI">
-      <h4 className="font-bold text-sm">AI nhận xét bài thuyết trình · thử nghiệm 7.3.1</h4>
+      <h4 className="font-bold text-sm">AI nhận xét bài thuyết trình · Đợt 7.3.2</h4>
       <p className="text-xs">Dựa trên lời nói thực tế đã chuyển thành chữ. Không chấm điểm, không nhận xét giọng điệu hoặc hình ảnh chỉ từ TXT.</p>
 
       <div className="rounded-lg bg-white border border-[#D9E5DC] p-2 text-xs space-y-1">
@@ -170,17 +198,23 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       <label className="flex items-start gap-2 text-xs cursor-pointer">
         <input type="checkbox" checked={consent} onChange={e => {
           setConsent(e.target.checked);
-          if (!e.target.checked) { abortRef.current?.abort(); setReview(null); }
+          if (!e.target.checked) abortRef.current?.abort();
         }} className="mt-0.5" />
         <span>Tôi đồng ý gửi <strong>đề tài, mục tiêu, văn bản lời nói và chữ trong PPTX (nếu có)</strong> đến Google Gemini để nhận xét. Không gửi tệp video, âm thanh, PPTX nguyên bản hay tên tài khoản. Dữ liệu Free Tier có thể được Google dùng để cải thiện sản phẩm.</span>
       </label>
 
       {!signedIn && <p className="text-xs text-[#873631]">Cần đăng nhập Google ở Cài đặt để dùng dịch vụ AI.</p>}
       {transcript.length > 24000 && <p className="text-xs text-[#873631]">Bản ghi vượt giới hạn 24.000 ký tự. Đợt thử nghiệm chưa phân tích bài dài hơn.</p>}
+      {savedReport && <div className="rounded-lg border border-[#D9E5DC] bg-white p-2 text-xs space-y-1">
+        <p><strong>Nhận xét đã lưu:</strong> {new Date(savedReport.createdAt).toLocaleString('vi-VN')} · lưu trên trình duyệt này.</p>
+        {savedReportIsStale && <p role="status" className="text-[#873631]">Dữ liệu đề tài, lời nói hoặc PowerPoint đã thay đổi sau lần phân tích. Kết quả bên dưới là bản nhận xét cũ; hãy phân tích lại nếu muốn cập nhật.</p>}
+        <button type="button" onClick={removeSavedReview} disabled={busy}
+          className="text-xs underline text-[#873631] disabled:opacity-50">Xóa riêng nhận xét AI</button>
+      </div>}
       <button type="button" onClick={() => void requestReview()}
         disabled={!signedIn || !consent || busy || reading || transcript.length < 20 || transcript.length > 24000}
         className="bg-[#446B50] text-white px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-45">
-        {busy ? 'Đang phân tích…' : 'Phân tích bài thuyết trình bằng AI'}
+        {busy ? 'Đang phân tích…' : savedReport ? 'Phân tích lại bằng AI' : 'Phân tích bài thuyết trình bằng AI'}
       </button>
       <p className="text-[11px] text-[#687B6D]">Chỉ hoạt động trên Preview với Gemini Free Tier không bật thanh toán, có kiểm tra quota. Không tự chuyển sang API có phí.</p>
       {notice && <p role="status" className="text-xs text-[#395C42]">{notice}</p>}
@@ -214,7 +248,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
             ? <ul className="list-disc pl-5 mt-1">{review.limitations.map((l, i) => <li key={i}>{l}</li>)}</ul>
             : <p>Nhận diện giọng nói có thể sai; cần đối chiếu video khi cần.</p>}
         </div>
-        <p className="text-[11px] text-[#687B6D]">Nhận xét đang chỉ hiển thị trong phiên này, chưa được lưu thành báo cáo (Đợt 7.3.2).</p>
+        <p className="text-[11px] text-[#687B6D]">Nhận xét được lưu cục bộ theo buổi luyện và tài khoản. Mở lại Lịch sử không gọi Gemini hoặc tiêu tốn lượt phân tích. Đây không phải đồng bộ đám mây hay phân quyền bảo mật giữa các tài khoản dùng chung thiết bị.</p>
       </div>}
     </section>
   );
