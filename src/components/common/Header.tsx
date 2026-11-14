@@ -105,7 +105,6 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Google account / sign-in control */}
         <GoogleAccountControl currentUser={currentUser} />
-div>
       </div>
     </header>
   );
