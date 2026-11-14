@@ -183,20 +183,38 @@ export class VietnameseBrowserSpeechSession {
               }
             } else if (result.isFinal) {
               // A late final result usually confirms/corrects the previous
-              // phrase. Remove the earlier cumulative prefix so it is not copied
-              // into the current segment a second time.
+              // phrase. If the browser restarted this index entirely, treat it
+              // as a new final utterance instead of silently discarding it.
               const correctedText = this.extractSpeechSuffix(text, previousPrefix);
-              if (correctedText && correctedText !== previousSegmentText) {
-                emitted.texts.set(index, correctedText);
-                this.publishSegmentUpdate(emittedId);
+              if (correctedText === null) {
+                this.cumulativePrefixByIndex.set(index, '');
+                this.emittedSegmentByIndex.delete(index);
+                this.firstSeen.set(index, now);
+                this.activeTexts.set(index, text);
+                this.activeIndices.add(index);
+                this.finalizedIndices.add(index);
+                receivedFinal = true;
+              } else {
+                if (correctedText && correctedText !== previousSegmentText) {
+                  emitted.texts.set(index, correctedText);
+                  this.publishSegmentUpdate(emittedId);
+                }
+                this.finalizedIndices.add(index);
               }
-              this.finalizedIndices.add(index);
             } else {
               const correctedText = this.extractSpeechSuffix(text, previousPrefix);
-              if (correctedText && correctedText !== previousSegmentText) {
-                // If the browser restarted its interim result instead of
-                // returning cumulative text, start a fresh segment. Otherwise
-                // this branch is only a correction to the current phrase.
+              if (correctedText === null) {
+                // Some browser versions restart the interim result instead of
+                // keeping the old phrase as a cumulative prefix.
+                this.cumulativePrefixByIndex.set(index, '');
+                this.emittedSegmentByIndex.delete(index);
+                this.firstSeen.set(index, now);
+                this.activeTexts.set(index, text);
+                this.activeIndices.add(index);
+                interimChanged = true;
+              } else if (correctedText !== previousSegmentText) {
+                // A change after the pause is a new phrase unless the browser
+                // is still extending the current cumulative transcript.
                 const continuesCurrentPhrase = this.extractSpeechSuffix(text, previousCumulativeText) !== null;
                 if (continuesCurrentPhrase) {
                   emitted.texts.set(index, correctedText);
