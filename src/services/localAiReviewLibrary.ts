@@ -7,11 +7,13 @@ export type AiReviewPoint = {
   slideNumber?: number;
 };
 
+export type AiReviewSlidePoint = AiReviewPoint & { slideNumber: number };
+
 export type AiSpeechReview = {
   summary: string;
   strengths: AiReviewPoint[];
   improvements: AiReviewPoint[];
-  slideComparisons: AiReviewPoint[];
+  slideComparisons: AiReviewSlidePoint[];
   limitations: string[];
   source: 'transcript' | 'transcript_and_pptx';
   model: string;
