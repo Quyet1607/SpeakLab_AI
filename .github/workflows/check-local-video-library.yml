@@ -13,6 +13,7 @@ on:
       - 'tests/pptxReviewText.test.js'
       - 'tests/localAiReviewLibrary.test.js'
       - 'tests/aiReviewResults.test.js'
+      - 'tests/aiReviewAcceptance.test.js'
       - 'public/**'
       - 'bun.lock'
       - 'package.json'
@@ -70,6 +71,8 @@ jobs:
         run: bun test tests/localAiReviewLibrary.test.js
       - name: Test Phase 7.3.3.3 AI review result layout
         run: bun test tests/aiReviewResults.test.js
+      - name: Test Phase 7.3.3.4 integrated AI review acceptance
+        run: bun test tests/aiReviewAcceptance.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
