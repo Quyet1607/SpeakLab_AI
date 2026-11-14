@@ -74,7 +74,7 @@ function validSlidePoint(value: unknown): value is AiReviewSlidePoint {
   if (!['matched', 'partial', 'not_found', 'possible_difference'].includes(x.status) ||
       !Number.isInteger(x.slideNumber) || x.slideNumber! < 1 || x.slideNumber! > 500 ||
       typeof x.point !== 'string' || x.point.length < 8 || x.point.length > 450 ||
-      typeof x.slideQuote !== 'string' || x.slideQuote.length < 3 || x.slideQuote.length > 220 ||
+      typeof x.slideQuote !== 'string' || x.slideQuote.length < 1 || x.slideQuote.length > 220 ||
       typeof x.spokenQuote !== 'string' || x.spokenQuote.length > 220 ||
       typeof x.covered !== 'string' || x.covered.length < 8 || x.covered.length > 400 ||
       typeof x.missing !== 'string' || x.missing.length < 8 || x.missing.length > 400 ||
