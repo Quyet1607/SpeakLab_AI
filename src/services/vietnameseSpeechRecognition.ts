@@ -366,10 +366,14 @@ export class VietnameseBrowserSpeechSession {
     const startSeconds = starts.length > 0 ? Math.min(...starts) : now;
     const endSeconds = Math.max(startSeconds, this.lastSpeechElapsedSeconds ?? now);
     const segmentId = this.nextSegmentId++;
+    const rawText = indices.map(index => texts.get(index)!).join(' ');
+    const previousText = [...this.emittedSegments.values()].at(-1)?.segment.text ?? '';
     const segment: SpeechTranscriptSegment = {
       startSeconds,
       endSeconds,
-      text: indices.map(index => texts.get(index)!).join(' '),
+      // SpeechRecognition can repeat the last one or two words at a pause
+      // boundary. Remove only that boundary overlap, not words inside a phrase.
+      text: this.removeLeadingOverlap(previousText, rawText) || rawText,
     };
 
     this.emittedSegments.set(segmentId, { segment, texts });
@@ -384,14 +388,49 @@ export class VietnameseBrowserSpeechSession {
     this.callbacks.onInterim(this.getActiveText());
   }
 
+  /**
+   * Remove a short repeated suffix/prefix at adjacent segment boundaries.
+   * Compare words case-insensitively and ignore surrounding punctuation.
+   */
+  private removeLeadingOverlap(previousText: string, currentText: string): string {
+    const previousWords = cleanSpeechText(previousText).split(/\\s+/u).filter(Boolean);
+    const currentWords = cleanSpeechText(currentText).split(/\\s+/u).filter(Boolean);
+    const normalizeWord = (word: string) =>
+      word.replace(/^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
+
+    const maxOverlap = Math.min(3, previousWords.length, currentWords.length);
+    for (let overlap = maxOverlap; overlap >= 1; overlap--) {
+      const previousTail = previousWords.slice(-overlap).map(normalizeWord);
+      const currentHead = currentWords.slice(0, overlap).map(normalizeWord);
+      if (!previousTail.every((word, index) => word && word === currentHead[index])) continue;
+
+      const remaining = currentWords.slice(overlap).join(' ')
+        .replace(/^[,.;:!?…—–-]+\\s*/u, '').trim();
+      // Do not discard an entire segment if it contains only the repeated word(s).
+      if (remaining) return remaining;
+    }
+    return cleanSpeechText(currentText);
+  }
+
   private publishSegmentUpdate(segmentId: number): void {
-    const emitted = this.emittedSegments.get(segmentId);
-    if (!emitted || !this.callbacks.onSegmentUpdate) return;
-    const text = [...emitted.texts]
-      .sort(([a], [b]) => a - b)
-      .map(([, value]) => value)
-      .join(' ');
-    emitted.segment = { ...emitted.segment, text };
-    this.callbacks.onSegmentUpdate(segmentId, emitted.segment);
+    if (!this.emittedSegments.has(segmentId)) return;
+
+    // A late browser confirmation can revise an earlier segment. Recalculate
+    // following boundaries too, so a changed final word cannot leave a duplicate
+    // at the beginning of the next segment.
+    let previousText = '';
+    for (const [id, emitted] of this.emittedSegments) {
+      const rawText = [...emitted.texts]
+        .sort(([a], [b]) => a - b)
+        .map(([, value]) => value)
+        .join(' ');
+      const text = this.removeLeadingOverlap(previousText, rawText) || rawText;
+      const changed = emitted.segment.text !== text;
+      if (changed) {
+        emitted.segment = { ...emitted.segment, text };
+        this.callbacks.onSegmentUpdate?.(id, emitted.segment);
+      }
+      previousText = emitted.segment.text;
+    }
   }
 }
