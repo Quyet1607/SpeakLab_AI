@@ -21,7 +21,6 @@ import {
 import { UserProfile } from '../types';
 import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
-import { GoogleIdentityTest } from '../components/auth/GoogleIdentityTest';
 
 interface SettingsPageProps {
   currentUser: UserProfile;
@@ -49,14 +48,14 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
     <div className="space-y-6 max-w-4xl mx-auto">
       <DemoNotice
         title="Trang cấu hình hệ thống"
-        message="Video luyện tập hiện lưu trực tiếp trên trình duyệt của thiết bị; không cần Google Drive hoặc cơ sở dữ liệu đám mây. Đăng nhập Google giúp nhóm lịch sử video cá nhân trên cùng trình duyệt."
+        message="Video luyện tập được lưu trực tiếp trên trình duyệt của thiết bị; không cần kết nối Google Drive. Bạn có thể đăng nhập bằng Google ngay tại khu vực tài khoản ở góc trên bên phải."
       />
 
       <div className="bg-white rounded-2xl border border-[#E4E9E3] shadow-xs overflow-hidden">
         {/* Navigation Tabs Header */}
         <div className="flex border-b border-[#E4E9E3] overflow-x-auto bg-[#F7F9F6] p-1.5 gap-1">
           {[
-            { id: 'profile', label: 'Tài khoản học sinh', icon: User },
+            { id: 'profile', label: 'Hồ sơ cá nhân', icon: User },
             { id: 'devices', label: 'Camera & Micro', icon: Camera },
             { id: 'ai', label: 'Mức độ Hội đồng AI', icon: Sliders },
             { id: 'privacy', label: 'Quyền riêng tư', icon: Shield },
@@ -88,14 +87,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
             <div className="space-y-6">
               <div>
                 <h3 className="text-base font-bold text-[#3D4740]">
-                  Thông tin học sinh
+                  Hồ sơ luyện tập cá nhân
                 </h3>
                 <p className="text-xs text-[#768078] mt-0.5">
-                  Dữ liệu định danh dùng để gắn vào báo cáo đánh giá thuyết trình
+                  Thông tin hiển thị trong giao diện và báo cáo luyện tập
                 </p>
               </div>
-
-              <GoogleIdentityTest />
 
               <div className="flex items-center gap-4 p-4 rounded-xl bg-[#FAFBF9] border border-[#E4E9E3]">
                 <div className="w-14 h-14 rounded-full bg-[#EEF4F0] border-2 border-[#D9E5DC] text-[#324C3B] font-bold text-lg flex items-center justify-center">
