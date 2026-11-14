@@ -12,7 +12,7 @@ export interface LocalTranscriptRecord {
   sessionId: string;
   title: string;
   topic: string;
-  ownerSub: string | null;
+  ownerSub: string;
   updatedAt: string;
   segments: SpeechTranscriptSegment[];
 }
@@ -26,13 +26,30 @@ function readRecords(): LocalTranscriptRecord[] {
       item !== null && typeof item === 'object' &&
       typeof item.sessionId === 'string' && /^ses_[\w-]{5,100}$/.test(item.sessionId) &&
       typeof item.title === 'string' && typeof item.topic === 'string' &&
-      (item.ownerSub === null || typeof item.ownerSub === 'string') &&
+      typeof item.ownerSub === 'string' && /^[0-9]{5,64}$/.test(item.ownerSub) &&
       typeof item.updatedAt === 'string' && Number.isFinite(Date.parse(item.updatedAt)) &&
       Array.isArray(item.segments)
     ).slice(0, MAX_RECORDS).map(item => ({
       ...item, segments: normalizeTranscriptSegments(item.segments),
     }));
   } catch { return []; }
+}
+
+/** Remove legacy guest/unassigned transcripts without touching Google-owned records. */
+export function clearGuestLocalTranscripts(): number {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return 0;
+  let data: unknown;
+  try { data = JSON.parse(raw); } catch { return 0; }
+  if (!Array.isArray(data)) return 0;
+  const retained = data.filter(item => {
+    if (!item || typeof item !== 'object') return true;
+    const owner = (item as { ownerSub?: unknown }).ownerSub;
+    return owner !== null && owner !== undefined;
+  });
+  const removed = data.length - retained.length;
+  if (removed > 0) writeRecords(retained as LocalTranscriptRecord[]);
+  return removed;
 }
 
 function writeRecords(records: LocalTranscriptRecord[]): void {
@@ -45,8 +62,9 @@ function writeRecords(records: LocalTranscriptRecord[]): void {
 
 export function saveLocalTranscript(
   sessionId: string, title: string, topic: string,
-  ownerSub: string | null, segments: SpeechTranscriptSegment[],
+  ownerSub: string, segments: SpeechTranscriptSegment[],
 ): LocalTranscriptRecord | null {
+  if (!/^[0-9]{5,64}$/.test(ownerSub)) throw new Error('Vui lòng đăng nhập Google để lưu bản ghi lời nói.');
   const normalized = normalizeTranscriptSegments(segments);
   if (!normalized.length) return null;
   const record: LocalTranscriptRecord = {
@@ -58,12 +76,12 @@ export function saveLocalTranscript(
   return record;
 }
 
-export function listLocalTranscripts(ownerSub: string | null): LocalTranscriptRecord[] {
+export function listLocalTranscripts(ownerSub: string): LocalTranscriptRecord[] {
   return readRecords().filter(item => item.ownerSub === ownerSub)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export function deleteLocalTranscript(sessionId: string, ownerSub: string | null): boolean {
+export function deleteLocalTranscript(sessionId: string, ownerSub: string): boolean {
   const records = readRecords();
   const filtered = records.filter(item => !(item.sessionId === sessionId && item.ownerSub === ownerSub));
   if (records.length === filtered.length) return false;
