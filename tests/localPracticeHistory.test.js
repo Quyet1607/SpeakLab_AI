@@ -32,6 +32,14 @@ const session = {
 beforeEach(() => { store = new Map(); });
 
 describe('device-only completed practice history', () => {
+  test('guest sessions are saved locally and isolated from Google history', () => {
+    saveCompletedPracticeSession(session, 48, 'guest');
+    expect(listCompletedPracticeSessions('guest')).toHaveLength(1);
+    expect(listCompletedPracticeSessions('12345678901234567890')).toHaveLength(0);
+    saveCompletedPracticeSession({ ...session, id: 'ses_google_12345' }, 52, '12345678901234567890');
+    expect(listCompletedPracticeSessions('guest')).toHaveLength(1);
+    expect(listCompletedPracticeSessions('12345678901234567890')).toHaveLength(1);
+  });
   test('initial history is empty, not populated with demonstration sessions', () => {
     expect(listCompletedPracticeSessions('12345678901234567890')).toEqual([]);
   });
