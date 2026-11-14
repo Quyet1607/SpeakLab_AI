@@ -126,7 +126,8 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
       ],
     });
     expect(confirmed).toHaveLength(0); // The pause threshold has not elapsed.
-    expect(live.at(-1)).toBe('giới thiệu đề tài hôm nay');
+    // The current active utterance still includes the earlier final fragment until flush.
+    expect(live.at(-1)).toBe('Tôi xin giới thiệu đề tài hôm nay');
     await s.stop();
     expect(confirmed).toHaveLength(1);
     expect(confirmed[0].text).toBe('Tôi xin giới thiệu đề tài hôm nay');
@@ -407,7 +408,7 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
       { startSeconds: 3, endSeconds: 8, text: 'Kỹ năng giao tiếp' },
       { startSeconds: 0, endSeconds: 0, text: 'Câu 2' },
     ]);
-    expect(normalizeTranscriptSegments(Array(200).fill({ startSeconds: 0, endSeconds: 1, text: 'Thử' }))).toHaveLength(80);
+    expect(normalizeTranscriptSegments(Array(600).fill({ startSeconds: 0, endSeconds: 1, text: 'Thử' }))).toHaveLength(500);
     expect(normalizeTranscriptSegments('not an array')).toEqual([]);
   });
 
