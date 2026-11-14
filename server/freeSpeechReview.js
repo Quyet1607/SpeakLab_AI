@@ -198,7 +198,8 @@ export function parseGroundedReview(raw, evidence, slides) {
     }
     seenSlideNumbers.add(item.slideNumber);
     if (!allowedStatuses.has(item.status)) throw new Error('Trạng thái đối chiếu slide không hợp lệ.');
-    const slideQuote = safeString(item.slideQuote, 1, 220);
+    const slideText = slideMap.get(item.slideNumber);
+    const slideQuote = safeString(item.slideQuote, slideText.trim().length >= 3 ? 3 : 1, 220);
     if (!normalized(slideMap.get(item.slideNumber)).includes(normalized(slideQuote))) {
       throw new Error('AI trích dẫn nội dung không có trong chữ slide.');
     }
