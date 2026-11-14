@@ -219,12 +219,16 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
           </div>
 
           {stats && (
-            <div className="rounded-xl border border-[#D9E5DC] bg-white p-3 space-y-2 text-sm">
-              <div className="flex flex-wrap gap-x-5 gap-y-1">
-                <p><strong>{stats.accepted}</strong> mục đối chiếu có dẫn chứng hợp lệ</p>
-                <p><strong>{stats.received}</strong> mục AI trả về</p>
-                <p>Mục tiêu: <strong>{stats.target}</strong> slide</p>
-              </div>
+            <div className="rounded-xl border border-[#D9E5DC] bg-white p-3 space-y-1 text-sm">
+              <p>
+                <strong>Đã đối chiếu chi tiết: {stats.accepted}/{review.slideOverview?.length || stats.target} slide có chữ</strong>
+              </p>
+              {stats.accepted < (review.slideOverview?.length || stats.target) && (
+                <p className="text-xs leading-relaxed text-[#65786A]">
+                  Còn {(review.slideOverview?.length || stats.target) - stats.accepted} slide chưa có nhận xét chi tiết đủ căn cứ.
+                  Xem danh sách bên dưới để biết chính xác các slide đó; không coi phần dò từ khóa là phân tích chi tiết.
+                </p>
+              )}
               {stats.accepted === 0 && (
                 <p className="text-xs text-[#873631]">
                   Không có mục đối chiếu chi tiết nào được xác minh. Bảng dò từ khóa bên dưới chỉ dùng tham khảo.
