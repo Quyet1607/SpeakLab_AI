@@ -19,6 +19,13 @@ afterAll(() => { globalThis.localStorage = oldStorage; });
 const segments = [{ startSeconds: 2, endSeconds: 5, text: 'Xin chào các bạn' }];
 
 describe('Phase 7.2.1 Google-owned local transcript library', () => {
+  test('guest transcript survives reload and is separate from Google-owned transcripts', () => {
+    saveLocalTranscript('ses_guest_12345', 'Buổi luyện khách', 'Giáo dục', 'guest', segments);
+    saveLocalTranscript('ses_google_12345', 'Buổi luyện Google', 'Giáo dục', '12345', segments);
+    expect(listLocalTranscripts('guest')).toHaveLength(1);
+    expect(listLocalTranscripts('12345')).toHaveLength(1);
+    expect(listLocalTranscripts('guest')[0].title).toBe('Buổi luyện khách');
+  });
   test('saves on stop independently of completed session metadata and video', () => {
     const item = saveLocalTranscript('ses_test_12345', 'Buổi luyện thử', 'Giáo dục', '12345', segments);
     expect(item?.segments).toHaveLength(1);
