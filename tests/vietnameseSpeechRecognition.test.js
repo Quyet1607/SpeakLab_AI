@@ -210,6 +210,84 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await session.stop();
   });
 
+  test('starts a new segment when Chrome reuses an interim result index after a pause', async () => {
+    const segments = [];
+    const updates = [];
+    const live = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: text => live.push(text),
+      onSegment: (segment, id) => segments.push({ ...segment, id }),
+      onSegmentUpdate: (id, segment) => updates.push({ id, ...segment }),
+      getElapsedSeconds: () => 20,
+    });
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Phần mở đầu' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Phần mở đầu']);
+
+    // Chrome reuses result index 0 and returns the whole cumulative phrase.
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Phần mở đầu và nội dung tiếp theo' } }],
+    });
+    expect(segments).toHaveLength(1);
+    expect(updates).toHaveLength(0);
+    expect(live.at(-1)).toBe('và nội dung tiếp theo');
+
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual([
+      'Phần mở đầu',
+      'và nội dung tiếp theo',
+    ]);
+
+    // The eventual final result is still cumulative, but must not merge the segments.
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: true, 0: { transcript: 'Phần mở đầu và nội dung tiếp theo' } }],
+    });
+    expect(segments.map(part => part.text)).toEqual([
+      'Phần mở đầu',
+      'và nội dung tiếp theo',
+    ]);
+    await session.stop();
+  });
+
+  test('splits a cumulative final result into a new segment after a pause', async () => {
+    const segments = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: () => {},
+      onSegment: part => segments.push(part),
+      getElapsedSeconds: () => 30,
+    });
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Tôi xin kết thúc' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Tôi xin kết thúc']);
+
+    // Some browser builds only deliver the expanded phrase as a final result.
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: true, 0: { transcript: 'Tôi xin kết thúc và chuyển sang phần hỏi đáp' } }],
+    });
+    expect(segments.map(part => part.text)).toEqual([
+      'Tôi xin kết thúc',
+      'và chuyển sang phần hỏi đáp',
+    ]);
+    await session.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
