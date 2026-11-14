@@ -107,7 +107,7 @@ function validSlideOverview(value: unknown): value is AiSlideTextOverview[] {
 function validSlideReviewStats(value: unknown, validCount: number): value is AiSlideReviewStats {
   if (!value || typeof value !== 'object') return false;
   const stats = value as Partial<AiSlideReviewStats>;
-  return Number.isInteger(stats.target) && stats.target! >= 1 && stats.target! <= 6 &&
+  return Number.isInteger(stats.target) && stats.target! >= 1 && stats.target! <= 40 &&
     Number.isInteger(stats.received) && stats.received! >= 0 && stats.received! <= 100 &&
     Number.isInteger(stats.accepted) && stats.accepted === validCount &&
     Number.isInteger(stats.rejected) && stats.rejected! >= 0 &&
@@ -122,7 +122,7 @@ function validReview(value: unknown): value is AiSpeechReview {
     review.strengths.every(point => validPoint(point, false, false)) &&
     Array.isArray(review.improvements) && review.improvements.length === 2 &&
     review.improvements.every(point => validPoint(point, true, false)) &&
-    Array.isArray(review.slideComparisons) && review.slideComparisons.length <= 8 &&
+    Array.isArray(review.slideComparisons) && review.slideComparisons.length <= 40 &&
     review.slideComparisons.every(validSlidePoint) &&
     new Set(review.slideComparisons.map(point => point.slideNumber)).size === review.slideComparisons.length &&
     (review.slideOverview === undefined || validSlideOverview(review.slideOverview)) &&
