@@ -288,6 +288,37 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await session.stop();
   });
 
+  test('starts a new segment when the browser restarts a reused result index', async () => {
+    const segments = [];
+    const live = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: text => live.push(text),
+      onSegment: part => segments.push(part),
+      getElapsedSeconds: () => 40,
+    });
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Phần một' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Phần một']);
+
+    // Some browser versions replace the interim transcript rather than
+    // returning the old phrase plus the new words.
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Phần hai' } }],
+    });
+    expect(live.at(-1)).toBe('Phần hai');
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Phần một', 'Phần hai']);
+    await session.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
