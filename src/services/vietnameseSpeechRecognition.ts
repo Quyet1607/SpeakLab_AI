@@ -305,8 +305,8 @@ export class VietnameseBrowserSpeechSession {
     if (cleanText === cleanPrefix) return '';
     if (!cleanText.toLowerCase().startsWith(cleanPrefix.toLowerCase())) return null;
     const boundary = cleanText.charAt(cleanPrefix.length);
-    if (boundary && !/[\\s,.;:!?…—-]/u.test(boundary)) return null;
-    return cleanText.slice(cleanPrefix.length).replace(/^[\\s,.;:!?…—-]+/u, '').trim();
+    if (boundary && !/[\s,.;:!?…—-]/u.test(boundary)) return null;
+    return cleanText.slice(cleanPrefix.length).replace(/^[\s,.;:!?…—-]+/u, '').trim();
   }
 
   private getActiveText(): string {
