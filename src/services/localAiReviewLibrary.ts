@@ -173,7 +173,7 @@ export function clearGuestLocalAiReviews(): number {
 function readAll(): LocalAiReviewReport[] {
   try {
     const data: unknown = JSON.parse(localStorage.getItem(KEY) || '[]');
-    return Array.isArray(data) ? data.filter(validRecord).slice(0, MAX_RECORDS) : [];
+    return Array.isArray(data) ? data.map(item => item && typeof item === 'object' && !('ownerSub' in item && item.ownerSub != null) ? { ...item, ownerSub: 'guest' } : item).filter(validRecord).slice(0, MAX_RECORDS) : [];
   } catch {
     return [];
   }
