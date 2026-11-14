@@ -25,12 +25,20 @@ export type AiSlideTextOverview = {
   sharedKeywords: string[];
 };
 
+export type AiSlideReviewStats = {
+  target: number;
+  received: number;
+  accepted: number;
+  rejected: number;
+};
+
 export type AiSpeechReview = {
   summary: string;
   strengths: AiReviewPoint[];
   improvements: AiReviewPoint[];
   slideComparisons: AiReviewSlidePoint[];
   slideOverview?: AiSlideTextOverview[];
+  slideReviewStats?: AiSlideReviewStats;
   limitations: string[];
   source: 'transcript' | 'transcript_and_pptx';
   model: string;
@@ -96,6 +104,16 @@ function validSlideOverview(value: unknown): value is AiSlideTextOverview[] {
     new Set(value.map(x => x.slideNumber)).size === value.length;
 }
 
+function validSlideReviewStats(value: unknown, validCount: number): value is AiSlideReviewStats {
+  if (!value || typeof value !== 'object') return false;
+  const stats = value as Partial<AiSlideReviewStats>;
+  return Number.isInteger(stats.target) && stats.target! >= 1 && stats.target! <= 6 &&
+    Number.isInteger(stats.received) && stats.received! >= 0 && stats.received! <= 100 &&
+    Number.isInteger(stats.accepted) && stats.accepted === validCount &&
+    Number.isInteger(stats.rejected) && stats.rejected! >= 0 &&
+    stats.received === stats.accepted + stats.rejected;
+}
+
 function validReview(value: unknown): value is AiSpeechReview {
   if (!value || typeof value !== 'object') return false;
   const review = value as Partial<AiSpeechReview>;
@@ -108,6 +126,8 @@ function validReview(value: unknown): value is AiSpeechReview {
     review.slideComparisons.every(validSlidePoint) &&
     new Set(review.slideComparisons.map(point => point.slideNumber)).size === review.slideComparisons.length &&
     (review.slideOverview === undefined || validSlideOverview(review.slideOverview)) &&
+    (review.slideReviewStats === undefined ||
+      validSlideReviewStats(review.slideReviewStats, review.slideComparisons.length)) &&
     Array.isArray(review.limitations) && review.limitations.length <= 4 &&
     review.limitations.every(item => typeof item === 'string' && item.length <= 300) &&
     (review.source === 'transcript' || review.source === 'transcript_and_pptx') &&
