@@ -172,7 +172,6 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
   const matchedCount = detailed.filter(item => item.status === 'matched').length;
   const filtered = filterReviewSlides(detailed, slideFilter);
   const stats = review.slideReviewStats;
-  const partial = !!stats && (stats.rejected > 0 || stats.accepted < stats.target);
 
   return (
     <div className="space-y-5 border-t border-[#B4CDBA] pt-4" aria-label="Kết quả nhận xét AI">
@@ -226,15 +225,6 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
                 <p><strong>{stats.received}</strong> mục AI trả về</p>
                 <p>Mục tiêu: <strong>{stats.target}</strong> slide</p>
               </div>
-              {partial && (
-                <p role="status" className="flex items-start gap-2 rounded-lg bg-[#FFF8ED] p-2.5 text-xs leading-relaxed text-[#82552B]">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>
-                    Nhận xét đối chiếu chưa đầy đủ: {stats.rejected} mục bị loại vì không qua kiểm tra dẫn chứng.
-                    Hệ thống chỉ hiển thị phần hợp lệ, không tự gọi Gemini lại hoặc tự bổ sung dẫn chứng.
-                  </span>
-                </p>
-              )}
               {stats.accepted === 0 && (
                 <p className="text-xs text-[#873631]">
                   Không có mục đối chiếu chi tiết nào được xác minh. Bảng dò từ khóa bên dưới chỉ dùng tham khảo.
