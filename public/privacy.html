@@ -17,7 +17,7 @@
 <main id="main" class="container"><article>
   <span class="eyebrow">Thông tin dành cho người sử dụng</span>
   <h1>Chính sách quyền riêng tư</h1>
-  <p class="muted">Bản dự thảo cho môi trường thử nghiệm · Cập nhật: 12/11/2026</p>
+  <p class="muted">Bản dự thảo cho môi trường thử nghiệm · Cập nhật: 14/11/2026</p>
   <div class="note alert"><p><strong>Trạng thái hiện tại:</strong> SpeakLab AI đang được phát triển và kiểm thử. Video ghi hình hiện lưu trên trình duyệt của người dùng; tính năng tự động đồng bộ video lên Google Drive không được sử dụng trong phiên bản này. Trang này mô tả chức năng hiện có và nêu riêng các tính năng dự kiến.</p></div>
 
   <h2>1. Phạm vi và mục đích sử dụng</h2>
@@ -28,6 +28,7 @@
     <li><strong>Đăng nhập Google (tùy chọn):</strong> khi người dùng chọn đăng nhập, máy chủ xác minh mã định danh Google và sử dụng mã tài khoản Google, tên hiển thị và vai trò phiên đăng nhập để nhận diện tài khoản cá nhân.</li>
     <li><strong>Video và âm thanh luyện tập:</strong> khi người dùng chủ động cấp quyền và nhấn ghi, trình duyệt xử lý luồng màn hình, tiếng micro và có thể các nội dung hiển thị trong cửa sổ được chia sẻ. Video ghi xong được lưu tại bộ nhớ IndexedDB của chính trình duyệt đó.</li>
     <li><strong>Thông tin phiên luyện tập:</strong> tiêu đề, thời gian, thời lượng, định dạng video, tên tệp và thông tin nhóm tài khoản có thể được lưu cục bộ để hiển thị lịch sử.</li>
+    <li><strong>Nhận xét nội dung bằng Gemini (chỉ khi đồng ý):</strong> đề tài, mô tả, mục tiêu luyện tập, văn bản nhận diện lời nói và phần chữ trích xuất từ PowerPoint (nếu có) được gửi qua API SpeakLab AI đến Google Gemini để tạo nhận xét. Không gửi nguyên tệp PPTX, video, luồng âm thanh hay tên tài khoản trong yêu cầu phân tích.</li>
     <li><strong>Dữ liệu kỹ thuật:</strong> dịch vụ hạ tầng và nhà cung cấp đăng nhập có thể xử lý dữ liệu kỹ thuật cần thiết để vận hành, bảo vệ hoặc ghi nhận lỗi dịch vụ theo chính sách của họ.</li>
   </ul>
 
@@ -42,7 +43,12 @@
   <p>Trình duyệt yêu cầu người dùng cấp quyền riêng cho camera, micro hoặc chia sẻ màn hình khi cần thiết. Không nên chia sẻ cửa sổ có mật khẩu, nội dung riêng tư hoặc thông tin cá nhân của người khác. Người dùng có thể ngừng chia sẻ/ghi hình và thu hồi quyền thiết bị trong cài đặt trình duyệt.</p>
   <h3>Nhận diện giọng nói tiếng Việt (tùy chọn, Bước 7.2)</h3>
   <p>Chức năng chuyển lời nói thành văn bản <strong>không tự kích hoạt</strong> khi bật micro hoặc ghi video. Người học phải mở bảng Lời nói, đọc cảnh báo và bấm đồng ý mới bắt đầu nhận diện. SpeakLab AI sử dụng khả năng nhận diện giọng nói của trình duyệt, không gọi API chuyển giọng nói do ứng dụng quản lý. <strong>Tùy trình duyệt, âm thanh có thể được chuyển đến dịch vụ xử lý của nhà cung cấp trình duyệt</strong> (không bảo đảm xử lý hoàn toàn ngoại tuyến). Người dùng không nên sử dụng chức năng này với thông tin nhạy cảm hoặc dữ liệu của trẻ em khi chưa có sự đồng ý phù hợp.</p>
-  <p>Văn bản cuối cùng đã nhận diện và mốc thời gian ước lượng được lưu cục bộ cùng lịch sử buổi luyện trên trình duyệt, phân nhóm theo tài khoản đã đăng nhập. Văn bản không tự động được tải lên máy chủ SpeakLab AI hoặc kho dữ liệu đám mây. Có thể xóa riêng văn bản nhận diện trong mục Lịch sử mà không xóa video; các bản ghi lưu trước đây không bị thay đổi. Việc phân nhóm dữ liệu trên cùng thiết bị không phải cách ly bảo mật thực sự.</p>
+  <p>Văn bản cuối cùng đã nhận diện và mốc thời gian ước lượng được lưu cục bộ cùng lịch sử buổi luyện trên trình duyệt, phân nhóm theo tài khoản đã đăng nhập. Văn bản không tự động được tải lên máy chủ SpeakLab AI hoặc kho dữ liệu đám mây; <strong>nếu người dùng chủ động đồng ý nhận xét Gemini</strong>, văn bản liên quan sẽ được gửi để phân tích như mô tả bên dưới. Có thể xóa riêng văn bản nhận diện trong mục Lịch sử mà không xóa video; các bản ghi lưu trước đây không bị thay đổi. Việc phân nhóm dữ liệu trên cùng thiết bị không phải cách ly bảo mật thực sự.</p>
+
+  <h3>Nhận xét AI bằng Google Gemini (tùy chọn, Bước 7.3)</h3>
+  <p>Chức năng nhận xét AI không tự kích hoạt khi ghi video hoặc nhận diện lời nói. Chỉ khi người dùng đăng nhập, đánh dấu đồng ý và nhấn nút phân tích, SpeakLab mới gửi <strong>đề tài, mục tiêu luyện tập, bản ghi văn bản ASR và chữ trích từ PPTX nếu có</strong> đến Google Gemini qua máy chủ. <strong>Không gửi tệp video, âm thanh hoặc PPTX nguyên bản.</strong> Ở giai đoạn này, chức năng Gemini chỉ được bật trong Vercel Preview khi đã cấu hình hạn mức Free Tier; Production chưa được mặc định kích hoạt.</p>
+  <p>Nhận xét được tạo bằng AI có thể không chính xác; phần đối chiếu slide dựa trên văn bản chứ không xác nhận học sinh đã chiếu slide nào. Dữ liệu nhận xét và chữ PPTX được lưu cục bộ trong trình duyệt theo buổi luyện/tài khoản, <strong>không đồng bộ đám mây</strong>. Người dùng có thể xóa riêng nhận xét hoặc chữ PPTX đã lưu tại thiết bị; việc xóa bản cục bộ <strong>không đồng nghĩa yêu cầu Google xóa dữ liệu đã xử lý</strong>. Dữ liệu gửi qua Gemini Free Tier có thể được Google sử dụng để cải thiện sản phẩm theo điều khoản áp dụng; không nên nhập thông tin nhạy cảm hoặc dữ liệu học sinh khi chưa có sự đồng ý phù hợp.</p>
+  <p>SpeakLab đặt giới hạn nội bộ 5 lượt phân tích/tài khoản/ngày; giới hạn và chính sách lưu giữ, xử lý dữ liệu của Google là độc lập. Người dùng nên đọc thêm <a href="https://ai.google.dev/gemini-api/terms" rel="noopener noreferrer">điều khoản Gemini API</a> trước khi sử dụng.</p>
 
   <h2>6. Xem, tải và xóa dữ liệu</h2>
   <p>Video cục bộ có thể được xem lại, tải xuống hoặc xóa trong phần <strong>Lịch sử luyện tập</strong>. Thao tác xóa chỉ áp dụng với bản ghi trên trình duyệt đang dùng. Khi xóa bộ nhớ trang web hoặc chuyển thiết bị, video có thể bị mất. Người dùng nên tải về bản sao những video quan trọng trước khi xóa dữ liệu trình duyệt.</p>
@@ -51,7 +57,7 @@
   <p>Vì ứng dụng hướng đến học sinh, việc ghi hình và lưu trữ cần tuân theo quy định áp dụng về sự đồng ý của học sinh, cha mẹ/người giám hộ và nhà trường khi cần thiết. Trong giai đoạn thử nghiệm, nên sử dụng dữ liệu giả lập hoặc dữ liệu được phép dùng, tránh ghi thông tin nhạy cảm và tránh dùng thiết bị chung để lưu video riêng tư.</p>
 
   <h2>8. Dịch vụ bên thứ ba</h2>
-  <p>Ứng dụng được triển khai qua hạ tầng lưu trữ web và sử dụng Google Identity Services cho chức năng đăng nhập. Các dịch vụ bên thứ ba có chính sách riêng, có thể tham khảo tại <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Chính sách quyền riêng tư Google</a> và <a href="https://vercel.com/legal/privacy-policy" rel="noopener noreferrer">Chính sách quyền riêng tư Vercel</a>. Việc sử dụng các dịch vụ này không có nghĩa video cục bộ đã được đồng bộ lên Google Drive.</p>
+  <p>Ứng dụng được triển khai qua hạ tầng lưu trữ web và sử dụng Google Identity Services cho chức năng đăng nhập và Google Gemini cho phần nhận xét nội dung được người học chủ động yêu cầu trên Preview. Các dịch vụ bên thứ ba có chính sách riêng, có thể tham khảo tại <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Chính sách quyền riêng tư Google</a> và <a href="https://vercel.com/legal/privacy-policy" rel="noopener noreferrer">Chính sách quyền riêng tư Vercel</a>. Việc sử dụng các dịch vụ này không có nghĩa video cục bộ đã được đồng bộ lên Google Drive.</p>
 
   <h2>9. Liên hệ và thay đổi chính sách</h2>
   <p>Đơn vị quản lý ứng dụng cần xác nhận và công bố kênh liên hệ hỗ trợ/quyền riêng tư chính thức trước khi mở rộng sử dụng cho học sinh. Nếu sau này bổ sung lưu trữ trực tuyến, chính sách phải được cập nhật về mục đích, thời hạn lưu giữ, quyền truy cập, xóa và thủ tục yêu cầu hỗ trợ.</p>
