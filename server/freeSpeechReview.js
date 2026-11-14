@@ -60,7 +60,8 @@ export function makeEvidenceChunks(transcript, limit = 650) {
   return chunks;
 }
 
-export const MAX_DETAILED_SLIDES = 8;
+/** Full-deck AI comparison, one vetted result per text-bearing slide where possible. */
+export const MAX_DETAILED_SLIDES = MAX_SLIDES;
 
 /**
  * A lexical precheck of every text-bearing slide, not a judgement of whether
@@ -109,9 +110,9 @@ export function buildReviewPrompt(input, chunks) {
     'Nếu bản ghi hiện có không thể hiện một nội dung, chỉ nói "trong bản ghi được cung cấp chưa thấy..." khi thực sự đã kiểm tra toàn bộ phần E liên quan; không khẳng định người học chắc chắn không nói hoặc không làm điều đó ở ngoài bản ghi.',
     'Phân biệt nội dung bài nói và độ chính xác ASR: chữ sai, thiếu dấu, câu chưa hoàn chỉnh hoặc ngắt đoạn bất thường có thể do nhận diện tự động. Không suy ra lỗi phát âm, vốn từ hay năng lực người học từ lỗi ASR.',
     'Mỗi nhận xét phải chọn evidenceId từ các đoạn E đã cung cấp. Không tự bịa lời nói, số liệu, thành tích, dẫn chứng hoặc trích câu không xuất hiện trong dữ liệu.',
-    'Nếu có slide, đọc toàn bộ slide có chữ và đối chiếu với toàn bộ đoạn E. Chọn từ ' + Math.min(6, input.slides.length) + ' đến ' + Math.min(MAX_DETAILED_SLIDES, input.slides.length) + ' slide ĐÁNG CHÚ Ý để phân tích sâu (ưu tiên nội dung quan trọng, điểm khớp một phần, chưa tìm thấy hoặc khác biệt tiềm tàng; phân bố trong toàn bài). Không chọn chỉ các slide đầu nếu còn slide quan trọng phía sau.',
+    'Nếu có slide, bắt buộc phân tích TỪNG slide có chữ đã cung cấp, theo đúng slideNumber, tối đa ' + input.slides.length + ' slide. Mỗi slide tương ứng chính xác một mục slideComparisons: không chọn lọc 6–8 slide, không chỉ ưu tiên các slide đầu và không bỏ qua slide cuối. Nếu không tìm được lời nói tương ứng trong toàn bộ ASR, dùng status not_found và để trống dẫn chứng, tuyệt đối không bịa nội dung.',
     'Mỗi mục slideComparisons cần: slideNumber; status thuộc matched / partial / not_found / possible_difference; point nêu rõ nội dung đang đối chiếu; slideQuote TRÍCH NGUYÊN VĂN một đoạn ngắn có thật trong chữ slide; spokenQuote TRÍCH NGUYÊN VĂN từ đúng đoạn evidenceId; covered mô tả ý đã tìm thấy; missing mô tả ý cụ thể chưa tìm thấy hoặc cần kiểm tra; action gợi ý chỉnh sửa/luyện nói thật cụ thể.',
-    'Ưu tiên các trích dẫn NGẮN (khoảng 4–15 từ) đã xuất hiện nguyên văn, giữ nguyên dấu và thứ tự từ, đừng tóm tắt trong slideQuote hoặc spokenQuote. Nếu không thể dẫn chứng đáng tin cậy, trả ít mục hơn thay vì bịa dẫn chứng, kể cả ít hơn 6.',
+    'Ưu tiên trích dẫn NGẮN (4–15 từ nếu đủ chữ) đúng nguyên văn, giữ dấu và thứ tự. Với slide có quá ít chữ, trích đúng phần hiện có. Nếu không tìm được dẫn chứng lời nói, dùng not_found; không tự tạo trích dẫn để đạt số lượng. Cố gắng trả đủ số mục bằng số slide có chữ, nhưng không được bịa dữ liệu để hoàn thành.',
     'Với status matched, partial hoặc possible_difference: evidenceId phải là mã E có thật, spokenQuote phải là đoạn văn BẢN GỐC nằm nguyên văn trong E đó (không thêm/sửa từ). Với status not_found: evidenceId = "" và spokenQuote = "", không tự gán dẫn chứng khi không tìm thấy nội dung tương ứng.',
     'slideQuote phải sao chép nguyên văn chữ thực có trên slide; không bịa nội dung, thông số, ví dụ, số liệu, hay trích dẫn slide/lời nói. Không đánh giá hình ảnh, sơ đồ, bố cục trực quan hoặc thiết kế slide.',
     'Phân biệt "chưa tìm thấy nội dung trong bản ghi ASR" với "người thuyết trình đã bỏ qua slide": không có dữ liệu đồng bộ slide và thời điểm nói nên KHÔNG được kết luận bỏ qua, thời gian đứng tại slide hay chuyển slide.',
@@ -210,7 +211,9 @@ export function parseGroundedReview(raw, evidence, slides) {
     !Array.isArray(data.limitations) || data.limitations.length > 4) {
     throw new Error('Kết quả AI không đủ cấu trúc để nhận xét.');
   }
-  if (isMissingVietnameseDiacritics(data)) {
+  // The core report must be readable; an unaccented slide item is instead
+  // rejected individually to avoid losing other verified slides.
+  if (isMissingVietnameseDiacritics({ ...data, slideComparisons: [] })) {
     throw Object.assign(new Error('Gemini trả nhận xét tiếng Việt không có dấu; không lưu bản nhận xét này.'), {
       code: 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
     });
@@ -236,13 +239,16 @@ export function parseGroundedReview(raw, evidence, slides) {
   // quote/ID. Accept only independently verified items rather than discarding
   // the entire review. No source text is invented or silently substituted.
   const slideComparisons = [];
-  const slideItems = slides.length ? data.slideComparisons.slice(0, MAX_DETAILED_SLIDES) : [];
+  const slideItems = slides.length ? data.slideComparisons.slice(0, MAX_SLIDES) : [];
   for (const item of slideItems) {
     try {
     if (!slideMap.has(item?.slideNumber) || seenSlideNumbers.has(item.slideNumber)) {
       throw new Error('AI trích dẫn slide không tồn tại hoặc bị lặp.');
     }
     if (!allowedStatuses.has(item.status)) throw new Error('Trạng thái đối chiếu slide không hợp lệ.');
+    if (isMissingVietnameseDiacritics({ slideComparisons: [item] })) {
+      throw new Error('Đối chiếu slide thiếu dấu tiếng Việt.');
+    }
     const slideText = slideMap.get(item.slideNumber);
     const slideQuote = safeString(item.slideQuote, slideText.trim().length >= 3 ? 3 : 1, 220);
     if (!normalized(slideMap.get(item.slideNumber)).includes(normalized(slideQuote))) {
@@ -291,13 +297,13 @@ export function parseGroundedReview(raw, evidence, slides) {
     improvements: data.improvements.map(item => withEvidence(item, true)),
     slideComparisons,
     ...(slides.length ? { slideReviewStats: {
-      target: Math.min(6, slides.length),
+      target: slides.length,
       received: data.slideComparisons.length,
       accepted: slideComparisons.length,
       rejected: data.slideComparisons.length - slideComparisons.length,
     } } : {}),
-    // Every text-bearing slide gets a lexical *precheck*, not a semantic
-    // judgement. Only slideComparisons are reviewed in depth by Gemini.
+    // Every text-bearing slide gets a lexical precheck. Only successfully
+    // validated slideComparisons count as detailed AI analysis.
     slideOverview: buildSlideTextOverview(slides, evidence.map(item => item.text).join(' ')),
     // These limitations are factual properties of the input, not model inferences.
     // Show them even when Gemini returns an empty or incomplete limitations list.
