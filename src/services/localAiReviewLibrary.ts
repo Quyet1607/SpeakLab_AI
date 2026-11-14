@@ -150,6 +150,26 @@ function validRecord(value: unknown): value is LocalAiReviewReport {
     validReview(item.review);
 }
 
+/** Remove any legacy unassigned AI review records; retain Google-owned reports. */
+export function clearGuestLocalAiReviews(): number {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return 0;
+  let data: unknown;
+  try { data = JSON.parse(raw); } catch { return 0; }
+  if (!Array.isArray(data)) return 0;
+  const retained = data.filter(item => {
+    if (!item || typeof item !== 'object') return true;
+    const owner = (item as { ownerSub?: unknown }).ownerSub;
+    return owner !== null && owner !== undefined;
+  });
+  const removed = data.length - retained.length;
+  if (removed > 0) {
+    try { localStorage.setItem(KEY, JSON.stringify(retained)); }
+    catch { throw new Error('Không thể xóa nhận xét AI của tài khoản khách.'); }
+  }
+  return removed;
+}
+
 function readAll(): LocalAiReviewReport[] {
   try {
     const data: unknown = JSON.parse(localStorage.getItem(KEY) || '[]');
