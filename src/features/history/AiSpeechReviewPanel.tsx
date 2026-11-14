@@ -238,6 +238,13 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         </div>
         {(review.slideComparisons.length > 0 || !!review.slideOverview?.length) && <div className="space-y-2">
           <h5 className="text-xs font-bold mb-1">Đối chiếu bài nói và PowerPoint</h5>
+          {review.slideReviewStats && <div role="status" className="text-xs rounded-lg border border-[#D9E5DC] bg-white p-2 space-y-1">
+            <p><strong>Đối chiếu có dẫn chứng:</strong> {review.slideReviewStats.accepted} mục hợp lệ / {review.slideReviewStats.received} mục Gemini trả về. Mục tiêu phân tích chi tiết: {review.slideReviewStats.target} slide.</p>
+            {(review.slideReviewStats.rejected > 0 || review.slideReviewStats.accepted < review.slideReviewStats.target) &&
+              <p className="text-[#873631]">Kết quả chưa đầy đủ. {review.slideReviewStats.rejected} mục không vượt qua kiểm tra dẫn chứng đã bị bỏ qua. Chỉ hiển thị các mục được xác thực; không tự gọi Gemini lại. Những slide khác mới được dò từ khóa sơ bộ, chưa thể kết luận nội dung.</p>}
+            {review.slideReviewStats.accepted === 0 &&
+              <p className="text-[#873631]">Chưa có mục đối chiếu chi tiết nào đủ căn cứ. Có thể xem phần tổng quan chữ trên slide bên dưới, nhưng không coi đó là đánh giá của AI về nội dung đã nói.</p>}
+          </div>}
           {review.slideOverview && review.slideOverview.length > 0 && <details className="rounded-lg bg-white border border-[#D9E5DC] p-2 text-xs">
             <summary className="cursor-pointer font-semibold">Tổng quan chữ trên {review.slideOverview.length} slide · dò từ khóa, chưa phải kết luận nội dung</summary>
             <p className="my-2 text-[#687B6D]">Dò từ khóa toàn bộ slide có chữ. Không trùng từ khóa không có nghĩa là người học bỏ qua slide, vì có thể diễn đạt khác hoặc ASR nhận sai. Chỉ những slide liệt kê chi tiết bên dưới mới được AI đối chiếu sâu.</p>
