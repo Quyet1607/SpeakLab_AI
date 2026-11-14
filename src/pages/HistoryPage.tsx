@@ -29,6 +29,7 @@ import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
+import { deleteLocalAiReview } from '../services/localAiReviewLibrary';
 import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 import { AiSpeechReviewPanel } from '../features/history/AiSpeechReviewPanel';
@@ -145,12 +146,13 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   };
 
   const removeSeparateTranscript = async (item: LocalTranscriptRecord) => {
-    if (!window.confirm('Xóa riêng bản ghi lời nói? Video vẫn được giữ nguyên.')) return;
+    if (!window.confirm('Xóa bản ghi lời nói và nhận xét AI liên quan? Video vẫn được giữ nguyên.')) return;
     try {
       const checked = await refreshSession();
       const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
       if (currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
       deleteLocalTranscript(item.sessionId, item.ownerSub);
+      deleteLocalAiReview(item.sessionId, item.ownerSub);
       setLocalTranscripts(prev => prev.filter(t => !(t.sessionId === item.sessionId && t.ownerSub === item.ownerSub)));
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi lời nói.');
