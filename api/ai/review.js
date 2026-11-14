@@ -117,7 +117,13 @@ export default async function handler(req, res) {
     let review;
     try {
       review = parseGroundedReview(output.text, evidence, input.slides);
-    } catch {
+    } catch (validationError) {
+      if (validationError?.code === 'GEMINI_MISSING_VIETNAMESE_DIACRITICS') {
+        return res.status(502).json({
+          code: 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
+          error: 'Gemini đã trả nhận xét tiếng Việt không có dấu. Hệ thống không lưu kết quả này để tránh hiển thị văn bản lỗi; không tự gọi AI lần hai.',
+        });
+      }
       return res.status(502).json({
         code: 'GEMINI_INVALID_FEEDBACK',
         error: 'Gemini đã trả lời nhưng nhận xét chưa đủ cấu trúc hoặc dẫn chứng hợp lệ. Không hiển thị đánh giá thiếu căn cứ.',
