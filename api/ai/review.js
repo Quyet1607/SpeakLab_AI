@@ -31,8 +31,8 @@ const assessment = (slideCount) => ({
       },
     },
     slideComparisons: {
-      // A provider may return fewer grounded items than requested. Never
-      // force it to invent 6 citations; the server filters each item separately.
+      // Request a separate comparison for EVERY text-bearing slide. Permit
+      // partial grounded output rather than forcing Gemini to invent citations.
       type: Type.ARRAY, minItems: 0, maxItems: slideCount ? Math.min(MAX_DETAILED_SLIDES, slideCount) : 2,
       items: {
         type: Type.OBJECT,
@@ -96,8 +96,12 @@ export default async function handler(req, res) {
       contents: buildReviewPrompt(input, evidence),
       config: {
         temperature: 0.35,
-        // One Gemini call only: allow room for up to 8 detailed slide comparisons.
-        maxOutputTokens: input.slides.length ? 7200 : 3200,
+        // Still ONE Gemini request per user action. The model allows up to
+        // 65,536 output tokens, but cap the budget proportionally to slide count.
+        // Incomplete output remains explicitly incomplete; never call again automatically.
+        maxOutputTokens: input.slides.length
+          ? Math.min(42000, Math.max(7200, 4000 + input.slides.length * 850))
+          : 3200,
         responseMimeType: 'application/json',
         responseSchema: assessment(input.slides.length),
       },
