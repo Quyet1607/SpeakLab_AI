@@ -21,7 +21,7 @@ function readAll(): LocalReviewSlides[] {
       const x = item as Partial<LocalReviewSlides> | null;
       return !!x && typeof x.sessionId === 'string' &&
         /^ses_[\w-]{5,100}$/u.test(x.sessionId) &&
-        typeof x.ownerSub === 'string' && /^[0-9]{5,64}$/u.test(x.ownerSub) &&
+        typeof x.ownerSub === 'string' && (/^[0-9]{5,64}$/u.test(x.ownerSub) || x.ownerSub === 'guest') &&
         typeof x.name === 'string' && x.name.length <= 150 &&
         Number.isInteger(x.slideCount) && x.slideCount! >= 1 && x.slideCount! <= 40 &&
         Array.isArray(x.slides) && x.slides.length <= 40 &&
@@ -59,7 +59,7 @@ export function saveLocalReviewSlides(
   sessionId: string, ownerSub: string, pptx: ReviewPptxText,
 ): LocalReviewSlides | null {
   if (!pptx.slides.length) return null;
-  if (!/^ses_[\w-]{5,100}$/u.test(sessionId) || !/^[0-9]{5,64}$/u.test(ownerSub)) {
+  if (!/^ses_[\w-]{5,100}$/u.test(sessionId) || !(ownerSub === 'guest' || /^[0-9]{5,64}$/u.test(ownerSub))) {
     throw new Error('Không xác định được buổi luyện để lưu nội dung slide.');
   }
   const record: LocalReviewSlides = {
