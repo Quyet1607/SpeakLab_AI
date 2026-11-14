@@ -41,6 +41,10 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     topic, topicDescription, speakingGoal, transcript, slides: slides?.slides || [],
   });
   const savedReportIsStale = !!savedReport && savedReport.inputFingerprint !== currentFingerprint;
+  // Reports saved before the Vietnamese-language fix remain intact. Do not try
+  // to guess accents locally, because doing so could change technical meaning.
+  const savedReportMissingDiacritics = !!savedReport && savedReport.review.summary.length >= 100 &&
+    !/[\u0300-\u036fĐđ]/u.test(savedReport.review.summary.normalize('NFD'));
 
   useEffect(() => {
     setSlides(getLocalReviewSlides(sessionId, ownerSub));
@@ -208,6 +212,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       {savedReport && <div className="rounded-lg border border-[#D9E5DC] bg-white p-2 text-xs space-y-1">
         <p><strong>Nhận xét đã lưu:</strong> {new Date(savedReport.createdAt).toLocaleString('vi-VN')} · lưu trên trình duyệt này.</p>
         {savedReportIsStale && <p role="status" className="text-[#873631]">Dữ liệu đề tài, lời nói hoặc PowerPoint đã thay đổi sau lần phân tích. Kết quả bên dưới là bản nhận xét cũ; hãy phân tích lại nếu muốn cập nhật.</p>}
+        {savedReportMissingDiacritics && <p role="status" className="text-[#873631]">Nhận xét này được lưu từ phiên AI trả tiếng Việt không dấu. Hệ thống giữ nguyên bản cũ, không tự thêm dấu vì có thể làm sai thuật ngữ. Bạn có thể chủ động phân tích lại để có nhận xét mới có dấu (sẽ sử dụng một lượt Gemini miễn phí).</p>}
         <button type="button" onClick={removeSavedReview} disabled={busy}
           className="text-xs underline text-[#873631] disabled:opacity-50">Xóa riêng nhận xét AI</button>
       </div>}
