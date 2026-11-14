@@ -203,21 +203,32 @@ test('detailed slides require exact slide and spoken excerpts, distinct slide ID
   assert.equal(good.slideComparisons[0].slideQuote, 'Mật khẩu mạnh');
   assert.equal(good.slideComparisons[0].spokenQuote, spokenQuote);
   assert.equal(good.slideOverview.length, 1);
-  assert.throws(() => parse([{ ...row, slideQuote: 'Nội dung không có trên slide' }]), /không có trong chữ slide/u);
-  assert.throws(() => parse([{ ...row, spokenQuote: 'Lời nói không xuất hiện trong E1' }]), /không xuất hiện/u);
-  assert.throws(() => parse([{ ...row, evidenceId: 'E900' }]), /không hợp lệ/u);
-  assert.throws(() => parse([{ ...row, slideNumber: 3 }]), /không tồn tại/u);
-  assert.throws(() => parseGroundedReview(JSON.stringify({
+  // A bad model-generated slide comparison is omitted, but it must never
+  // appear as verified or cause valid feedback from the same call to vanish.
+  const assertFiltered = invalidRow => {
+    const outcome = parse([invalidRow]);
+    assert.equal(outcome.slideComparisons.length, 0);
+    assert.equal(outcome.slideReviewStats.rejected, 1);
+    assert.equal(outcome.slideReviewStats.accepted, 0);
+    assert.equal(outcome.slideOverview.length, 1);
+  };
+  assertFiltered({ ...row, slideQuote: 'Nội dung không có trên slide' });
+  assertFiltered({ ...row, spokenQuote: 'Lời nói không xuất hiện trong E1' });
+  assertFiltered({ ...row, evidenceId: 'E900' });
+  assertFiltered({ ...row, slideNumber: 3 });
+  assertFiltered({ ...row, status: 'guessed' });
+  const duplicates = parseGroundedReview(JSON.stringify({
     ...base, slideComparisons: [{ ...row }, { ...row }],
-  }), evidence, [...slides, { number: 3, text: 'Nội dung bổ sung khác' }]), /lặp/u);
-  assert.throws(() => parse([{ ...row, status: 'guessed' }]), /không hợp lệ/u);
+  }), evidence, [...slides, { number: 3, text: 'Nội dung bổ sung khác' }]);
+  assert.equal(duplicates.slideComparisons.length, 1);
+  assert.equal(duplicates.slideReviewStats.rejected, 1);
   const notFound = parse([{
     ...row, status: 'not_found', evidenceId: '', spokenQuote: '',
     covered: 'Chưa xác định nội dung tương ứng trong lời nói.',
     missing: 'Chưa tìm thấy phần giải thích xác thực hai yếu tố.',
   }]);
   assert.equal(notFound.slideComparisons[0].evidence, '');
-  assert.throws(() => parse([{ ...row, status: 'not_found', spokenQuote: '' }]), /không được gán lời nói giả/u);
+  assertFiltered({ ...row, status: 'not_found', spokenQuote: '' });
 });
 
 test('reviews six to eight distinct slides while prechecking all 40 text slides', () => {
@@ -252,14 +263,59 @@ test('reviews six to eight distinct slides while prechecking all 40 text slides'
   assert.equal(result.slideComparisons.length, 6);
   assert.equal(result.slideOverview.length, 40);
   assert.ok(!result.slideComparisons.some(x => x.slideNumber === 39));
-  assert.throws(() => parseGroundedReview(JSON.stringify({
+  const shorter = parseGroundedReview(JSON.stringify({
     ...report, slideComparisons: report.slideComparisons.slice(0, 5),
-  }), evidence, slides), /cấu trúc/u);
-  assert.throws(() => parseGroundedReview(JSON.stringify({
+  }), evidence, slides);
+  assert.equal(shorter.slideComparisons.length, 5);
+  assert.equal(shorter.slideReviewStats.target, 6);
+  assert.equal(shorter.slideReviewStats.accepted, 5);
+  const oversized = parseGroundedReview(JSON.stringify({
     ...report, slideComparisons: [...report.slideComparisons, ...slides.slice(6, 9).map(s => ({
       ...report.slideComparisons[0], slideNumber: s.number, slideQuote: s.text,
     }))],
-  }), evidence, slides), /cấu trúc/u);
+  }), evidence, slides);
+  assert.equal(oversized.slideComparisons.length, 8);
+  assert.equal(oversized.slideReviewStats.rejected, 1);
+});
+
+test('18-slide real-world sized deck preserves verified findings when a quote is invented', () => {
+  const evidence = makeEvidenceChunks(input.transcript);
+  const slides = Array.from({ length: 18 }, (_, index) => ({
+    number: index + 1, text: 'Giải pháp bảo vệ dữ liệu và cảnh báo thiên tai ' + (index + 1),
+  }));
+  const good = index => ({
+    slideNumber: index, status: 'not_found',
+    point: 'Chưa tìm thấy nội dung liên quan đến cảnh báo thiên tai trên slide.',
+    slideQuote: slides[index - 1].text, spokenQuote: '', evidenceId: '',
+    covered: 'Trong đoạn ghi lời nói chưa nhận diện chủ đề này.',
+    missing: 'Không tìm được phần trình bày về cảnh báo thiên tai.',
+    action: 'Kiểm tra bản ghi lời nói và giải thích nội dung slide nếu cần.',
+  });
+  const inputReport = {
+    summary: 'Bản ghi giới thiệu các giải pháp bảo vệ dữ liệu cá nhân.',
+    strengths: [
+      { point: 'Có xác định nội dung bảo vệ dữ liệu.', evidenceId: 'E1' },
+      { point: 'Có đề cập đến mật khẩu mạnh.', evidenceId: 'E1' },
+    ],
+    improvements: [
+      { point: 'Chưa giải thích ví dụ về mật khẩu.', evidenceId: 'E1', action: 'Nêu một tình huống cụ thể.' },
+      { point: 'Cần giải thích rõ cách triển khai.', evidenceId: 'E1', action: 'Thêm một ví dụ về xác thực.' },
+    ],
+    slideComparisons: [good(2), good(5), { ...good(8), slideQuote: 'Nội dung hoàn toàn do AI bịa' }, good(11), good(15), good(18)],
+    limitations: [],
+  };
+  const result = parseGroundedReview(JSON.stringify(inputReport), evidence, slides);
+  assert.deepEqual(result.slideComparisons.map(row => row.slideNumber), [2, 5, 11, 15, 18]);
+  assert.equal(result.slideOverview.length, 18);
+  assert.deepEqual(result.slideReviewStats, { target: 6, received: 6, accepted: 5, rejected: 1 });
+  assert.equal(result.slideComparisons.some(row => row.slideQuote.includes('AI bịa')), false);
+  const allBad = parseGroundedReview(JSON.stringify({
+    ...inputReport,
+    slideComparisons: [{ ...good(8), slideQuote: 'Nội dung hoàn toàn do AI bịa' }],
+  }), evidence, slides);
+  assert.equal(allBad.slideComparisons.length, 0);
+  assert.equal(allBad.slideOverview.length, 18);
+  assert.equal(allBad.slideReviewStats.rejected, 1);
 });
 
 test('review quota is fail-closed and shared across instances', async () => {
