@@ -207,7 +207,9 @@ test('detailed slides require exact slide and spoken excerpts, distinct slide ID
   assert.throws(() => parse([{ ...row, spokenQuote: 'Lời nói không xuất hiện trong E1' }]), /không xuất hiện/u);
   assert.throws(() => parse([{ ...row, evidenceId: 'E900' }]), /không hợp lệ/u);
   assert.throws(() => parse([{ ...row, slideNumber: 3 }]), /không tồn tại/u);
-  assert.throws(() => parse([{ ...row }, { ...row }]), /lặp/u);
+  assert.throws(() => parseGroundedReview(JSON.stringify({
+    ...base, slideComparisons: [{ ...row }, { ...row }],
+  }), evidence, [...slides, { number: 3, text: 'Nội dung bổ sung khác' }]), /lặp/u);
   assert.throws(() => parse([{ ...row, status: 'guessed' }]), /không hợp lệ/u);
   const notFound = parse([{
     ...row, status: 'not_found', evidenceId: '', spokenQuote: '',
