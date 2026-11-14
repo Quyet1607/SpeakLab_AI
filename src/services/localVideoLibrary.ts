@@ -72,9 +72,12 @@ export async function saveLocalVideo(
   session: PracticeSession,
   recording: PresentationRecordingResult,
 ): Promise<LocalVideoRecord> {
-  // Identify the current signed-in account at save time. Legacy/guest records remain unassigned.
+  // Video records must always belong to a verified Google account.
   const account = await refreshSession();
-  const ownerSub = account.status === 'signed_in' ? account.identity?.id : undefined;
+  if (account.status !== 'signed_in' || !account.identity?.id) {
+    throw new Error('Vui lòng đăng nhập Google trước khi lưu video.');
+  }
+  const ownerSub = account.identity.id;
   const entry: LocalVideoRecord = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -141,11 +144,28 @@ export async function importLocalVideo(file: File): Promise<LocalVideoRecord> {
   }
 }
 
-export async function listLocalVideos(ownerSub: string | null = null): Promise<LocalVideoRecord[]> {
+export async function listLocalVideos(ownerSub: string): Promise<LocalVideoRecord[]> {
+  if (!/^[0-9]{5,64}$/.test(ownerSub)) {
+    throw new Error('Vui lòng đăng nhập Google để xem thư viện video.');
+  }
   const entries = await transaction('readonly', store => store.getAll());
   // UI grouping only. IndexedDB is not secure against other browser users.
-  return entries.filter(item => ownerSub ? item.ownerSub === ownerSub : !item.ownerSub)
+  return entries.filter(item => item.ownerSub === ownerSub)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** Delete guest and legacy-unassigned video blobs from this browser's IndexedDB. */
+export async function clearGuestLocalVideos(): Promise<number> {
+  if (typeof indexedDB === 'undefined') return 0;
+  const entries = await transaction('readonly', store => store.getAll());
+  const guestIds = entries.filter(item => !item.ownerSub).map(item => item.id);
+  if (!guestIds.length) return 0;
+  await transaction('readwrite', store => {
+    const first = store.delete(guestIds[0]);
+    guestIds.slice(1).forEach(id => store.delete(id));
+    return first;
+  });
+  return guestIds.length;
 }
 
 export async function deleteLocalVideo(id: string): Promise<void> {
