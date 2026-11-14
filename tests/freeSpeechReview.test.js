@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   FREE_REVIEW_MODEL, MAX_REVIEWS_PER_DAY, validateReviewRequest,
   makeEvidenceChunks, buildReviewPrompt, buildSlideTextOverview, parseGroundedReview,
+  isMissingVietnameseDiacritics,
   ensureFreePreview, reserveReviewQuota, releaseReviewQuota, classifyReviewProviderError,
 } from '../server/freeSpeechReview.js';
 
@@ -319,6 +320,67 @@ test('18-slide real-world sized deck preserves verified findings when a quote is
   assert.equal(allBad.slideComparisons.length, 0);
   assert.equal(allBad.slideOverview.length, 18);
   assert.equal(allBad.slideReviewStats.rejected, 1);
+});
+
+test('requires accented Vietnamese in model-generated prose without modifying ASR or PPTX citations', () => {
+  const withoutMarks = {
+    summary: 'Bai thuyet trinh trinh bay ve giai phap canh bao sat lo dat, nguyen nhan nghien cuu va he thong camera su dung cong nghe AI.',
+    strengths: [
+      { point: 'Nguoi hoc da trinh bay duoc muc tieu va pham vi nghien cuu.', evidenceId: 'E1' },
+      { point: 'Nguoi hoc da mo ta cach ket noi camera voi bo dieu khien.', evidenceId: 'E1' },
+    ],
+    improvements: [
+      { point: 'Can bo sung them giai thich chi tiet ve mo hinh de xuat.', evidenceId: 'E1',
+        action: 'Trinh bay cu the tung buoc kiem tra va xu ly canh bao.' },
+      { point: 'Can lam ro cac dieu kien de he thong dua ra canh bao.', evidenceId: 'E1',
+        action: 'Bo sung them mot vi du sat lo dat va cach xu ly.' },
+    ],
+    slideComparisons: [],
+    limitations: [],
+  };
+  const withMarks = {
+    ...withoutMarks,
+    summary: 'Bài thuyết trình trình bày về hệ thống cảnh báo sạt lở đất, giải thích các nguyên nhân nghiên cứu và mô hình đề xuất sử dụng AI.',
+    strengths: [
+      { ...withoutMarks.strengths[0], point: 'Người học đã trình bày được mục tiêu và phạm vi nghiên cứu.' },
+      { ...withoutMarks.strengths[1], point: 'Người học đã mô tả cách kết nối camera với bộ điều khiển.' },
+    ],
+    improvements: [
+      { ...withoutMarks.improvements[0], point: 'Cần bổ sung thêm phần giải thích mô hình đề xuất.',
+        action: 'Trình bày từng bước kiểm tra và xử lý cảnh báo.' },
+      { ...withoutMarks.improvements[1], point: 'Cần làm rõ điều kiện để hệ thống đưa ra cảnh báo.',
+        action: 'Bổ sung ví dụ sạt lở đất và cách xử lý.' },
+    ],
+  };
+  const evidence = makeEvidenceChunks(input.transcript);
+  const prompt = buildReviewPrompt(input, evidence);
+  assert.match(prompt, /tiếng Việt CÓ DẤU đầy đủ/u);
+  assert.match(prompt, /slideQuote và spokenQuote BẮT BUỘC giữ nguyên/u);
+
+  assert.equal(isMissingVietnameseDiacritics(withoutMarks), true);
+  assert.equal(isMissingVietnameseDiacritics(withMarks), false);
+  const unaccentedError = assert.throws(
+    () => parseGroundedReview(JSON.stringify(withoutMarks), evidence, []),
+    error => error.code === 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
+  );
+  const result = parseGroundedReview(JSON.stringify(withMarks), evidence, []);
+  assert.match(result.summary, /thuyết trình trình bày/u);
+  // Ensure original source text stays untouched, even when it is unaccented.
+  const asciiEvidence = makeEvidenceChunks('hom nay em trinh bay ve he thong canh bao sat lo dat va camera AI');
+  const accented = parseGroundedReview(JSON.stringify(withMarks), asciiEvidence, []);
+  assert.equal(accented.strengths[0].evidence, asciiEvidence[0].text);
+  assert.equal(isMissingVietnameseDiacritics({
+    ...withMarks,
+    slideComparisons: [{
+      point: 'Nguoi hoc chua giai thich bo dieu khien va xu ly',
+      covered: 'Chua thay noi dung trong ban ghi',
+      missing: 'Can kiem tra them noi dung mot so slide',
+      action: 'Can giai thich ro hon cac dieu kien de dua ra canh bao',
+      slideQuote: 'Báo cáo nghiên cứu về cảnh báo sạt lở đất',
+      spokenQuote: 'Bài thuyết trình đề cập đến các biện pháp',
+    }],
+  }), false); // The other model-authored sections are correctly accented.
+  void unaccentedError;
 });
 
 test('review quota is fail-closed and shared across instances', async () => {
