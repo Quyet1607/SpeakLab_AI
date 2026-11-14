@@ -89,11 +89,13 @@ describe('Phase 7.3.3.3 AI report presentation', () => {
     expect(html).toContain('Đối chiếu bài nói và PowerPoint');
   });
 
-  test('clearly distinguishes verified slides from lexical overview and reports partial results', () => {
+  test('shows verified slide counts without technical yellow warning while preserving lexical overview', () => {
     const html = render(review);
     expect(html).toContain('3</strong> mục đối chiếu có dẫn chứng hợp lệ');
     expect(html).toContain('4</strong> mục AI trả về');
-    expect(html).toContain('1 mục bị loại');
+    expect(html).not.toContain('Nhận xét đối chiếu chưa đầy đủ');
+    expect(html).not.toContain('1 mục bị loại');
+    expect(html).not.toContain('bg-[#FFF8ED]');
     expect(html).toContain('Xem bảng dò từ khóa của 4 slide có chữ');
     expect(html).toContain('Chưa đối chiếu chi tiết');
     expect(html).toContain('Từ khóa trùng');
