@@ -172,11 +172,22 @@ export function isMissingVietnameseDiacritics(value) {
     ...((Array.isArray(value?.slideComparisons) ? value.slideComparisons : [])
       .flatMap(item => [item?.point, item?.covered, item?.missing, item?.action])),
   ];
-  const prose = fields.filter(field => typeof field === 'string').join(' ');
-  const normalized = prose.normalize('NFD');
-  const latinLetters = (normalized.match(/[A-Za-zĐđ]/gu) || []).length;
-  const accentCount = (normalized.match(/[\u0300-\u036fĐđ]/gu) || []).length;
-  return latinLetters >= 100 && accentCount < Math.max(3, Math.ceil(latinLetters * 0.012));
+  const meaningfulFields = fields.filter(field => typeof field === 'string');
+  const counts = text => {
+    const normalized = text.normalize('NFD');
+    return {
+      letters: (normalized.match(/[A-Za-zĐđ]/gu) || []).length,
+      accents: (normalized.match(/[\u0300-\u036fĐđ]/gu) || []).length,
+    };
+  };
+  // A correct, accented summary should not mask an entirely unaccented
+  // improvement or slide recommendation. Ignore short technical labels.
+  if (meaningfulFields.some(field => {
+    const { letters, accents } = counts(field);
+    return letters >= 65 && accents < 2;
+  })) return true;
+  const { letters, accents } = counts(meaningfulFields.join(' '));
+  return letters >= 100 && accents < Math.max(3, Math.ceil(letters * 0.012));
 }
 
 function safeFeedbackString(value, min = 8, max = 650) {
