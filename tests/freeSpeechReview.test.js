@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   FREE_REVIEW_MODEL, MAX_REVIEWS_PER_DAY, validateReviewRequest,
-  makeEvidenceChunks, buildReviewPrompt, parseGroundedReview,
+  makeEvidenceChunks, buildReviewPrompt, buildSlideTextOverview, parseGroundedReview,
   ensureFreePreview, reserveReviewQuota, releaseReviewQuota, classifyReviewProviderError,
 } from '../server/freeSpeechReview.js';
 
@@ -83,7 +83,13 @@ test('grounded review uses real evidence IDs and rejects invented slide/source',
     ...makePayload(), slideComparisons: [{ slideNumber: 1, point: 'Slide có nội dung.', evidenceId: 'E1' }],
   }), chunks, []));
   const withSlides = parseGroundedReview(JSON.stringify({
-    ...makePayload(), slideComparisons: [{ slideNumber: 1, point: 'Slide minh họa đúng phần bảo mật.', evidenceId: 'E2' }],
+    ...makePayload(), slideComparisons: [{
+      slideNumber: 1, status: 'partial', point: 'Slide đề cập tới giải pháp mật khẩu mạnh.',
+      evidenceId: 'E2', slideQuote: 'Mật khẩu mạnh', spokenQuote: chunks[1].text.slice(0, 35),
+      covered: 'Bài nói đã đề cập giải pháp bảo mật tài khoản.',
+      missing: 'Chưa rõ ví dụ thực tế khi tài khoản bị lộ mật khẩu.',
+      action: 'Bổ sung ví dụ khi đặt mật khẩu yếu hoặc lặp lại mật khẩu.',
+    }],
   }), chunks, [{ number: 1, text: 'Mật khẩu mạnh' }]);
   assert.equal(withSlides.source, 'transcript_and_pptx');
 });
@@ -141,10 +147,117 @@ test('server blocks fabricated scores and unobservable delivery while keeping us
   assertUnsupported('Người học nói trôi chảy và rõ lời trong toàn bài.');
 
   const withSlides = makePayload();
-  withSlides.slideComparisons = [{ slideNumber: 2, point: 'Slide nhắc đến xác thực nhiều bước.', evidenceId: sourceId }];
+  withSlides.slideComparisons = [{
+    slideNumber: 2, status: 'matched', point: 'Slide nhắc đến xác thực nhiều bước.',
+    slideQuote: 'Xác thực nhiều bước', spokenQuote: evidence[0].text.slice(0, 40),
+    evidenceId: sourceId, covered: 'Bản ghi cho thấy chủ đề xác thực tài khoản.',
+    missing: 'Chưa kết luận về chi tiết không có trong chữ slide.',
+    action: 'Giải thích ngắn cách xác thực nhiều bước hoạt động.',
+  }];
   const slideResult = parseGroundedReview(JSON.stringify(withSlides), evidence, [{ number: 2, text: 'Xác thực nhiều bước' }]);
   assert.equal(slideResult.slideComparisons[0].slideNumber, 2);
   assert.match(slideResult.limitations[1], /Chỉ đối chiếu chữ trong PowerPoint/u);
+});
+
+test('the whole-deck overview reports only lexical prechecks, including empty or unmatched slides', () => {
+  const slides = [
+    { number: 1, text: 'Sử dụng mật khẩu mạnh để bảo vệ tài khoản' },
+    { number: 3, text: 'Mục tiêu nghiên cứu công nghệ vệ tinh' },
+    { number: 8, text: 'AI' },
+  ];
+  const overview = buildSlideTextOverview(slides, 'Chúng ta cần mật khẩu mạnh để bảo vệ thông tin.');
+  assert.equal(overview.length, 3);
+  assert.deepEqual(overview.map(s => s.slideNumber), [1, 3, 8]);
+  assert.equal(overview[0].keywordSignal, 'shared_keywords');
+  assert.ok(overview[0].sharedKeywords.includes('khau'));
+  assert.equal(overview[1].keywordSignal, 'no_shared_keywords');
+  assert.equal(overview[2].keywordSignal, 'insufficient_text');
+  assert.equal(overview[1].slideExcerpt, slides[1].text);
+});
+
+test('detailed slides require exact slide and spoken excerpts, distinct slide IDs, and grounded status', () => {
+  const evidence = makeEvidenceChunks(input.transcript);
+  const spokenQuote = evidence[0].text.slice(0, 35);
+  const base = {
+    summary: 'Bài nói đề cập chủ đề và giải pháp bảo vệ dữ liệu cá nhân.',
+    strengths: [
+      { point: 'Bài nói nêu được vấn đề bảo mật dữ liệu.', evidenceId: 'E1' },
+      { point: 'Bài nói đưa ra giải pháp đặt mật khẩu mạnh.', evidenceId: 'E1' },
+    ],
+    improvements: [
+      { point: 'Giải thích cơ chế xác thực nhiều bước.', evidenceId: 'E1', action: 'Thêm một ví dụ đăng nhập thực tế.' },
+      { point: 'Làm rõ ví dụ về bảo vệ thông tin.', evidenceId: 'E1', action: 'Nêu tình huống rò rỉ mật khẩu và cách xử lý.' },
+    ],
+    limitations: [],
+  };
+  const slides = [{ number: 2, text: 'Mật khẩu mạnh và xác thực nhiều bước' }];
+  const row = {
+    slideNumber: 2, status: 'partial', point: 'Lời nói nhắc tới mật khẩu mạnh trên slide.',
+    slideQuote: 'Mật khẩu mạnh', spokenQuote, evidenceId: 'E1',
+    covered: 'Bài nói đã nhắc đến giải pháp sử dụng mật khẩu.',
+    missing: 'Chưa tìm thấy giải thích về xác thực nhiều bước trong đoạn đã dẫn.',
+    action: 'Bổ sung một ví dụ về mã xác nhận khi đăng nhập.',
+  };
+  const parse = rows => parseGroundedReview(JSON.stringify({ ...base, slideComparisons: rows }), evidence, slides);
+  const good = parse([row]);
+  assert.equal(good.slideComparisons[0].slideQuote, 'Mật khẩu mạnh');
+  assert.equal(good.slideComparisons[0].spokenQuote, spokenQuote);
+  assert.equal(good.slideOverview.length, 1);
+  assert.throws(() => parse([{ ...row, slideQuote: 'Nội dung không có trên slide' }]), /không có trong chữ slide/u);
+  assert.throws(() => parse([{ ...row, spokenQuote: 'Lời nói không xuất hiện trong E1' }]), /không xuất hiện/u);
+  assert.throws(() => parse([{ ...row, evidenceId: 'E900' }]), /không hợp lệ/u);
+  assert.throws(() => parse([{ ...row, slideNumber: 3 }]), /không tồn tại/u);
+  assert.throws(() => parse([{ ...row }, { ...row }]), /lặp/u);
+  assert.throws(() => parse([{ ...row, status: 'guessed' }]), /không hợp lệ/u);
+  const notFound = parse([{
+    ...row, status: 'not_found', evidenceId: '', spokenQuote: '',
+    covered: 'Chưa xác định nội dung tương ứng trong lời nói.',
+    missing: 'Chưa tìm thấy phần giải thích xác thực hai yếu tố.',
+  }]);
+  assert.equal(notFound.slideComparisons[0].evidence, '');
+  assert.throws(() => parse([{ ...row, status: 'not_found', spokenQuote: '' }]), /không được gán lời nói giả/u);
+});
+
+test('reviews six to eight distinct meaningful slides without fabricated coverage of the others', () => {
+  const slides = Array.from({ length: 10 }, (_, i) => ({
+    number: i + 1, text: 'Nội dung chuyên đề slide ' + (i + 1),
+  }));
+  const evidence = makeEvidenceChunks(input.transcript);
+  const prompt = buildReviewPrompt({ ...input, slides }, evidence);
+  assert.match(prompt, /6 đến 8 slide/u);
+  assert.match(prompt, /không có dữ liệu đồng bộ slide/u);
+  const report = {
+    summary: 'Bản ghi có giới thiệu chủ đề bảo vệ dữ liệu cá nhân và biện pháp bảo vệ.',
+    strengths: [
+      { point: 'Có đề cập bảo vệ dữ liệu cá nhân.', evidenceId: 'E1' },
+      { point: 'Đã nêu biện pháp đặt mật khẩu.', evidenceId: 'E1' },
+    ],
+    improvements: [
+      { point: 'Cần thêm ví dụ thực tế khi bảo vệ dữ liệu.', evidenceId: 'E1', action: 'Thêm một ví dụ về mật khẩu yếu.' },
+      { point: 'Cần giải thích hậu quả lộ thông tin.', evidenceId: 'E1', action: 'Giải thích tác động khi tài khoản bị xâm nhập.' },
+    ],
+    slideComparisons: slides.slice(0, 6).map(s => ({
+      slideNumber: s.number, status: 'not_found',
+      point: 'Chưa tìm thấy nội dung chuyên đề tương ứng trong bản ghi.',
+      slideQuote: s.text, spokenQuote: '', evidenceId: '',
+      covered: 'Chưa tìm thấy diễn giải cùng chủ đề trong bản ghi.',
+      missing: 'Nội dung slide này chưa có dẫn chứng tương ứng trong bản ghi.',
+      action: 'Tự đối chiếu bản ghi hoặc bổ sung một câu giới thiệu ý chính.',
+    })),
+    limitations: [],
+  };
+  const result = parseGroundedReview(JSON.stringify(report), evidence, slides);
+  assert.equal(result.slideComparisons.length, 6);
+  assert.equal(result.slideOverview.length, 10);
+  assert.ok(!result.slideComparisons.some(x => x.slideNumber === 9));
+  assert.throws(() => parseGroundedReview(JSON.stringify({
+    ...report, slideComparisons: report.slideComparisons.slice(0, 5),
+  }), evidence, slides), /cấu trúc/u);
+  assert.throws(() => parseGroundedReview(JSON.stringify({
+    ...report, slideComparisons: [...report.slideComparisons, ...slides.slice(6, 9).map(s => ({
+      ...report.slideComparisons[0], slideNumber: s.number, slideQuote: s.text,
+    }))],
+  }), evidence, slides), /cấu trúc/u);
 });
 
 test('review quota is fail-closed and shared across instances', async () => {
