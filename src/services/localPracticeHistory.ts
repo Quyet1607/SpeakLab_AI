@@ -41,7 +41,7 @@ function validEntry(item: unknown): item is StoredEntry {
     Number.isInteger(e.slideCount) && e.slideCount! >= 0 && e.slideCount! <= 10000 &&
     Number.isInteger(e.participantCount) && e.participantCount! >= 0 && e.participantCount! <= 1000 &&
     typeof e.completedAt === 'string' && Number.isFinite(Date.parse(e.completedAt)) &&
-    typeof e.ownerSub === 'string' && /^[0-9]{5,64}$/.test(e.ownerSub);
+    typeof e.ownerSub === 'string' && (/^[0-9]{5,64}$/.test(e.ownerSub) || e.ownerSub === 'guest');
 }
 
 /** Remove only legacy guest/unassigned records; retain every Google-owned record. */
@@ -115,7 +115,7 @@ export function saveCompletedPracticeSession(
     completedAt: now,
     ownerSub,
   };
-  if (!/^[0-9]{5,64}$/.test(ownerSub) || !validEntry(entry)) throw new Error('Vui lòng đăng nhập Google để lưu lịch sử buổi luyện.');
+  if (!(ownerSub === 'guest' || /^[0-9]{5,64}$/.test(ownerSub)) || !validEntry(entry)) throw new Error('Vui lòng đăng nhập Google để lưu lịch sử buổi luyện.');
   const remaining = readAll().filter(item => item.id !== entry.id);
   try {
     localStorage.setItem(KEY, JSON.stringify([entry, ...remaining].slice(0, LIMIT)));
