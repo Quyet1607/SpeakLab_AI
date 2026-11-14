@@ -7,8 +7,8 @@ import {
 } from '../../services/localReviewSlideLibrary';
 import {
   deleteLocalAiReview, getLocalAiReview, reviewInputFingerprint, saveLocalAiReview,
-  type AiReviewPoint as Point, type AiReviewSlidePoint as SlidePoint,
-  type AiSpeechReview as Review, type LocalAiReviewReport,
+  type AiReviewPoint as Point, type AiSpeechReview as Review,
+  type LocalAiReviewReport,
 } from '../../services/localAiReviewLibrary';
 
 interface Props {
