@@ -64,6 +64,14 @@ afterAll(() => {
 });
 
 describe('Google-owned local video library', () => {
+  test('guest and unassigned legacy videos remain visible to guest without exposing Google videos', async () => {
+    records.clear();
+    records.set('guest-new', { id: 'guest-new', ownerSub: 'guest', createdAt: '2026-11-14T00:00:00Z' });
+    records.set('guest-legacy', { id: 'guest-legacy', createdAt: '2026-11-13T00:00:00Z' });
+    records.set('google', { id: 'google', ownerSub: '12345', createdAt: '2026-11-12T00:00:00Z' });
+    expect((await listLocalVideos('guest')).map(x => x.id)).toEqual(['guest-new', 'guest-legacy']);
+    expect((await listLocalVideos('12345')).map(x => x.id)).toEqual(['google']);
+  });
   test('removes guest and legacy-unassigned video blobs but preserves Google-owned videos', async () => {
     records.clear();
     records.set('guest-video', { id: 'guest-video', ownerSub: null, sessionId: 'ses_guest_12345', blob: new Blob(['guest']) });
