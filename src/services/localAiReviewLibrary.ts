@@ -138,7 +138,7 @@ function validRecord(value: unknown): value is LocalAiReviewReport {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<LocalAiReviewReport>;
   return typeof item.sessionId === 'string' && /^ses_[\w-]{5,100}$/u.test(item.sessionId) &&
-    typeof item.ownerSub === 'string' && /^[0-9]{5,64}$/u.test(item.ownerSub) &&
+    typeof item.ownerSub === 'string' && (/^[0-9]{5,64}$/u.test(item.ownerSub) || item.ownerSub === 'guest') &&
     typeof item.createdAt === 'string' && Number.isFinite(Date.parse(item.createdAt)) &&
     typeof item.inputFingerprint === 'string' && /^[a-f0-9]{8}$/u.test(item.inputFingerprint) &&
     typeof item.topic === 'string' && item.topic.length <= 120 &&
@@ -218,7 +218,7 @@ export function saveLocalAiReview(
   report: Omit<LocalAiReviewReport, 'createdAt'>,
 ): LocalAiReviewReport {
   if (!/^ses_[\w-]{5,100}$/u.test(report.sessionId) ||
-      !/^[0-9]{5,64}$/u.test(report.ownerSub) ||
+      !(report.ownerSub === 'guest' || /^[0-9]{5,64}$/u.test(report.ownerSub)) ||
       !/^[a-f0-9]{8}$/u.test(report.inputFingerprint) ||
       !validReview(report.review)) {
     throw new Error('Thông tin nhận xét AI chưa hợp lệ để lưu.');
