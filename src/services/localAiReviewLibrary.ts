@@ -7,13 +7,30 @@ export type AiReviewPoint = {
   slideNumber?: number;
 };
 
-export type AiReviewSlidePoint = AiReviewPoint & { slideNumber: number };
+export type AiReviewSlidePoint = AiReviewPoint & {
+  slideNumber: number;
+  /** Optional detailed fields: older saved reviews remain readable. */
+  status?: 'matched' | 'partial' | 'not_found' | 'possible_difference';
+  slideQuote?: string;
+  spokenQuote?: string;
+  covered?: string;
+  missing?: string;
+  action?: string;
+};
+
+export type AiSlideTextOverview = {
+  slideNumber: number;
+  slideExcerpt: string;
+  keywordSignal: 'shared_keywords' | 'no_shared_keywords' | 'insufficient_text';
+  sharedKeywords: string[];
+};
 
 export type AiSpeechReview = {
   summary: string;
   strengths: AiReviewPoint[];
   improvements: AiReviewPoint[];
   slideComparisons: AiReviewSlidePoint[];
+  slideOverview?: AiSlideTextOverview[];
   limitations: string[];
   source: 'transcript' | 'transcript_and_pptx';
   model: string;
@@ -50,6 +67,35 @@ function validPoint(value: unknown, withAction: boolean, withSlide: boolean): va
       : point.slideNumber === undefined);
 }
 
+function validSlidePoint(value: unknown): value is AiReviewSlidePoint {
+  if (!value || typeof value !== 'object') return false;
+  const x = value as Partial<AiReviewSlidePoint>;
+  if (x.status === undefined) return validPoint(value, false, true); // Phase 7.3.2 reports
+  if (!['matched', 'partial', 'not_found', 'possible_difference'].includes(x.status) ||
+      !Number.isInteger(x.slideNumber) || x.slideNumber! < 1 || x.slideNumber! > 500 ||
+      typeof x.point !== 'string' || x.point.length < 8 || x.point.length > 450 ||
+      typeof x.slideQuote !== 'string' || x.slideQuote.length < 3 || x.slideQuote.length > 220 ||
+      typeof x.spokenQuote !== 'string' || x.spokenQuote.length > 220 ||
+      typeof x.covered !== 'string' || x.covered.length < 8 || x.covered.length > 400 ||
+      typeof x.missing !== 'string' || x.missing.length < 8 || x.missing.length > 400 ||
+      typeof x.action !== 'string' || x.action.length < 8 || x.action.length > 400 ||
+      typeof x.evidenceId !== 'string' || typeof x.evidence !== 'string' || x.evidence.length > 650) return false;
+  return x.status === 'not_found'
+    ? x.evidenceId === '' && x.evidence === '' && x.spokenQuote === ''
+    : /^E[1-9][0-9]{0,2}$/u.test(x.evidenceId) && x.evidence.length > 0 && x.spokenQuote.length >= 4;
+}
+
+function validSlideOverview(value: unknown): value is AiSlideTextOverview[] {
+  return Array.isArray(value) && value.length <= 40 &&
+    value.every((x: Partial<AiSlideTextOverview> | null) => !!x &&
+      Number.isInteger(x.slideNumber) && x.slideNumber! >= 1 && x.slideNumber! <= 500 &&
+      typeof x.slideExcerpt === 'string' && x.slideExcerpt.length <= 140 &&
+      ['shared_keywords', 'no_shared_keywords', 'insufficient_text'].includes(x.keywordSignal || '') &&
+      Array.isArray(x.sharedKeywords) && x.sharedKeywords.length <= 4 &&
+      x.sharedKeywords.every(word => typeof word === 'string' && word.length <= 100)) &&
+    new Set(value.map(x => x.slideNumber)).size === value.length;
+}
+
 function validReview(value: unknown): value is AiSpeechReview {
   if (!value || typeof value !== 'object') return false;
   const review = value as Partial<AiSpeechReview>;
@@ -58,8 +104,10 @@ function validReview(value: unknown): value is AiSpeechReview {
     review.strengths.every(point => validPoint(point, false, false)) &&
     Array.isArray(review.improvements) && review.improvements.length === 2 &&
     review.improvements.every(point => validPoint(point, true, false)) &&
-    Array.isArray(review.slideComparisons) && review.slideComparisons.length <= 2 &&
-    review.slideComparisons.every(point => validPoint(point, false, true)) &&
+    Array.isArray(review.slideComparisons) && review.slideComparisons.length <= 8 &&
+    review.slideComparisons.every(validSlidePoint) &&
+    new Set(review.slideComparisons.map(point => point.slideNumber)).size === review.slideComparisons.length &&
+    (review.slideOverview === undefined || validSlideOverview(review.slideOverview)) &&
     Array.isArray(review.limitations) && review.limitations.length <= 4 &&
     review.limitations.every(item => typeof item === 'string' && item.length <= 300) &&
     (review.source === 'transcript' || review.source === 'transcript_and_pptx') &&
