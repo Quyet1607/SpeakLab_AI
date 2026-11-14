@@ -19,6 +19,13 @@ on:
       - 'tests/localAiReviewLibrary.test.js'
       - 'tests/aiReviewResults.test.js'
       - 'tests/aiReviewAcceptance.test.js'
+      - 'tests/googleIdentityRelease.test.js'
+      - 'tests/productionReleaseGuards.test.js'
+      - 'server/googleIdentity.js'
+      - 'server/sessionCookie.js'
+      - 'server/driveOAuthBootstrap.js'
+      - 'api/auth/**'
+      - 'api/google-drive/**'
       - 'public/**'
       - 'bun.lock'
       - 'package.json'
@@ -78,6 +85,8 @@ jobs:
         run: bun test tests/aiReviewResults.test.js
       - name: Test Phase 7.3.3.4 integrated AI review acceptance
         run: bun test tests/aiReviewAcceptance.test.js
+      - name: Test release authentication and Production fail-closed guards
+        run: node --test tests/googleIdentityRelease.test.js tests/productionReleaseGuards.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
