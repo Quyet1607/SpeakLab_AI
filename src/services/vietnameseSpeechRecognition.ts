@@ -393,10 +393,10 @@ export class VietnameseBrowserSpeechSession {
    * Compare words case-insensitively and ignore surrounding punctuation.
    */
   private removeLeadingOverlap(previousText: string, currentText: string): string {
-    const previousWords = cleanSpeechText(previousText).split(/\\s+/u).filter(Boolean);
-    const currentWords = cleanSpeechText(currentText).split(/\\s+/u).filter(Boolean);
+    const previousWords = cleanSpeechText(previousText).split(/\s+/u).filter(Boolean);
+    const currentWords = cleanSpeechText(currentText).split(/\s+/u).filter(Boolean);
     const normalizeWord = (word: string) =>
-      word.replace(/^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
+      word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '').toLocaleLowerCase('vi-VN');
 
     const maxOverlap = Math.min(3, previousWords.length, currentWords.length);
     for (let overlap = maxOverlap; overlap >= 1; overlap--) {
@@ -405,7 +405,7 @@ export class VietnameseBrowserSpeechSession {
       if (!previousTail.every((word, index) => word && word === currentHead[index])) continue;
 
       const remaining = currentWords.slice(overlap).join(' ')
-        .replace(/^[,.;:!?…—–-]+\\s*/u, '').trim();
+        .replace(/^[,.;:!?…—–-]+\s*/u, '').trim();
       // Do not discard an entire segment if it contains only the repeated word(s).
       if (remaining) return remaining;
     }
