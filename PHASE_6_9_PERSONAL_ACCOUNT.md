@@ -35,7 +35,7 @@ $bytes = New-Object byte[] 32
 - Redeploy Preview sau khi thêm biến. Giữ `main` và Production không đổi.
 
 ## Kiểm thử
-1. Mở nhánh Preview, Cài đặt → Tài khoản học sinh, đăng nhập Google.
+1. Mở nhánh Preview, nhấn nút Đăng nhập bằng Google ở góc trên bên phải Header.
 2. Nếu hoạt động, hiển thị thông tin tài khoản và nút Đăng xuất; kiểm tra F5 vẫn đăng nhập.
 3. Ghi thử video ngắn (PowerPoint + micro), dừng ghi, vào Lịch sử xem video dưới tài khoản đang đăng nhập.
 4. Đăng xuất → Lịch sử chỉ hiện video cũ/khách, không có video gắn với tài khoản vừa đăng nhập.
