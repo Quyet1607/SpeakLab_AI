@@ -135,7 +135,8 @@ describe('Phase 7.3.3.4 – end-to-end acceptance without external Gemini calls'
     expect(loaded.review).toEqual(output);
     const html = markup(loaded.review);
     expect(html).toContain('5</strong> mục đối chiếu có dẫn chứng hợp lệ');
-    expect(html).toContain('1 mục bị loại');
+    expect(html).not.toContain('Nhận xét đối chiếu chưa đầy đủ');
+    expect(html).not.toContain('1 mục bị loại');
     expect(html).toContain('Xem bảng dò từ khóa của 18 slide');
     expect(html).toContain('Lời nói tương ứng · E1');
     expect(html).toContain('Chưa tìm thấy dẫn chứng lời nói tương ứng');
