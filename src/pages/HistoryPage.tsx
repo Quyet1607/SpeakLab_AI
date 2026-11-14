@@ -122,8 +122,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       const imported = await importLocalVideo(file);
       // Never show the new record under another account if the session changed.
       const checked = await refreshSession();
-      if (revision === sessionRevision.current && checked.status === 'signed_in' && checked.identity?.id === imported.ownerSub) {
-        setLocalVideos(await listLocalVideos(imported.ownerSub));
+      const importedOwner = imported.ownerSub;
+      if (revision === sessionRevision.current && checked.status === 'signed_in' &&
+          checked.identity?.id && importedOwner && checked.identity.id === importedOwner) {
+        setLocalVideos(await listLocalVideos(importedOwner));
         setImportNotice('Đã nhập video vào thư viện của tài khoản trên trình duyệt này.');
       } else if (revision === sessionRevision.current) {
         setImportNotice('Đã lưu video cục bộ. Hãy đăng nhập lại đúng tài khoản để xem.');
@@ -473,7 +475,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                       topic={session.topic}
                       topicDescription={session.topicDescription}
                       speakingGoal={session.speakingGoal}
-                      ownerSub={account.identity?.id || item.ownerSub}
+                      ownerSub={account.identity?.id || ''}
                       segments={session.transcriptSegments}
                       signedIn={account.status === 'signed_in'}
                     />
