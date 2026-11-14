@@ -201,7 +201,6 @@ export function parseGroundedReview(raw, evidence, slides) {
     if (!slideMap.has(item?.slideNumber) || seenSlideNumbers.has(item.slideNumber)) {
       throw new Error('AI trích dẫn slide không tồn tại hoặc bị lặp.');
     }
-    seenSlideNumbers.add(item.slideNumber);
     if (!allowedStatuses.has(item.status)) throw new Error('Trạng thái đối chiếu slide không hợp lệ.');
     const slideText = slideMap.get(item.slideNumber);
     const slideQuote = safeString(item.slideQuote, slideText.trim().length >= 3 ? 3 : 1, 220);
