@@ -47,6 +47,19 @@ test('Google login is available without a separate SpeakLab registration flow', 
   }
 });
 
+test('SpeakLab requires Google login and clears guest data before showing app pages', () => {
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  const videos = readFileSync(new URL('../src/services/localVideoLibrary.ts', import.meta.url), 'utf8');
+  const history = readFileSync(new URL('../src/pages/HistoryPage.tsx', import.meta.url), 'utf8');
+  assert.match(app, /accountSession\.status !== 'signed_in'/u);
+  assert.match(app, /guestCleanupStatus !== 'complete'/u);
+  assert.match(app, /clearGuestLocalData/u);
+  assert.match(app, /GoogleAccountControl/u);
+  assert.doesNotMatch(app, /Người luyện tập \(khách\)|Chế độ khách/u);
+  assert.match(videos, /Vui lòng đăng nhập Google trước khi lưu video/u);
+  assert.doesNotMatch(history, /Chế độ khách|nhóm khách|video khách/u);
+});
+
 test('Production refuses Drive OAuth setup even with otherwise valid credentials', () => {
   assert.equal(readOAuthConfig({ ...validOAuth, VERCEL_ENV: 'production' }), null);
   assert.equal(readOAuthConfig({ ...validOAuth, VERCEL_ENV: undefined }), null);
