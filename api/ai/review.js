@@ -33,7 +33,7 @@ const assessment = (slideCount) => ({
     slideComparisons: {
       // A provider may return fewer grounded items than requested. Never
       // force it to invent 6 citations; the server filters each item separately.
-      type: Type.ARRAY, minItems: 0, maxItems: Math.min(MAX_DETAILED_SLIDES, slideCount),
+      type: Type.ARRAY, minItems: 0, maxItems: slideCount ? Math.min(MAX_DETAILED_SLIDES, slideCount) : 2,
       items: {
         type: Type.OBJECT,
         properties: {
