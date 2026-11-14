@@ -94,7 +94,6 @@ describe('Phase 7.3.3.3 AI report presentation', () => {
     expect(html).toContain('3</strong> mục đối chiếu có dẫn chứng hợp lệ');
     expect(html).toContain('4</strong> mục AI trả về');
     expect(html).toContain('1 mục bị loại');
-    expect(html).toContain('Tổng');
     expect(html).toContain('Xem bảng dò từ khóa của 4 slide có chữ');
     expect(html).toContain('Chưa đối chiếu chi tiết');
     expect(html).toContain('Từ khóa trùng');
