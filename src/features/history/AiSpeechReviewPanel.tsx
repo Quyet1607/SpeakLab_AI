@@ -266,7 +266,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
               }[item.status]}</p>
               <p className="text-xs"><strong>Chữ trên slide:</strong> “{item.slideQuote}”</p>
               {item.spokenQuote && <p className="text-xs"><strong>Lời nói tương ứng:</strong> “{item.spokenQuote}” ({item.evidenceId})</p>}
-              <p className="text-xs"><strong>Đã tìm thấy:</strong> {item.covered}</p>
+              <p className="text-xs"><strong>{item.status === 'not_found' ? 'Kết quả tìm kiếm trong ASR:' : 'Đã tìm thấy:'}</strong> {item.covered}</p>
               <p className="text-xs"><strong>Chưa thấy / cần kiểm tra:</strong> {item.missing}</p>
               <p className="text-xs"><strong>Gợi ý:</strong> {item.action}</p>
               {item.evidenceId && renderEvidence(item)}
