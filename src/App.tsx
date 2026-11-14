@@ -23,7 +23,6 @@ import { refreshSession, subscribeSession, type SessionState } from './services/
 import { listCompletedPracticeSessions, saveCompletedPracticeSession } from './services/localPracticeHistory';
 import { extractPptxTextForReview } from './services/pptxReviewText';
 import { saveLocalReviewSlides } from './services/localReviewSlideLibrary';
-import { GoogleAccountControl } from './components/auth/GoogleAccountControl';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
