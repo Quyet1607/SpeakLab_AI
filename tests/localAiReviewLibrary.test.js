@@ -117,11 +117,13 @@ describe('Phase 7.3.2 local AI review library', () => {
     }));
     saveLocalAiReview(makeRecord({
       slideCount: 10,
-      review: { ...review, slideComparisons: detailed, slideOverview: overview },
+      review: { ...review, slideComparisons: detailed, slideOverview: overview,
+        slideReviewStats: { target: 6, received: 8, accepted: 6, rejected: 2 } },
     }));
     const loaded = getLocalAiReview('ses_test_12345', '123456789');
     expect(loaded?.review.slideComparisons).toHaveLength(6);
     expect(loaded?.review.slideOverview).toHaveLength(10);
+    expect(loaded?.review.slideReviewStats?.rejected).toBe(2);
     expect(JSON.parse(memory.get('speaklab_local_ai_reviews_v1'))).toHaveLength(1);
     expect(() => saveLocalAiReview(makeRecord({
       review: { ...review, slideComparisons: [...detailed, ...detailed.slice(0, 3)] },
@@ -130,6 +132,10 @@ describe('Phase 7.3.2 local AI review library', () => {
       review: { ...review, slideComparisons: [{
         ...detailed[0], status: 'partial', evidenceId: '', evidence: '', spokenQuote: '',
       }] },
+    }))).toThrow();
+    expect(() => saveLocalAiReview(makeRecord({
+      review: { ...review, slideComparisons: detailed,
+        slideReviewStats: { target: 6, received: 8, accepted: 7, rejected: 1 } },
     }))).toThrow();
   });
 
