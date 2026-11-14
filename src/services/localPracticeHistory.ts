@@ -22,7 +22,7 @@ type StoredEntry = {
   slideCount: number;
   participantCount: number;
   completedAt: string;
-  ownerSub: string | null;
+  ownerSub: string;
 };
 
 function validEntry(item: unknown): item is StoredEntry {
@@ -41,7 +41,27 @@ function validEntry(item: unknown): item is StoredEntry {
     Number.isInteger(e.slideCount) && e.slideCount! >= 0 && e.slideCount! <= 10000 &&
     Number.isInteger(e.participantCount) && e.participantCount! >= 0 && e.participantCount! <= 1000 &&
     typeof e.completedAt === 'string' && Number.isFinite(Date.parse(e.completedAt)) &&
-    (e.ownerSub === null || typeof e.ownerSub === 'string' && /^[0-9]{5,64}$/.test(e.ownerSub));
+    typeof e.ownerSub === 'string' && /^[0-9]{5,64}$/.test(e.ownerSub);
+}
+
+/** Remove only legacy guest/unassigned records; retain every Google-owned record. */
+export function clearGuestPracticeHistory(): number {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return 0;
+  let data: unknown;
+  try { data = JSON.parse(raw); } catch { return 0; }
+  if (!Array.isArray(data)) return 0;
+  const retained = data.filter(item => {
+    if (!item || typeof item !== 'object') return true;
+    const owner = (item as { ownerSub?: unknown }).ownerSub;
+    return owner !== null && owner !== undefined;
+  });
+  const removed = data.length - retained.length;
+  if (removed > 0) {
+    try { localStorage.setItem(KEY, JSON.stringify(retained)); }
+    catch { throw new Error('Không thể xóa lịch sử khách khỏi trình duyệt.'); }
+  }
+  return removed;
 }
 
 function readAll(): StoredEntry[] {
@@ -55,7 +75,7 @@ function readAll(): StoredEntry[] {
   }
 }
 
-export function listCompletedPracticeSessions(ownerSub: string | null): PracticeSession[] {
+export function listCompletedPracticeSessions(ownerSub: string): PracticeSession[] {
   return readAll()
     .filter(item => item.ownerSub === ownerSub)
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
@@ -70,7 +90,7 @@ export function listCompletedPracticeSessions(ownerSub: string | null): Practice
 export function saveCompletedPracticeSession(
   session: PracticeSession,
   durationSeconds: number,
-  ownerSub: string | null,
+  ownerSub: string,
 ): void {
   const now = new Date().toISOString();
   const brief = normalizePracticeBrief({
@@ -95,7 +115,7 @@ export function saveCompletedPracticeSession(
     completedAt: now,
     ownerSub,
   };
-  if (!validEntry(entry)) throw new Error('Thông tin buổi luyện chưa hợp lệ.');
+  if (!/^[0-9]{5,64}$/.test(ownerSub) || !validEntry(entry)) throw new Error('Vui lòng đăng nhập Google để lưu lịch sử buổi luyện.');
   const remaining = readAll().filter(item => item.id !== entry.id);
   try {
     localStorage.setItem(KEY, JSON.stringify([entry, ...remaining].slice(0, LIMIT)));
@@ -105,7 +125,7 @@ export function saveCompletedPracticeSession(
 }
 
 /** Delete speech-to-text only, without touching the completed session or video. */
-export function deleteCompletedPracticeTranscript(sessionId: string, ownerSub: string | null): boolean {
+export function deleteCompletedPracticeTranscript(sessionId: string, ownerSub: string): boolean {
   const all = readAll();
   const item = all.find(entry => entry.id === sessionId && entry.ownerSub === ownerSub);
   if (!item || !item.transcriptSegments?.length) return false;
