@@ -220,8 +220,8 @@ test('detailed slides require exact slide and spoken excerpts, distinct slide ID
   assert.throws(() => parse([{ ...row, status: 'not_found', spokenQuote: '' }]), /không được gán lời nói giả/u);
 });
 
-test('reviews six to eight distinct meaningful slides without fabricated coverage of the others', () => {
-  const slides = Array.from({ length: 10 }, (_, i) => ({
+test('reviews six to eight distinct slides while prechecking all 40 text slides', () => {
+  const slides = Array.from({ length: 40 }, (_, i) => ({
     number: i + 1, text: 'Nội dung chuyên đề slide ' + (i + 1),
   }));
   const evidence = makeEvidenceChunks(input.transcript);
@@ -250,8 +250,8 @@ test('reviews six to eight distinct meaningful slides without fabricated coverag
   };
   const result = parseGroundedReview(JSON.stringify(report), evidence, slides);
   assert.equal(result.slideComparisons.length, 6);
-  assert.equal(result.slideOverview.length, 10);
-  assert.ok(!result.slideComparisons.some(x => x.slideNumber === 9));
+  assert.equal(result.slideOverview.length, 40);
+  assert.ok(!result.slideComparisons.some(x => x.slideNumber === 39));
   assert.throws(() => parseGroundedReview(JSON.stringify({
     ...report, slideComparisons: report.slideComparisons.slice(0, 5),
   }), evidence, slides), /cấu trúc/u);
