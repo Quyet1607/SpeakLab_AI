@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import {
-  deleteLocalAiReview, getLocalAiReview, reviewInputFingerprint, saveLocalAiReview,
+  clearGuestLocalAiReviews, deleteLocalAiReview, getLocalAiReview, reviewInputFingerprint, saveLocalAiReview,
 } from '../src/services/localAiReviewLibrary.ts';
 
 const previousStorage = globalThis.localStorage;
@@ -70,6 +70,19 @@ describe('Phase 7.3.2 local AI review library', () => {
     expect(memory.has('speaklab_local_ai_reviews_v1')).toBe(true);
     expect(memory.has('speaklab_local_transcripts_v1')).toBe(false);
     expect(memory.has('speaklab_local_recordings_v1')).toBe(false);
+  });
+
+  test('cleans legacy guest AI reviews while preserving Google-owned reports', () => {
+    saveLocalAiReview(makeRecord());
+    const [googleRecord] = JSON.parse(memory.get('speaklab_local_ai_reviews_v1'));
+    memory.set('speaklab_local_ai_reviews_v1', JSON.stringify([
+      { ...googleRecord, sessionId: 'ses_guest_12345', ownerSub: null },
+      googleRecord,
+    ]));
+
+    expect(clearGuestLocalAiReviews()).toBe(1);
+    expect(getLocalAiReview('ses_test_12345', '123456789')?.review.summary).toBe(review.summary);
+    expect(JSON.parse(memory.get('speaklab_local_ai_reviews_v1'))).toHaveLength(1);
   });
 
   test('keeps reports separated by account and session', () => {
