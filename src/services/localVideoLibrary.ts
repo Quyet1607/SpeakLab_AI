@@ -158,7 +158,7 @@ export async function listLocalVideos(ownerSub: string): Promise<LocalVideoRecor
 export async function clearGuestLocalVideos(): Promise<number> {
   if (typeof indexedDB === 'undefined') return 0;
   const entries = await transaction('readonly', store => store.getAll());
-  const guestIds = entries.filter(item => !item.ownerSub).map(item => item.id);
+  const guestIds = entries.filter(item => !/^[0-9]{5,64}$/.test(item.ownerSub || '')).map(item => item.id);
   if (!guestIds.length) return 0;
   await transaction('readwrite', store => {
     const first = store.delete(guestIds[0]);
