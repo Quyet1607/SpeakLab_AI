@@ -10,7 +10,7 @@
 4. Trước khi gọi API, người học phải chủ động tích chọn đồng ý gửi đề tài, mục tiêu, văn bản TXT và văn bản slide (nếu có) đến Gemini Free Tier. Chỉ lúc nhấn nút mới gửi dữ liệu.
 5. Backend `POST /api/ai/review` xác thực phiên đăng nhập Google phía server, kiểm tra nguồn HTTPS same-origin, nội dung đầu vào, xác nhận Preview Free Tier và bộ giới hạn lượt. Mô hình **cố định** `gemini-3.5-flash-lite`, không fallback sang API có phí.
 6. Kết quả gồm nhận xét tổng quan, 2 điểm mạnh, 2 điểm cần cải thiện kèm hành động, 0–2 đối chiếu slide (nếu có), các giới hạn đánh giá. AI phải chọn ID của đoạn văn bản đã cung cấp để làm dẫn chứng; backend kiểm tra ID có thật và cung cấp đoạn nguồn nguyên văn. Không tính điểm số hoặc đánh giá hình ảnh/âm thanh từ TXT.
-7. Kết quả chỉ xem trong phiên hiện tại. Việc lưu thành báo cáo lịch sử sẽ làm ở Đợt 7.3.2.
+7. Kết quả API được hiển thị ngay trong phiên; Đợt 7.3.2 bổ sung lưu cục bộ theo buổi luyện để mở lại trong Lịch sử mà không gọi Gemini lần nữa.
 
 ## Cấu hình trên Vercel Preview
 
