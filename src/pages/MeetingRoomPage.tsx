@@ -53,7 +53,7 @@ import { saveLocalTranscript, deleteLocalTranscript } from '../services/localTra
 interface MeetingRoomPageProps {
   currentUser: UserProfile;
   session: PracticeSession;
-  sessionOwnerSub: string | null;
+  sessionOwnerSub: string;
   deck: PresentationDeck;
   participants: VirtualParticipant[];
   onNavigate: (page: ActivePage) => void;
