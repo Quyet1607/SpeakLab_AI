@@ -10,6 +10,10 @@ const CALLBACK_PATH = '/api/google-drive/oauth/callback';
 const EXPIRY_SECONDS = 600;
 
 export function readOAuthConfig(env = process.env) {
+  // Teacher Drive provisioning is an intentionally Preview-only capability.
+  // Merging this code to main must not activate OAuth bootstrap in Production,
+  // even when someone accidentally copies the same environment variables.
+  if (env.VERCEL_ENV !== 'preview') return null;
   const clientId = (env.GOOGLE_CLIENT_ID || '').trim();
   const clientSecret = (env.GOOGLE_CLIENT_SECRET || '').trim();
   const setupKey = (env.GOOGLE_OAUTH_SETUP_KEY || '').trim();
