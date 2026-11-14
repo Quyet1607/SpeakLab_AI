@@ -96,6 +96,10 @@ export function buildSlideTextOverview(slides, transcript) {
 export function buildReviewPrompt(input, chunks) {
   return [
     'Bạn là chuyên gia hỗ trợ học sinh tự cải thiện NỘI DUNG bài thuyết trình bằng tiếng Việt.',
+    'YÊU CẦU NGÔN NGỮ BẮT BUỘC: TẤT CẢ các câu nhận xét tự tạo trong JSON phải là tiếng Việt CÓ DẤU đầy đủ (Unicode NFC), đúng chính tả. Tuyệt đối không viết tiếng Việt không dấu, không phiên âm ASCII, không sao chép kiểu viết không dấu của bản ghi ASR.',
+    'Ví dụ cách viết ĐÚNG: "Bài thuyết trình đã nêu rõ mục tiêu nghiên cứu và giải thích giải pháp cảnh báo sạt lở đất." Cách viết SAI: "Bai thuyet trinh da neu ro muc tieu nghien cuu va giai thich giai phap canh bao sat lo dat."',
+    'Chỉ áp dụng yêu cầu thêm dấu cho phần diễn giải tự tạo: summary, point, action, covered, missing và limitations. Riêng slideQuote và spokenQuote BẮT BUỘC giữ nguyên từng ký tự, dấu tiếng Việt và chính tả từ dữ liệu gốc; evidenceId, trạng thái và tên khóa JSON dùng đúng định dạng.',
+    'Trước khi trả JSON, tự kiểm tra lại các câu vừa viết: nếu nhận xét tiếng Việt còn không dấu thì phải viết lại bằng tiếng Việt có dấu; không thay đổi hoặc tự tạo dẫn chứng để làm việc này.',
     'Đầu vào chỉ gồm bản ghi lời nói do nhận diện tiếng nói tự động (ASR) và có thể có văn bản slide; KHÔNG có âm thanh, video hoặc hình ảnh slide.',
     'Chỉ phân tích nội dung có thể kiểm chứng từ các đoạn [E] và chữ trong slide [S] được cung cấp.',
     'Trả về nhận xét cân bằng: 2 điểm mạnh, 2 điểm cần cải thiện (mỗi mục một hành động luyện tập cụ thể), tập trung vào chủ đề, mục tiêu, bố cục, mạch lạc, lập luận, giải thích, ví dụ, dẫn chứng và kết luận.',
@@ -154,6 +158,27 @@ const UNSUPPORTED_SCORE_PATTERNS = [
   /(?:điểm số|mức điểm|thang điểm|xếp hạng|xếp loại).{0,15}(?:\d{1,3}|[A-D]\b|giỏi|khá|yếu)/iu,
 ];
 
+/**
+ * Check only model-authored prose, never original ASR or PPTX quotes.
+ * A sustained Vietnamese review normally contains several accent marks.
+ * ASCII-only text (or a token accent amid lengthy unaccented prose) is
+ * unsuitable for saving as a Vietnamese-language report.
+ */
+export function isMissingVietnameseDiacritics(value) {
+  const fields = [
+    value?.summary,
+    ...((Array.isArray(value?.strengths) ? value.strengths : []).map(item => item?.point)),
+    ...((Array.isArray(value?.improvements) ? value.improvements : []).flatMap(item => [item?.point, item?.action])),
+    ...((Array.isArray(value?.slideComparisons) ? value.slideComparisons : [])
+      .flatMap(item => [item?.point, item?.covered, item?.missing, item?.action])),
+  ];
+  const prose = fields.filter(field => typeof field === 'string').join(' ');
+  const normalized = prose.normalize('NFD');
+  const latinLetters = (normalized.match(/[A-Za-zĐđ]/gu) || []).length;
+  const accentCount = (normalized.match(/[\u0300-\u036fĐđ]/gu) || []).length;
+  return latinLetters >= 100 && accentCount < Math.max(3, Math.ceil(latinLetters * 0.012));
+}
+
 function safeFeedbackString(value, min = 8, max = 650) {
   const text = safeString(value, min, max);
   if (UNSUPPORTED_DELIVERY_ASSESSMENT_PATTERNS.some(pattern => pattern.test(text))) {
@@ -173,6 +198,11 @@ export function parseGroundedReview(raw, evidence, slides) {
     !Array.isArray(data.slideComparisons) ||
     !Array.isArray(data.limitations) || data.limitations.length > 4) {
     throw new Error('Kết quả AI không đủ cấu trúc để nhận xét.');
+  }
+  if (isMissingVietnameseDiacritics(data)) {
+    throw Object.assign(new Error('Gemini trả nhận xét tiếng Việt không có dấu; không lưu bản nhận xét này.'), {
+      code: 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
+    });
   }
   const evidenceMap = new Map(evidence.map(x => [x.id, x.text]));
   const slideMap = new Map(slides.map(s => [s.number, s.text]));
