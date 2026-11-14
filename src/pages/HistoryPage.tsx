@@ -77,13 +77,15 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setLocalError(null);
       setImportNotice(null);
       if (next.status === 'loading') return;
-      if (next.status === 'unavailable') {
-        // Keep guest/legacy recordings accessible when server session is not configured.
-        // No signed-in video is displayed under an unverified identity.
-        setLocalError('Dịch vụ đăng nhập chưa sẵn sàng. Chỉ hiển thị video chưa gắn tài khoản trên thiết bị.');
+      if (next.status !== 'signed_in' || !next.identity?.id) {
+        if (next.status === 'unavailable') {
+          setLocalError('Dịch vụ đăng nhập Google chưa sẵn sàng. Không thể mở lịch sử khi chưa xác minh tài khoản.');
+        }
+        return;
       }
-      setLocalTranscripts(listLocalTranscripts(next.identity?.id || null));
-      listLocalVideos(next.identity?.id || null)
+      const ownerSub = next.identity.id;
+      setLocalTranscripts(listLocalTranscripts(ownerSub));
+      listLocalVideos(ownerSub)
         .then(items => { if (mounted && revision === sessionRevision.current) setLocalVideos(items); })
         .catch(error => { if (mounted && revision === sessionRevision.current) setLocalError(error instanceof Error ? error.message : 'Không tải được video đã lưu.'); });
     });
@@ -150,7 +152,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     try {
       const checked = await refreshSession();
       const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
-      if (currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
+      if (!currentOwner || currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
       deleteLocalTranscript(item.sessionId, item.ownerSub);
       deleteLocalAiReview(item.sessionId, item.ownerSub);
       setLocalTranscripts(prev => prev.filter(t => !(t.sessionId === item.sessionId && t.ownerSub === item.ownerSub)));
@@ -247,12 +249,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
         </p>
         <div className="text-xs border border-[#D9E5DC] rounded-lg bg-[#F7F9F6] p-3 text-[#3D4740]">
           {account.status === 'signed_in'
-            ? <>Đang xem video ghi trên thiết bị dưới tài khoản: <strong>{account.identity?.name || 'Google'}</strong>. Video cũ chưa gắn tài khoản sẽ nằm trong nhóm khách.</>
-            : account.status === 'signed_out'
-              ? <>Chế độ khách: chỉ hiện video cũ hoặc video ghi khi chưa đăng nhập. Đăng nhập tại <strong>Cài đặt</strong> để xem nhóm video của tài khoản.</>
-              : account.status === 'loading'
-                ? 'Đang kiểm tra phiên đăng nhập…'
-                : 'Dịch vụ đăng nhập chưa sẵn sàng; chỉ hiển thị video khách/cũ, không hiển thị video gắn tài khoản.'}
+            ? <>Đang xem video ghi trên thiết bị dưới tài khoản: <strong>{account.identity?.name || 'Google'}</strong>. Chỉ hiển thị video thuộc tài khoản này.</>
+            : account.status === 'loading'
+              ? 'Đang kiểm tra phiên đăng nhập…'
+              : 'Cần đăng nhập Google để xem thư viện video.'}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
@@ -473,7 +473,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                       topic={session.topic}
                       topicDescription={session.topicDescription}
                       speakingGoal={session.speakingGoal}
-                      ownerSub={account.status === 'signed_in' ? account.identity?.id || null : null}
+                      ownerSub={account.identity?.id || item.ownerSub}
                       segments={session.transcriptSegments}
                       signedIn={account.status === 'signed_in'}
                     />
