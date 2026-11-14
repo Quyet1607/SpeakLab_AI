@@ -1,9 +1,14 @@
 name: Check local video library
 
 on:
+  # Every proposed merge into main must run these checks, even for docs-only changes.
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - feature/recording-3-2
+      - main
     paths:
       - 'src/**'
       - 'api/ai/**'
