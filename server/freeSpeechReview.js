@@ -107,6 +107,7 @@ export function buildReviewPrompt(input, chunks) {
     'Mỗi nhận xét phải chọn evidenceId từ các đoạn E đã cung cấp. Không tự bịa lời nói, số liệu, thành tích, dẫn chứng hoặc trích câu không xuất hiện trong dữ liệu.',
     'Nếu có slide, đọc toàn bộ slide có chữ và đối chiếu với toàn bộ đoạn E. Chọn từ ' + Math.min(6, input.slides.length) + ' đến ' + Math.min(MAX_DETAILED_SLIDES, input.slides.length) + ' slide ĐÁNG CHÚ Ý để phân tích sâu (ưu tiên nội dung quan trọng, điểm khớp một phần, chưa tìm thấy hoặc khác biệt tiềm tàng; phân bố trong toàn bài). Không chọn chỉ các slide đầu nếu còn slide quan trọng phía sau.',
     'Mỗi mục slideComparisons cần: slideNumber; status thuộc matched / partial / not_found / possible_difference; point nêu rõ nội dung đang đối chiếu; slideQuote TRÍCH NGUYÊN VĂN một đoạn ngắn có thật trong chữ slide; spokenQuote TRÍCH NGUYÊN VĂN từ đúng đoạn evidenceId; covered mô tả ý đã tìm thấy; missing mô tả ý cụ thể chưa tìm thấy hoặc cần kiểm tra; action gợi ý chỉnh sửa/luyện nói thật cụ thể.',
+    'Ưu tiên các trích dẫn NGẮN (khoảng 4–15 từ) đã xuất hiện nguyên văn, giữ nguyên dấu và thứ tự từ, đừng tóm tắt trong slideQuote hoặc spokenQuote. Nếu không thể dẫn chứng đáng tin cậy, trả ít mục hơn thay vì bịa dẫn chứng, kể cả ít hơn 6.',
     'Với status matched, partial hoặc possible_difference: evidenceId phải là mã E có thật, spokenQuote phải là đoạn văn BẢN GỐC nằm nguyên văn trong E đó (không thêm/sửa từ). Với status not_found: evidenceId = "" và spokenQuote = "", không tự gán dẫn chứng khi không tìm thấy nội dung tương ứng.',
     'slideQuote phải sao chép nguyên văn chữ thực có trên slide; không bịa nội dung, thông số, ví dụ, số liệu, hay trích dẫn slide/lời nói. Không đánh giá hình ảnh, sơ đồ, bố cục trực quan hoặc thiết kế slide.',
     'Phân biệt "chưa tìm thấy nội dung trong bản ghi ASR" với "người thuyết trình đã bỏ qua slide": không có dữ liệu đồng bộ slide và thời điểm nói nên KHÔNG được kết luận bỏ qua, thời gian đứng tại slide hay chuyển slide.',
@@ -167,12 +168,9 @@ function safeFeedbackString(value, min = 8, max = 650) {
 export function parseGroundedReview(raw, evidence, slides) {
   let data;
   try { data = JSON.parse(raw); } catch { throw new Error('AI trả kết quả không đúng định dạng.'); }
-  const minDetailed = Math.min(6, slides.length);
   if (!data || !Array.isArray(data.strengths) || !Array.isArray(data.improvements) ||
     data.strengths.length !== 2 || data.improvements.length !== 2 ||
     !Array.isArray(data.slideComparisons) ||
-    data.slideComparisons.length < minDetailed ||
-    data.slideComparisons.length > Math.min(MAX_DETAILED_SLIDES, slides.length) ||
     !Array.isArray(data.limitations) || data.limitations.length > 4) {
     throw new Error('Kết quả AI không đủ cấu trúc để nhận xét.');
   }
@@ -192,7 +190,14 @@ export function parseGroundedReview(raw, evidence, slides) {
   const seenSlideNumbers = new Set();
   const allowedStatuses = new Set(['matched', 'partial', 'not_found', 'possible_difference']);
   const normalized = text => text.replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
-  const slideComparisons = data.slideComparisons.map(item => {
+
+  // Gemini may produce several useful slide comparisons alongside an invalid
+  // quote/ID. Accept only independently verified items rather than discarding
+  // the entire review. No source text is invented or silently substituted.
+  const slideComparisons = [];
+  const slideItems = slides.length ? data.slideComparisons.slice(0, MAX_DETAILED_SLIDES) : [];
+  for (const item of slideItems) {
+    try {
     if (!slideMap.has(item?.slideNumber) || seenSlideNumbers.has(item.slideNumber)) {
       throw new Error('AI trích dẫn slide không tồn tại hoặc bị lặp.');
     }
@@ -221,7 +226,7 @@ export function parseGroundedReview(raw, evidence, slides) {
         throw new Error('AI trích lời nói không xuất hiện trong đoạn dẫn chứng E.');
       }
     }
-    return {
+    const verified = {
       slideNumber: item.slideNumber,
       status: item.status,
       point: safeFeedbackString(item.point, 8, 450),
@@ -233,12 +238,24 @@ export function parseGroundedReview(raw, evidence, slides) {
       missing: safeFeedbackString(item.missing, 8, 400),
       action: safeFeedbackString(item.action, 8, 400),
     };
-  });
+    seenSlideNumbers.add(item.slideNumber);
+    slideComparisons.push(verified);
+    } catch {
+      // Do not expose, save, or show this unverified statement. Other verified
+      // slides and the overview can still be returned within the single call.
+    }
+  }
   return {
     summary: safeFeedbackString(data.summary, 20, 850),
     strengths: data.strengths.map(item => withEvidence(item, false)),
     improvements: data.improvements.map(item => withEvidence(item, true)),
     slideComparisons,
+    ...(slides.length ? { slideReviewStats: {
+      target: Math.min(6, slides.length),
+      received: data.slideComparisons.length,
+      accepted: slideComparisons.length,
+      rejected: data.slideComparisons.length - slideComparisons.length,
+    } } : {}),
     // Every text-bearing slide gets a lexical *precheck*, not a semantic
     // judgement. Only slideComparisons are reviewed in depth by Gemini.
     slideOverview: buildSlideTextOverview(slides, evidence.map(item => item.text).join(' ')),
