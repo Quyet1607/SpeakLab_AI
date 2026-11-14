@@ -391,6 +391,65 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await session.stop();
   });
 
+  test('removes overlap between result indexes inside the same saved segment', async () => {
+    const segments = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: () => {},
+      onSegment: part => segments.push(part),
+      getElapsedSeconds: () => 32,
+    });
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [
+        { isFinal: false, 0: { transcript: 'Em xin trình bày nội dung' } },
+        { isFinal: false, 0: { transcript: 'nội dung hôm nay' } },
+      ],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+
+    expect(segments.map(part => part.text)).toEqual([
+      'Em xin trình bày nội dung hôm nay',
+    ]);
+    await session.stop();
+  });
+
+  test('removes a repeated trailing phrase from the old segment without changing the next segment', async () => {
+    const segments = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: () => {},
+      onSegment: part => segments.push(part),
+      getElapsedSeconds: () => 36,
+    });
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung nội dung' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Em xin trình bày nội dung']);
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [
+        { isFinal: false, 0: { transcript: 'Em xin trình bày nội dung nội dung' } },
+        { isFinal: false, 0: { transcript: 'Tiếp theo là mục tiêu nghiên cứu' } },
+      ],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual([
+      'Em xin trình bày nội dung',
+      'Tiếp theo là mục tiêu nghiên cứu',
+    ]);
+    await session.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
