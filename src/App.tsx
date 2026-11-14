@@ -23,7 +23,6 @@ import { refreshSession, subscribeSession, type SessionState } from './services/
 import { listCompletedPracticeSessions, saveCompletedPracticeSession } from './services/localPracticeHistory';
 import { extractPptxTextForReview } from './services/pptxReviewText';
 import { saveLocalReviewSlides } from './services/localReviewSlideLibrary';
-import { clearGuestLocalData } from './services/guestDataCleanup';
 import { GoogleAccountControl } from './components/auth/GoogleAccountControl';
 
 // Pages
@@ -37,9 +36,6 @@ import { SettingsPage } from './pages/SettingsPage';
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const [accountSession, setAccountSession] = useState<SessionState>({ status: 'loading', identity: null });
-  const [guestCleanupStatus, setGuestCleanupStatus] = useState<'pending' | 'complete' | 'failed'>('pending');
-  const [guestCleanupError, setGuestCleanupError] = useState<string | null>(null);
-  const [guestCleanupRetry, setGuestCleanupRetry] = useState(0);
 
   useEffect(() => {
     const unsubscribe = subscribeSession(setAccountSession);
@@ -47,33 +43,13 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Do not mount any application page until legacy guest data has been removed.
-  useEffect(() => {
-    if (accountSession.status !== 'signed_in' && accountSession.status !== 'signed_out') return;
-    let active = true;
-    setGuestCleanupStatus('pending');
-    setGuestCleanupError(null);
-    void clearGuestLocalData()
-      .then(() => {
-        if (active) setGuestCleanupStatus('complete');
-      })
-      .catch(error => {
-        if (!active) return;
-        setGuestCleanupError(error instanceof Error ? error.message : 'Không thể xóa dữ liệu khách trên thiết bị.');
-        setGuestCleanupStatus('failed');
-      });
-    return () => { active = false; };
-  }, [accountSession.status, guestCleanupRetry]);
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [sessionOwnerSub, setSessionOwnerSub] = useState<string>('');
 
   useEffect(() => {
-    if (accountSession.status !== 'signed_in' || !accountSession.identity?.id) {
-      setSessions([]);
-      return;
-    }
-    setSessions(listCompletedPracticeSessions(accountSession.identity.id));
+    if (accountSession.status === 'loading') return;
+    setSessions(listCompletedPracticeSessions(accountSession.status === 'signed_in' && accountSession.identity?.id ? accountSession.identity.id : 'guest'));
   }, [accountSession]);
 
   // Setup configuration state retained in current session
@@ -98,11 +74,11 @@ export default function App() {
     };
     return {
       ...mockCurrentUser,
-      fullName: accountSession.identity?.name || 'Tài khoản Google',
-      avatarInitials: (accountSession.identity?.name || 'GG').split(/\s+/).filter(Boolean).map(w => w[0]).slice(-2).join('').toUpperCase(),
-      roleDescription: accountSession.identity?.role === 'teacher' ? 'Tài khoản Google (giáo viên)' : 'Tài khoản Google cá nhân',
+      fullName: accountSession.identity?.name || 'Khách',
+      avatarInitials: (accountSession.identity?.name || 'K').split(/\s+/).filter(Boolean).map(w => w[0]).slice(-2).join('').toUpperCase(),
+      roleDescription: accountSession.status === 'signed_in' ? (accountSession.identity?.role === 'teacher' ? 'Tài khoản Google (giáo viên)' : 'Tài khoản Google cá nhân') : 'Chế độ khách trên thiết bị',
       school: 'Hồ sơ luyện tập cá nhân',
-      grade: 'Đã đăng nhập Google',
+      grade: accountSession.status === 'signed_in' ? 'Đã đăng nhập Google' : 'Chưa đăng nhập',
       stats: {
         ...mockCurrentUser.stats,
         totalSessions: stats.totalSessions,
@@ -124,9 +100,8 @@ export default function App() {
 
   // Handle starting a new simulated practice session
   const handleStartSession = (config: PracticeSetupConfig) => {
-    const ownerSub = accountSession.status === 'signed_in' ? accountSession.identity?.id : null;
-    if (!ownerSub) return;
-    // Save chosen config only for a verified Google account.
+    const ownerSub = accountSession.status === 'signed_in' ? accountSession.identity?.id || 'guest' : 'guest';
+    // Guest practice is saved locally; Google sessions keep their own owner label.
     setSetupConfig(config);
     setSessionOwnerSub(ownerSub);
     setHistoryNotice(null);
@@ -150,11 +125,11 @@ export default function App() {
 
   const handleFinishSession = async (actualSeconds: number, destination: 'report' | 'dashboard', transcript: SpeechTranscriptSegment[]) => {
     const checked = await refreshSession();
-    const activeOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+    const activeOwner = checked.status === 'signed_in' ? checked.identity?.id || null : 'guest';
     // Bind a completed session to the account which started the practice,
     // not another Google account that may have signed in midway.
     try {
-      if (!sessionOwnerSub) throw new Error('Vui lòng đăng nhập Google để lưu buổi luyện.');
+      if (!sessionOwnerSub) throw new Error('Không xác định được phiên luyện tập.');
       saveCompletedPracticeSession({ ...currentSession, transcriptSegments: transcript }, actualSeconds, sessionOwnerSub);
       // Preserve slide TEXT for this completed session only (not the PPTX file).
       // Never block recording history if slide extraction is unavailable.
@@ -172,7 +147,7 @@ export default function App() {
       }
       setSessions(listCompletedPracticeSessions(sessionOwnerSub));
       setHistoryNotice(sessionOwnerSub !== activeOwner
-        ? 'Buổi luyện đã lưu dưới tài khoản khi bắt đầu. Đăng nhập lại đúng tài khoản đó để xem trong lịch sử.'
+        ? 'Buổi luyện đã lưu dưới chế độ tài khoản khi bắt đầu. Chuyển về đúng chế độ để xem trong lịch sử.'
         : destination === 'report'
           ? 'Đã lưu buổi luyện thực tế. Có thể nhận xét AI từ bản ghi tại Lịch sử.' + slideNotice
           : slideNotice || null);
@@ -210,44 +185,8 @@ export default function App() {
 
   const currentReport = reportService.getReportById(selectedReportId);
 
-  if (accountSession.status !== 'signed_in' || !accountSession.identity || guestCleanupStatus !== 'complete') {
-    const checkingSession = accountSession.status === 'loading';
-    const cleaningGuestData = guestCleanupStatus === 'pending' &&
-      (accountSession.status === 'signed_in' || accountSession.status === 'signed_out');
-    return (
-      <main className="min-h-screen bg-[#F7F9F6] flex items-center justify-center px-4 py-10">
-        <section className="w-full max-w-md bg-white border border-[#E4E9E3] rounded-2xl shadow-sm p-7 md:p-9 text-center space-y-5">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-[#EEF4F0] text-[#324C3B] flex items-center justify-center text-2xl font-bold">S</div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-[#324C3B]">SpeakLab AI</h1>
-            <p className="text-sm text-[#556057]">Đăng nhập bằng tài khoản Google để tiếp tục sử dụng hệ thống.</p>
-            <p className="text-xs text-[#768078]">SpeakLab AI không hỗ trợ tài khoản khách.</p>
-          </div>
-          {checkingSession && <p className="text-xs text-[#768078]" role="status">Đang kiểm tra phiên đăng nhập…</p>}
-          {cleaningGuestData && <p className="text-xs text-[#52785D]" role="status">Đang xóa lịch sử, video và dữ liệu phụ trợ của chế độ khách trên thiết bị…</p>}
-          {guestCleanupStatus === 'failed' && (
-            <div className="space-y-3" role="alert">
-              <p className="text-xs text-[#873631]">{guestCleanupError || 'Không thể dọn dữ liệu khách.'}</p>
-              <button
-                type="button"
-                onClick={() => setGuestCleanupRetry(value => value + 1)}
-                className="px-4 py-2 rounded-lg border border-[#D9E5DC] text-xs font-semibold text-[#324C3B] hover:bg-[#F7F9F6]"
-              >
-                Thử dọn dữ liệu lại
-              </button>
-            </div>
-          )}
-          <div className="flex justify-center">
-            <GoogleAccountControl currentUser={userProfile} />
-          </div>
-          {accountSession.status === 'unavailable' && (
-            <p className="text-xs text-[#873631]" role="status">
-              Chưa xác minh được phiên đăng nhập. Hãy kiểm tra kết nối và thử đăng nhập Google lại.
-            </p>
-          )}
-        </section>
-      </main>
-    );
+  if (accountSession.status === 'loading') {
+    return <main className="min-h-screen flex items-center justify-center text-[#324C3B]" role="status">Đang kiểm tra phiên đăng nhập…</main>;
   }
 
   return (
@@ -297,8 +236,8 @@ export default function App() {
           onSelectSessionForReport={handleSelectSessionForReport}
           onReplaySession={handleReplaySession}
           onTranscriptDeleted={() => {
-            const owner = accountSession.status === 'signed_in' ? accountSession.identity?.id : null;
-            setSessions(owner ? listCompletedPracticeSessions(owner) : []);
+            const owner = accountSession.status === 'signed_in' ? accountSession.identity?.id || 'guest' : 'guest';
+            setSessions(listCompletedPracticeSessions(owner));
           }}
         />
       )}
