@@ -67,6 +67,11 @@ describe('device-only completed practice history', () => {
     expect(legacy.topicDescription).toBeUndefined();
     expect(legacy.speakingGoal).toBeUndefined();
   });
+  test('refuses to save a practice session without a Google account', () => {
+    expect(() => saveCompletedPracticeSession(session, 30, '')).toThrow('Vui lòng đăng nhập Google');
+    expect(listCompletedPracticeSessions('12345678901234567890')).toHaveLength(0);
+  });
+
   test('guest history is removed while Google-owned history is preserved', () => {
     saveCompletedPracticeSession(session, 43, '12345678901234567890');
     const [googleEntry] = JSON.parse(store.get('speaklab_completed_practice_v1'));
