@@ -139,6 +139,38 @@ describe('Phase 7.3.2 local AI review library', () => {
     }))).toThrow();
   });
 
+  test('saves and restores all 40 detailed PPTX comparisons without dropping later slides', () => {
+    const detailed = Array.from({ length: 40 }, (_, index) => ({
+      slideNumber: index + 1,
+      status: 'not_found',
+      point: 'Chưa tìm thấy nội dung tương ứng trong đoạn văn bản.',
+      slideQuote: 'Thông tin nghiên cứu ở slide ' + (index + 1),
+      spokenQuote: '', evidenceId: '', evidence: '',
+      covered: 'Chưa xác định thông tin tương ứng trong bản ghi.',
+      missing: 'Không tìm thấy cách giải thích giải pháp trên slide.',
+      action: 'Kiểm tra bản ghi và bổ sung ví dụ về nội dung slide.',
+    }));
+    const overview = detailed.map(row => ({
+      slideNumber: row.slideNumber,
+      slideExcerpt: row.slideQuote,
+      keywordSignal: 'no_shared_keywords',
+      sharedKeywords: [],
+    }));
+    saveLocalAiReview(makeRecord({
+      slideCount: 40,
+      review: {
+        ...review,
+        slideComparisons: detailed,
+        slideOverview: overview,
+        slideReviewStats: { target: 40, received: 40, accepted: 40, rejected: 0 },
+      },
+    }));
+    const stored = getLocalAiReview('ses_test_12345', '123456789');
+    expect(stored?.review.slideComparisons).toHaveLength(40);
+    expect(stored?.review.slideComparisons.at(-1)?.slideNumber).toBe(40);
+    expect(stored?.review.slideReviewStats?.target).toBe(40);
+  });
+
   test('deletes only the AI review and leaves transcript/video storage untouched', () => {
     memory.set('speaklab_local_transcripts_v1', 'transcript-data');
     memory.set('speaklab_local_recordings_v1', 'video-data');
