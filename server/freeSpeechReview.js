@@ -60,6 +60,39 @@ export function makeEvidenceChunks(transcript, limit = 650) {
   return chunks;
 }
 
+export const MAX_DETAILED_SLIDES = 8;
+
+/**
+ * A lexical precheck of every text-bearing slide, not a judgement of whether
+ * the speaker presented it. ASR errors and paraphrases can hide real matches.
+ */
+export function buildSlideTextOverview(slides, transcript) {
+  const stopwords = new Set([
+    'trong', 'nhung', 'nhung', 'chung', 'chungta', 'mot', 'nhieu', 'theo',
+    'duoc', 'nhung', 'cung', 'nhau', 'trinh', 'bay', 'thong', 'nhat',
+    'phan', 'dung', 'hien', 'thuc', 'hien', 'cach', 'dieu', 'nhat',
+    'gioi', 'thieu', 'dung', 'dung', 'giup', 'nguoi', 'tiep', 'den',
+    'dung', 'sau', 'cua', 'cho', 'voi', 'khong', 'dang', 'hay',
+  ]);
+  const words = text => (text.toLocaleLowerCase('vi-VN').normalize('NFD')
+    .replace(/\p{M}/gu, '').replace(/đ/gu, 'd')
+    .match(/[\p{L}\p{N}]+/gu) || [])
+    .filter(word => word.length >= 4 && !stopwords.has(word));
+  const spoken = new Set(words(transcript));
+  return slides.map(slide => {
+    const keywords = [...new Set(words(slide.text))];
+    const sharedKeywords = keywords.filter(word => spoken.has(word)).slice(0, 4);
+    const keywordSignal = !keywords.length ? 'insufficient_text' :
+      sharedKeywords.length ? 'shared_keywords' : 'no_shared_keywords';
+    return {
+      slideNumber: slide.number,
+      slideExcerpt: slide.text.slice(0, 140),
+      keywordSignal,
+      sharedKeywords,
+    };
+  });
+}
+
 export function buildReviewPrompt(input, chunks) {
   return [
     'Bạn là chuyên gia hỗ trợ học sinh tự cải thiện NỘI DUNG bài thuyết trình bằng tiếng Việt.',
@@ -72,8 +105,12 @@ export function buildReviewPrompt(input, chunks) {
     'Nếu bản ghi hiện có không thể hiện một nội dung, chỉ nói "trong bản ghi được cung cấp chưa thấy..." khi thực sự đã kiểm tra toàn bộ phần E liên quan; không khẳng định người học chắc chắn không nói hoặc không làm điều đó ở ngoài bản ghi.',
     'Phân biệt nội dung bài nói và độ chính xác ASR: chữ sai, thiếu dấu, câu chưa hoàn chỉnh hoặc ngắt đoạn bất thường có thể do nhận diện tự động. Không suy ra lỗi phát âm, vốn từ hay năng lực người học từ lỗi ASR.',
     'Mỗi nhận xét phải chọn evidenceId từ các đoạn E đã cung cấp. Không tự bịa lời nói, số liệu, thành tích, dẫn chứng hoặc trích câu không xuất hiện trong dữ liệu.',
-    'Nếu có slide, bắt buộc nêu 1 hoặc 2 điểm đối chiếu NỘI DUNG CHỮ trên slide với bài nói, có slideNumber và evidenceId. Không đánh giá thiết kế, hình ảnh, sơ đồ hoặc bố cục trực quan của slide.',
-    'Nếu không có slide, trả slideComparisons là [] và KHÔNG đánh giá slide.',
+    'Nếu có slide, đọc toàn bộ slide có chữ và đối chiếu với toàn bộ đoạn E. Chọn từ ' + Math.min(6, input.slides.length) + ' đến ' + Math.min(MAX_DETAILED_SLIDES, input.slides.length) + ' slide ĐÁNG CHÚ Ý để phân tích sâu (ưu tiên nội dung quan trọng, điểm khớp một phần, chưa tìm thấy hoặc khác biệt tiềm tàng; phân bố trong toàn bài). Không chọn chỉ các slide đầu nếu còn slide quan trọng phía sau.',
+    'Mỗi mục slideComparisons cần: slideNumber; status thuộc matched / partial / not_found / possible_difference; point nêu rõ nội dung đang đối chiếu; slideQuote TRÍCH NGUYÊN VĂN một đoạn ngắn có thật trong chữ slide; spokenQuote TRÍCH NGUYÊN VĂN từ đúng đoạn evidenceId; covered mô tả ý đã tìm thấy; missing mô tả ý cụ thể chưa tìm thấy hoặc cần kiểm tra; action gợi ý chỉnh sửa/luyện nói thật cụ thể.',
+    'Với status matched, partial hoặc possible_difference: evidenceId phải là mã E có thật, spokenQuote phải là đoạn văn BẢN GỐC nằm nguyên văn trong E đó (không thêm/sửa từ). Với status not_found: evidenceId = "" và spokenQuote = "", không tự gán dẫn chứng khi không tìm thấy nội dung tương ứng.',
+    'slideQuote phải sao chép nguyên văn chữ thực có trên slide; không bịa nội dung, thông số, ví dụ, số liệu, hay trích dẫn slide/lời nói. Không đánh giá hình ảnh, sơ đồ, bố cục trực quan hoặc thiết kế slide.',
+    'Phân biệt "chưa tìm thấy nội dung trong bản ghi ASR" với "người thuyết trình đã bỏ qua slide": không có dữ liệu đồng bộ slide và thời điểm nói nên KHÔNG được kết luận bỏ qua, thời gian đứng tại slide hay chuyển slide.',
+    'Nếu slide chỉ có ít chữ, tiêu đề hoặc thuật ngữ, chỉ đối chiếu được phần chữ đó; không giả định thông tin nằm trong ảnh hay biểu đồ. Nếu không có slide, trả slideComparisons là [] và KHÔNG đánh giá slide.',
     'NGHIÊM CẤM nhận xét hoặc suy đoán về phát âm, cách đọc từ/thuật ngữ (kể cả AI, IoT), giọng điệu, ngữ điệu, chất giọng, âm lượng, tốc độ nói, độ lưu loát, ngắt nghỉ, giọng vùng miền, sự tự tin khi nói, cảm xúc, ánh mắt, nét mặt, tư thế hoặc cử chỉ.',
     'Không được biến lỗi chính tả, thiếu dấu, từ bất thường hoặc lỗi có thể do ASR nhận diện thành kết luận rằng người thuyết trình phát âm sai. Không thể biết cách phát âm chỉ từ văn bản.',
     'Nếu một nhận xét cần nghe âm thanh hoặc xem hình ảnh mới kết luận được, hãy bỏ nhận xét đó; tuyệt đối không thay bằng suy đoán.',
@@ -87,7 +124,7 @@ export function buildReviewPrompt(input, chunks) {
       evidence: chunks,
       slides: input.slides.map(s => ({ slideNumber: s.number, text: s.text })),
     }),
-    'Xuất JSON hợp lệ với các trường: summary (chuỗi), strengths [{point,evidenceId}], improvements [{point,evidenceId,action}], slideComparisons [{slideNumber,point,evidenceId}], limitations [chuỗi].',
+    'Xuất JSON hợp lệ với các trường: summary (chuỗi), strengths [{point,evidenceId}], improvements [{point,evidenceId,action}], slideComparisons [{slideNumber,status,point,slideQuote,spokenQuote,evidenceId,covered,missing,action}], limitations [chuỗi]. Không tự tạo trường khác. Với not_found, evidenceId và spokenQuote là chuỗi rỗng; các trường diễn giải khác không để trống.',
   ].join('\n');
 }
 
@@ -130,14 +167,17 @@ function safeFeedbackString(value, min = 8, max = 650) {
 export function parseGroundedReview(raw, evidence, slides) {
   let data;
   try { data = JSON.parse(raw); } catch { throw new Error('AI trả kết quả không đúng định dạng.'); }
+  const minDetailed = Math.min(6, slides.length);
   if (!data || !Array.isArray(data.strengths) || !Array.isArray(data.improvements) ||
     data.strengths.length !== 2 || data.improvements.length !== 2 ||
-    !Array.isArray(data.slideComparisons) || data.slideComparisons.length > 2 ||
+    !Array.isArray(data.slideComparisons) ||
+    data.slideComparisons.length < minDetailed ||
+    data.slideComparisons.length > Math.min(MAX_DETAILED_SLIDES, slides.length) ||
     !Array.isArray(data.limitations) || data.limitations.length > 4) {
     throw new Error('Kết quả AI không đủ cấu trúc để nhận xét.');
   }
   const evidenceMap = new Map(evidence.map(x => [x.id, x.text]));
-  const slideSet = new Set(slides.map(s => s.number));
+  const slideMap = new Map(slides.map(s => [s.number, s.text]));
   const withEvidence = (item, withAction) => {
     if (!item || typeof item.evidenceId !== 'string' || !evidenceMap.has(item.evidenceId)) {
       throw new Error('AI dẫn chứng không tồn tại trong bản ghi lời nói.');
@@ -149,17 +189,58 @@ export function parseGroundedReview(raw, evidence, slides) {
       ...(withAction ? { action: safeFeedbackString(item.action, 8, 400) } : {}),
     };
   };
+  const seenSlideNumbers = new Set();
+  const allowedStatuses = new Set(['matched', 'partial', 'not_found', 'possible_difference']);
+  const normalized = text => text.replace(/\s+/gu, ' ').trim().toLocaleLowerCase('vi-VN');
   const slideComparisons = data.slideComparisons.map(item => {
-    if (!slideSet.has(item?.slideNumber)) throw new Error('AI trích dẫn slide không tồn tại.');
-    return { ...withEvidence(item, false), slideNumber: item.slideNumber };
+    if (!slideMap.has(item?.slideNumber) || seenSlideNumbers.has(item.slideNumber)) {
+      throw new Error('AI trích dẫn slide không tồn tại hoặc bị lặp.');
+    }
+    seenSlideNumbers.add(item.slideNumber);
+    if (!allowedStatuses.has(item.status)) throw new Error('Trạng thái đối chiếu slide không hợp lệ.');
+    const slideQuote = safeString(item.slideQuote, 3, 220);
+    if (!normalized(slideMap.get(item.slideNumber)).includes(normalized(slideQuote))) {
+      throw new Error('AI trích dẫn nội dung không có trong chữ slide.');
+    }
+    const spokenQuote = typeof item.spokenQuote === 'string' ? item.spokenQuote.trim() : null;
+    let evidenceId = '';
+    let evidenceText = '';
+    if (item.status === 'not_found') {
+      if (item.evidenceId !== '' || spokenQuote !== '') {
+        throw new Error('Slide chưa tìm thấy ý tương ứng không được gán lời nói giả.');
+      }
+    } else {
+      if (typeof item.evidenceId !== 'string' || !evidenceMap.has(item.evidenceId)) {
+        throw new Error('AI đối chiếu slide bằng dẫn chứng lời nói không hợp lệ.');
+      }
+      evidenceId = item.evidenceId;
+      evidenceText = evidenceMap.get(evidenceId);
+      if (!spokenQuote || spokenQuote.length < 4 || spokenQuote.length > 220 ||
+          !normalized(evidenceText).includes(normalized(spokenQuote))) {
+        throw new Error('AI trích lời nói không xuất hiện trong đoạn dẫn chứng E.');
+      }
+    }
+    return {
+      slideNumber: item.slideNumber,
+      status: item.status,
+      point: safeFeedbackString(item.point, 8, 450),
+      slideQuote,
+      spokenQuote: spokenQuote || '',
+      evidenceId,
+      evidence: evidenceText,
+      covered: safeFeedbackString(item.covered, 8, 400),
+      missing: safeFeedbackString(item.missing, 8, 400),
+      action: safeFeedbackString(item.action, 8, 400),
+    };
   });
-  if (!slides.length && slideComparisons.length) throw new Error('Bản nhận xét nhắc tới slide chưa được cung cấp.');
-  if (slides.length && slideComparisons.length === 0) throw new Error('AI chưa đối chiếu nội dung PPTX đã cung cấp.');
   return {
     summary: safeFeedbackString(data.summary, 20, 850),
     strengths: data.strengths.map(item => withEvidence(item, false)),
     improvements: data.improvements.map(item => withEvidence(item, true)),
     slideComparisons,
+    // Every text-bearing slide gets a lexical *precheck*, not a semantic
+    // judgement. Only slideComparisons are reviewed in depth by Gemini.
+    slideOverview: buildSlideTextOverview(slides, evidence.map(item => item.text).join(' ')),
     // These limitations are factual properties of the input, not model inferences.
     // Show them even when Gemini returns an empty or incomplete limitations list.
     limitations: [
