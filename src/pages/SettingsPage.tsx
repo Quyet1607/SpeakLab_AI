@@ -104,7 +104,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ currentUser }) => {
                   </h4>
                   <p className="text-xs text-[#768078]">{currentUser.roleDescription}</p>
                   <span className="inline-block mt-1 text-[10px] text-[#4A6453] bg-[#EEF4F0] px-2 py-0.5 rounded border border-[#D9E5DC]">
-                    {currentUser.roleDescription.includes('Google') ? 'Tài khoản Google đã xác thực' : 'Tài khoản demo thử nghiệm'}
+                    {currentUser.roleDescription.includes('Google') ? 'Tài khoản Google đã xác thực' : 'Chưa xác minh tài khoản Google'}
                   </span>
                 </div>
               </div>
