@@ -198,7 +198,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         <span>Tôi đồng ý gửi <strong>đề tài, mục tiêu, văn bản lời nói và chữ trong PPTX (nếu có)</strong> đến Google Gemini để nhận xét. Không gửi tệp video, âm thanh, PPTX nguyên bản hay tên tài khoản. Dữ liệu Free Tier có thể được Google dùng để cải thiện sản phẩm.</span>
       </label>
 
-      {!signedIn && <p className="text-xs text-[#873631]">Cần đăng nhập Google ở Cài đặt để dùng dịch vụ AI.</p>}
+      {!signedIn && <p className="text-xs text-[#873631]">Cần đăng nhập Google để sử dụng dịch vụ AI.</p>}
       {transcript.length > 24000 && <p className="text-xs text-[#873631]">Bản ghi vượt giới hạn 24.000 ký tự. Đợt thử nghiệm chưa phân tích bài dài hơn.</p>}
       {savedReport && <div className="rounded-lg border border-[#D9E5DC] bg-white p-2 text-xs space-y-1">
         <p><strong>Nhận xét đã lưu:</strong> {new Date(savedReport.createdAt).toLocaleString('vi-VN')} · lưu trên trình duyệt này.</p>
