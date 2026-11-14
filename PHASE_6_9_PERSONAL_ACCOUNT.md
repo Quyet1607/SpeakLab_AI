@@ -9,8 +9,8 @@
 - `DELETE /api/auth/session`: đăng xuất, hết hiệu lực cookie trên trình duyệt.
 - Cookie có thời gian tối đa 8 giờ và không dài hơn thời hạn ID token. Không lưu Google credential hoặc secret trong localStorage.
 - Tài khoản được phân biệt bằng Google `sub` bất biến, không dựa vào tên demo hoặc email do người dùng tự nhập.
-- **Cài đặt → Tài khoản học sinh**: đăng nhập Google, xem trạng thái và đăng xuất.
-- Tên trong header chuyển sang tài khoản Google khi đăng nhập, nhưng số liệu thống kê luyện tập vẫn là **demo**.
+- **Khu vực tài khoản ở góc trên bên phải Header**: đăng nhập Google khi chưa có phiên; sau khi đăng nhập hiển thị tên/ảnh đại diện và menu xem thông tin, đăng xuất. Không có luồng đăng ký tài khoản SpeakLab riêng.
+- Tên và ảnh đại diện trong header chuyển sang tài khoản Google khi đăng nhập; số liệu thống kê luyện tập được tính từ lịch sử cục bộ, không phải dữ liệu đám mây.
 - Video **ghi mới** được lưu trong IndexedDB với `ownerSub` ở thời điểm dừng ghi nếu server xác minh được phiên. Lịch sử chỉ lọc theo `ownerSub` của tài khoản hiện tại, **để tiện dùng trên một thiết bị**.
 - Video cũ chưa gắn tài khoản (`ownerSub` không có) được giữ nguyên, chỉ hiển thị khi ở chế độ khách. Không gán nhầm toàn bộ video cũ cho người mới đăng nhập.
 - Nếu phiên server tạm không hoạt động, lưu video mới ở nhóm khách để không làm mất bản ghi; vẫn có thể tải về.
@@ -47,7 +47,7 @@ $bytes = New-Object byte[] 32
 - **Không được xem bộ lọc IndexedDB theo tài khoản là bảo mật phân quyền thực sự.** Dữ liệu IndexedDB thuộc một website và có thể bị người khác dùng chung browser, tiện ích mở rộng hoặc DevTools truy cập. Không bảo đảm riêng tư giữa nhiều học sinh dùng chung thiết bị.
 - Không sử dụng để bảo quản video nhạy cảm của học sinh trên máy dùng chung. Trong giai đoạn này nên thử với dữ liệu giả và máy cá nhân; tải bản quan trọng về máy.
 - Khi dùng Drive cloud, API phải kiểm tra session cookie *trên server* và ánh xạ `ownerSub ↔ driveFileId` trong database; không tin `ownerSub` phía client. Chỉ kích hoạt sau khi có cơ sở dữ liệu metadata, token Drive an toàn, upload resumable và kiểm thử quyền owner-only.
-- Google OAuth External/Testing có giới hạn test users khi đăng nhập; trước khi mở rộng cho học sinh cần cấu hình chính sách xác thực phù hợp và tuân thủ quy định dữ liệu người học.
+- Google OAuth External/Testing có giới hạn test users khi đăng nhập; trước khi mở rộng cho học sinh cần cấu hình chính sách xác thực phù hợp và tuân thủ quy định dữ liệu người học. Google Sign-In chỉ dùng cho đăng nhập; không có nút đăng ký riêng và không yêu cầu quyền Google Drive.
 - Nếu rotate `SPEAKLAB_SESSION_SECRET`, mọi phiên cookie cũ sẽ hết hiệu lực.
 
 ## Kế tiếp
