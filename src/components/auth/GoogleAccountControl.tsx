@@ -183,7 +183,9 @@ export const GoogleAccountControl: React.FC<GoogleAccountControlProps> = ({ curr
   const displayName = currentUser.fullName && currentUser.fullName !== 'Người luyện tập (khách)'
     ? currentUser.fullName
     : identity.name || 'Tài khoản Google';
-  const initials = currentUser.avatarInitials || displayName.split(/\s+/).filter(Boolean).map(part => part[0]).slice(-2).join('').toUpperCase();
+  const initials = currentUser.fullName !== 'Người luyện tập (khách)' && currentUser.avatarInitials
+    ? currentUser.avatarInitials
+    : displayName.split(/\s+/).filter(Boolean).map(part => part[0]).slice(-2).join('').toUpperCase();
 
   return (
     <div className="relative">
