@@ -153,8 +153,20 @@ export class VietnameseBrowserSpeechSession {
             const previousPrefix = this.cumulativePrefixByIndex.get(index) ?? '';
             const previousCumulativeText = this.joinSpeechText(previousPrefix, previousSegmentText);
             const appendedText = this.extractSpeechSuffix(text, previousCumulativeText);
+            const hasFollowingResult = index + 1 < event.results.length &&
+              Boolean(cleanSpeechText(event.results[index + 1]?.[0]?.transcript || ''));
 
-            if (appendedText) {
+            if (result.isFinal && hasFollowingResult) {
+              // When Chrome finalizes this index and exposes the next phrase at
+              // another index in the same event, this is a late confirmation of
+              // the old segment, not a continuation of it.
+              const correctedText = this.extractSpeechSuffix(text, previousPrefix);
+              if (correctedText && correctedText !== previousSegmentText) {
+                emitted.texts.set(index, correctedText);
+                this.publishSegmentUpdate(emittedId);
+              }
+              this.finalizedIndices.add(index);
+            } else if (appendedText) {
               // Chrome may keep extending the same interim result index after a
               // long pause. Treat the newly appended words as a new utterance,
               // rather than attaching them to the segment already emitted.
