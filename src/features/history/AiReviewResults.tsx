@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import {
   AlertCircle, BookOpenText, CheckCircle2, FileText, Lightbulb,
   Presentation, SearchCheck,
@@ -164,6 +164,7 @@ function SlideComparisonCard({ item }: { item: AiReviewSlidePoint }) {
 
 /** Phase 7.3.3.3: display-only component. No API calls and no changes to saved reports. */
 export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }) => {
+  const sectionId = useId();
   const [slideFilter, setSlideFilter] = useState<SlideFilter>('all');
   const detailed = review.slideComparisons;
   const attentionCount = detailed.filter(item => item.status &&
@@ -175,17 +176,17 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
 
   return (
     <div className="space-y-5 border-t border-[#B4CDBA] pt-4" aria-label="Kết quả nhận xét AI">
-      <section className="rounded-xl bg-white border border-[#D9E5DC] p-3 sm:p-4 space-y-2" aria-labelledby="ai-review-summary">
+      <section className="rounded-xl bg-white border border-[#D9E5DC] p-3 sm:p-4 space-y-2" aria-labelledby={sectionId + '-summary'}>
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-[#446B50]" aria-hidden="true" />
-          <h5 id="ai-review-summary" className="font-bold text-sm">Nhận xét tổng quan</h5>
+          <h5 id={sectionId + '-summary'} className="font-bold text-sm">Nhận xét tổng quan</h5>
         </div>
         <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{review.summary}</p>
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section aria-labelledby="ai-review-strengths" className="space-y-2 min-w-0">
-          <h5 id="ai-review-strengths" className="flex items-center gap-2 text-sm font-bold">
+        <section aria-labelledby={sectionId + '-strengths'} className="space-y-2 min-w-0">
+          <h5 id={sectionId + '-strengths'} className="flex items-center gap-2 text-sm font-bold">
             <CheckCircle2 className="h-4 w-4 text-[#3A7850]" aria-hidden="true" />
             Điểm mạnh
           </h5>
@@ -194,8 +195,8 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
           ))}
         </section>
 
-        <section aria-labelledby="ai-review-improvements" className="space-y-2 min-w-0">
-          <h5 id="ai-review-improvements" className="flex items-center gap-2 text-sm font-bold">
+        <section aria-labelledby={sectionId + '-improvements'} className="space-y-2 min-w-0">
+          <h5 id={sectionId + '-improvements'} className="flex items-center gap-2 text-sm font-bold">
             <Lightbulb className="h-4 w-4 text-[#8B6A29]" aria-hidden="true" />
             Điểm cần cải thiện
           </h5>
@@ -206,9 +207,9 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
       </div>
 
       {(detailed.length > 0 || !!review.slideOverview?.length) && (
-        <section aria-labelledby="ai-review-slides" className="space-y-3">
+        <section aria-labelledby={sectionId + '-slides'} className="space-y-3">
           <div className="space-y-1">
-            <h5 id="ai-review-slides" className="flex items-center gap-2 text-sm font-bold">
+            <h5 id={sectionId + '-slides'} className="flex items-center gap-2 text-sm font-bold">
               <Presentation className="h-4 w-4 text-[#446B50]" aria-hidden="true" />
               Đối chiếu bài nói và PowerPoint
             </h5>
@@ -323,8 +324,8 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
         </section>
       )}
 
-      <section className="rounded-xl border border-[#D9E5DC] bg-white p-3 sm:p-4 space-y-2" aria-labelledby="ai-review-limitations">
-        <h5 id="ai-review-limitations" className="flex items-center gap-2 text-sm font-bold">
+      <section className="rounded-xl border border-[#D9E5DC] bg-white p-3 sm:p-4 space-y-2" aria-labelledby={sectionId + '-limitations'}>
+        <h5 id={sectionId + '-limitations'} className="flex items-center gap-2 text-sm font-bold">
           <AlertCircle className="h-4 w-4 text-[#8B6A29]" aria-hidden="true" />
           Giới hạn của nhận xét
         </h5>
