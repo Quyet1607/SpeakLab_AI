@@ -17,7 +17,7 @@ function readAll(): LocalReviewSlides[] {
   try {
     const data: unknown = JSON.parse(localStorage.getItem(KEY) || '[]');
     if (!Array.isArray(data)) return [];
-    return data.filter((item): item is LocalReviewSlides => {
+    return data.map(item => item && typeof item === 'object' && !('ownerSub' in item && item.ownerSub != null) ? { ...item, ownerSub: 'guest' } : item).filter((item): item is LocalReviewSlides => {
       const x = item as Partial<LocalReviewSlides> | null;
       return !!x && typeof x.sessionId === 'string' &&
         /^ses_[\w-]{5,100}$/u.test(x.sessionId) &&
