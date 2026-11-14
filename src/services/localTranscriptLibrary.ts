@@ -26,7 +26,7 @@ function readRecords(): LocalTranscriptRecord[] {
       item !== null && typeof item === 'object' &&
       typeof item.sessionId === 'string' && /^ses_[\w-]{5,100}$/.test(item.sessionId) &&
       typeof item.title === 'string' && typeof item.topic === 'string' &&
-      typeof item.ownerSub === 'string' && /^[0-9]{5,64}$/.test(item.ownerSub) &&
+      typeof item.ownerSub === 'string' && (/^[0-9]{5,64}$/.test(item.ownerSub) || item.ownerSub === 'guest') &&
       typeof item.updatedAt === 'string' && Number.isFinite(Date.parse(item.updatedAt)) &&
       Array.isArray(item.segments)
     ).slice(0, MAX_RECORDS).map(item => ({
@@ -64,7 +64,7 @@ export function saveLocalTranscript(
   sessionId: string, title: string, topic: string,
   ownerSub: string, segments: SpeechTranscriptSegment[],
 ): LocalTranscriptRecord | null {
-  if (!/^[0-9]{5,64}$/.test(ownerSub)) throw new Error('Vui lòng đăng nhập Google để lưu bản ghi lời nói.');
+  if (!(ownerSub === 'guest' || /^[0-9]{5,64}$/.test(ownerSub))) throw new Error('Vui lòng đăng nhập Google để lưu bản ghi lời nói.');
   const normalized = normalizeTranscriptSegments(segments);
   if (!normalized.length) return null;
   const record: LocalTranscriptRecord = {
