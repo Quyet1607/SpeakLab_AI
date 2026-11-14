@@ -4,17 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import {
-  Bell,
-  Menu,
-  GraduationCap,
-  Sparkles,
-  ChevronDown,
-  User,
-  Clock,
-  Award
-} from 'lucide-react';
+import { Bell, Menu, Sparkles } from 'lucide-react';
 import { UserProfile } from '../../types';
+import { GoogleAccountControl } from '../auth/GoogleAccountControl';
 
 interface HeaderProps {
   title: string;
@@ -32,7 +24,6 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateToSetup,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   return (
     <header className="h-16 bg-white border-b border-[#E4E9E3] px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
@@ -112,58 +103,9 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* User Profile Capsule */}
-        <div className="relative">
-          <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-xl hover:bg-[#F7F9F6] transition-colors border border-transparent hover:border-[#E4E9E3] cursor-pointer"
-          >
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] border border-[#D9E5DC] text-[#324C3B] flex items-center justify-center font-bold text-xs shrink-0">
-              {currentUser.avatarInitials}
-            </div>
-            <div className="hidden lg:block text-left pr-1">
-              <p className="text-xs font-semibold text-[#3D4740] leading-tight">
-                {currentUser.fullName}
-              </p>
-              <p className="text-[11px] text-[#768078] leading-tight">
-                {currentUser.grade}
-              </p>
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-[#768078] hidden sm:block" />
-          </button>
-
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl border border-[#E4E9E3] shadow-lg p-3 z-50 animate-in fade-in zoom-in-95">
-              <div className="pb-3 border-b border-[#E4E9E3]">
-                <p className="text-sm font-semibold text-[#3D4740]">{currentUser.fullName}</p>
-                <p className="text-xs text-[#768078]">{currentUser.school}</p>
-                <div className="flex items-center gap-1.5 mt-2 text-xs text-[#4A6453] bg-[#EEF4F0] px-2 py-1 rounded border border-[#D9E5DC]">
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>{currentUser.roleDescription}</span>
-                </div>
-              </div>
-              <div className="py-2 space-y-1.5 text-xs text-[#556057]">
-                <div className="flex items-center justify-between py-1">
-                  <span className="flex items-center gap-1.5 text-[#768078]">
-                    <Clock className="w-3.5 h-3.5" /> Thời gian luyện
-                  </span>
-                  <span className="font-medium text-[#3D4740]">
-                    {Math.round(currentUser.stats.totalPracticeMinutes / 60)}h{' '}
-                    {currentUser.stats.totalPracticeMinutes % 60}m
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-1">
-                  <span className="flex items-center gap-1.5 text-[#768078]">
-                    <Award className="w-3.5 h-3.5" /> Mức tiến bộ
-                  </span>
-                  <span className="font-semibold text-[#4A6453]">
-                    +{currentUser.stats.improvementPercentage}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Google account / sign-in control */}
+        <GoogleAccountControl currentUser={currentUser} />
+div>
       </div>
     </header>
   );
