@@ -37,6 +37,9 @@ import { SettingsPage } from './pages/SettingsPage';
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const [accountSession, setAccountSession] = useState<SessionState>({ status: 'loading', identity: null });
+  const [guestCleanupStatus, setGuestCleanupStatus] = useState<'pending' | 'complete' | 'failed'>('pending');
+  const [guestCleanupError, setGuestCleanupError] = useState<string | null>(null);
+  const [guestCleanupRetry, setGuestCleanupRetry] = useState(0);
 
   useEffect(() => {
     const unsubscribe = subscribeSession(setAccountSession);
@@ -64,9 +67,6 @@ export default function App() {
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [sessionOwnerSub, setSessionOwnerSub] = useState<string>('');
-  const [guestCleanupStatus, setGuestCleanupStatus] = useState<'pending' | 'complete' | 'failed'>('pending');
-  const [guestCleanupError, setGuestCleanupError] = useState<string | null>(null);
-  const [guestCleanupRetry, setGuestCleanupRetry] = useState(0);
 
   useEffect(() => {
     if (accountSession.status !== 'signed_in' || !accountSession.identity?.id) {
