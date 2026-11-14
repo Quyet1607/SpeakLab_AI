@@ -177,7 +177,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       const checked = await refreshSession();
       const originalOwner = account.status === 'signed_in' ? account.identity?.id || null : null;
       const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
-      if (originalOwner !== currentOwner) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử và thử lại.');
+      if (!originalOwner || !currentOwner || originalOwner !== currentOwner) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử và thử lại.');
       const removed = deleteCompletedPracticeTranscript(session.id, currentOwner);
       if (removed) onTranscriptDeleted?.();
     } catch (error) {
