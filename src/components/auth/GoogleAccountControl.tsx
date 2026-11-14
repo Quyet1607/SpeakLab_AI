@@ -144,7 +144,7 @@ export const GoogleAccountControl: React.FC<GoogleAccountControlProps> = ({ curr
     try {
       await signOutAccount();
       setShowMenu(false);
-      setFeedback('Đã đăng xuất khỏi SpeakLab AI.');
+      setFeedback('');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Không thể đăng xuất. Vui lòng thử lại.');
     } finally {
