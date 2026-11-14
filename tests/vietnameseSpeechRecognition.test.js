@@ -319,6 +319,78 @@ describe('Phase 7.2 Vietnamese browser speech recognition', () => {
     await session.stop();
   });
 
+  test('removes repeated words when a reused result index continues after a pause', async () => {
+    const segments = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: () => {},
+      onSegment: part => segments.push(part),
+      getElapsedSeconds: () => 18,
+    });
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Em xin trình bày nội dung']);
+
+    // Chrome sometimes repeats the last words when extending an interim result.
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Em xin trình bày nội dung nội dung tiếp theo' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual([
+      'Em xin trình bày nội dung',
+      'tiếp theo',
+    ]);
+    await session.stop();
+  });
+
+  test('removes repeated words when the next phrase uses a new result index', async () => {
+    const segments = [];
+    const session = new VietnameseBrowserSpeechSession({
+      onState: () => {},
+      onInterim: () => {},
+      onSegment: part => segments.push(part),
+      onSegmentUpdate: (id, part) => {
+        const index = ids.indexOf(id);
+        if (index >= 0) segments[index] = part;
+      },
+      getElapsedSeconds: () => 24,
+    });
+    const ids = [];
+    // Keep IDs in sync with emitted segments.
+    const originalOnSegment = session;
+    void originalOnSegment;
+    session.start();
+    const engine = FakeRecognition.current;
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [{ isFinal: false, 0: { transcript: 'Phần đầu kết thúc bằng nội dung' } }],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual(['Phần đầu kết thúc bằng nội dung']);
+
+    engine.onresult({
+      resultIndex: 0,
+      results: [
+        { isFinal: true, 0: { transcript: 'Phần đầu kết thúc bằng nội dung' } },
+        { isFinal: false, 0: { transcript: 'nội dung tiếp theo' } },
+      ],
+    });
+    await new Promise(resolve => setTimeout(resolve, SPEECH_PAUSE_THRESHOLD_MS + 80));
+    expect(segments.map(part => part.text)).toEqual([
+      'Phần đầu kết thúc bằng nội dung',
+      'tiếp theo',
+    ]);
+    await session.stop();
+  });
+
   test('a new user-initiated recognition session may resume at a later timestamp', async () => {
     const parts = [];
     let seconds = 50;
