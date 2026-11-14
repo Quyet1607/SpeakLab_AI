@@ -57,3 +57,22 @@
 5. Sau khi được phê duyệt mới thực hiện merge, theo dõi Production và có phương án rollback.
 
 **Không có kiểm thử tự động nào chứng minh rằng Production đã sẵn sàng nhận lưu trữ đám mây hoặc nhận xét Gemini.**
+
+
+## 6. Cập nhật kiểm tra sau khôi phục tài khoản khách (14/11/2026)
+
+- Khôi phục truy cập không cần đăng nhập Google; nút đăng nhập Google vẫn nằm trong khu vực Tài khoản.
+- Bỏ lệnh tự xóa lịch sử và video khách khi khởi động. Các hàm cleanup cũ chưa được gọi từ ứng dụng và không được chạy trên dữ liệu thật.
+- Cho phép nhãn chủ sở hữu `guest` cho lịch sử buổi luyện, lời nói, văn bản slide và nhận xét lưu trên thiết bị; dữ liệu chưa có chủ sở hữu kiểu cũ được *đọc* dưới nhóm khách mà không chuyển đổi hay ghi đè.
+- Video guest/legacy hiển thị riêng trong thư viện guest. Không trộn với video gắn Google ID.
+- Nhận xét Gemini vẫn cần xác thực Google tại API; không bỏ kiểm soát quota hoặc Production fail-closed.
+- Bổ sung test guest history/transcript/video và cập nhật bài test release không còn giả định bắt buộc Google login.
+
+### Điều kiện release sau thay đổi
+- [ ] CI trên **commit cuối cùng** và PR vào main phải xanh (cả test, TypeScript và build); không lấy CI thành công trên commit cũ làm bằng chứng.
+- [ ] Kiểm tra thủ công cả Guest ↔ Google: kết thúc và mở lại buổi luyện, đổi tài khoản, không trộn video/lịch sử; đặc biệt không xóa storage của trình duyệt khi test.
+- [ ] Xác minh app từ cùng domain/origin đang dùng: localStorage, IndexedDB không chuyển giữa Vercel Preview và Production.
+- [ ] Xác minh thủ công Google OAuth trên đúng tên miền Production, trạng thái env Vercel, Privacy/Terms và phương án rollback.
+- [ ] Chỉ merge sau khi mọi điều kiện blocker được xác nhận; PR tiếp tục là Draft nếu chưa đủ.
+
+**Cảnh báo dữ liệu:** việc xóa vật lý đã xảy ra trước khi phục hồi mã nguồn không thể hoàn tác bằng GitHub. Khôi phục code chỉ cho phép đọc lại các bản ghi còn tồn tại.
