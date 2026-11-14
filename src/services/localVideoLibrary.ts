@@ -72,12 +72,9 @@ export async function saveLocalVideo(
   session: PracticeSession,
   recording: PresentationRecordingResult,
 ): Promise<LocalVideoRecord> {
-  // Video records must always belong to a verified Google account.
+  // Guest videos remain on this device, separate from Google-labelled videos.
   const account = await refreshSession();
-  if (account.status !== 'signed_in' || !account.identity?.id) {
-    throw new Error('Vui lòng đăng nhập Google trước khi lưu video.');
-  }
-  const ownerSub = account.identity.id;
+  const ownerSub = account.status === 'signed_in' && account.identity?.id ? account.identity.id : 'guest';
   const entry: LocalVideoRecord = {
     id: crypto.randomUUID(),
     sessionId: session.id,
@@ -106,9 +103,7 @@ export async function saveLocalVideo(
  */
 export async function importLocalVideo(file: File): Promise<LocalVideoRecord> {
   const account = await refreshSession();
-  if (account.status !== 'signed_in' || !account.identity?.id) {
-    throw new Error('Vui lòng đăng nhập Google trước khi nhập video vào thư viện cá nhân.');
-  }
+  const ownerSub = account.status === 'signed_in' && account.identity?.id ? account.identity.id : 'guest';
   if (!(file instanceof File) || file.size <= 0) {
     throw new Error('Tệp video trống hoặc không hợp lệ.');
   }
@@ -132,7 +127,7 @@ export async function importLocalVideo(file: File): Promise<LocalVideoRecord> {
     mimeType: extension === 'webm' ? 'video/webm' : 'video/mp4',
     extension,
     storage: 'local_device',
-    ownerSub: account.identity.id,
+    ownerSub,
     blob: file,
   };
   try {
@@ -145,12 +140,12 @@ export async function importLocalVideo(file: File): Promise<LocalVideoRecord> {
 }
 
 export async function listLocalVideos(ownerSub: string): Promise<LocalVideoRecord[]> {
-  if (!/^[0-9]{5,64}$/.test(ownerSub)) {
-    throw new Error('Vui lòng đăng nhập Google để xem thư viện video.');
+  if (ownerSub !== 'guest' && !/^[0-9]{5,64}$/.test(ownerSub)) {
+    throw new Error('Tài khoản xem video không hợp lệ.');
   }
   const entries = await transaction('readonly', store => store.getAll());
   // UI grouping only. IndexedDB is not secure against other browser users.
-  return entries.filter(item => item.ownerSub === ownerSub)
+  return entries.filter(item => ownerSub === 'guest' ? (!item.ownerSub || item.ownerSub === 'guest') : item.ownerSub === ownerSub)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
