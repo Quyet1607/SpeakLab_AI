@@ -78,7 +78,7 @@ function reviewPayload(evidence, slides = [], includeBadSlide = false) {
     limitations: ['Văn bản ASR có thể thiếu ý khi trình duyệt nhận diện chưa đầy đủ.'],
   };
   if (slides.length) {
-    raw.slideComparisons = slides.slice(0, 6).map((slide, i) => ({
+    raw.slideComparisons = slides.map((slide, i) => ({
       slideNumber: slide.number,
       status: i === 0 ? 'matched' : i === 1 ? 'partial' : 'not_found',
       point: 'Bản ghi được đối chiếu với nội dung nghiên cứu tại slide ' + slide.number + '.',
@@ -119,8 +119,8 @@ describe('Phase 7.3.3.4 – end-to-end acceptance without external Gemini calls'
       JSON.stringify(reviewPayload(evidence, input.slides, true)), evidence, input.slides,
     );
     expect(output.slideOverview).toHaveLength(18);
-    expect(output.slideReviewStats).toEqual({ target: 6, received: 6, accepted: 5, rejected: 1 });
-    expect(output.slideComparisons.map(s => s.slideNumber)).toEqual([1, 2, 4, 5, 6]);
+    expect(output.slideReviewStats).toEqual({ target: 18, received: 18, accepted: 17, rejected: 1 });
+    expect(output.slideComparisons.map(s => s.slideNumber)).toEqual([1, 2, ...Array.from({ length: 15 }, (_, i) => i + 4)]);
     expect(output.slideComparisons[0].spokenQuote).toBe(evidence[0].text.slice(0, 70));
     expect(output.slideComparisons.every(s => s.slideQuote !== 'Nội dung hoàn toàn do AI bịa ra')).toBe(true);
 
@@ -134,7 +134,7 @@ describe('Phase 7.3.3.4 – end-to-end acceptance without external Gemini calls'
     const loaded = getLocalAiReview(sessionId, ownerSub);
     expect(loaded.review).toEqual(output);
     const html = markup(loaded.review);
-    expect(html).toContain('5</strong> mục đối chiếu có dẫn chứng hợp lệ');
+    expect(html).toContain('Đã đối chiếu chi tiết: 17/18 slide có chữ');
     expect(html).not.toContain('Nhận xét đối chiếu chưa đầy đủ');
     expect(html).not.toContain('1 mục bị loại');
     expect(html).toContain('Xem bảng dò từ khóa của 18 slide');
@@ -169,6 +169,14 @@ describe('Phase 7.3.3.4 – end-to-end acceptance without external Gemini calls'
     const input = validateReviewRequest(request(transcript, pptx.slides));
     expect(input.slides).toHaveLength(40);
     expect(buildSlideTextOverview(input.slides, input.transcript)).toHaveLength(40);
+    const evidence = makeEvidenceChunks(input.transcript);
+    const allSlides = parseGroundedReview(
+      JSON.stringify(reviewPayload(evidence, input.slides)), evidence, input.slides,
+    );
+    expect(allSlides.slideReviewStats).toEqual({
+      target: 40, received: 40, accepted: 40, rejected: 0,
+    });
+    expect(allSlides.slideComparisons.at(-1).slideNumber).toBe(40);
     await expect(extractPptxTextForReview(await makePptx([...slides, 'Slide thứ 41'])))
       .rejects.toThrow(/40 slide/);
     expect(() => validateReviewRequest(request('a'.repeat(24001), []))).toThrow();
