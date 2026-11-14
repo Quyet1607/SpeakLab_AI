@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Notifications Popover */}
-        <div className="relative">
+        <div className="relative hidden sm:block">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="p-2 text-[#768078] hover:text-[#3D4740] hover:bg-[#F7F9F6] rounded-lg transition-colors relative cursor-pointer"
