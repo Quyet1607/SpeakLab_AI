@@ -37,3 +37,17 @@ Phản hồi về PowerPoint không chỉ nhận xét chung chung. Hệ thống 
 - Kiểm thử tự động dùng dữ liệu mô phỏng, **không gọi Gemini thật**; cần thử thủ công một bài có PPTX trên Vercel Preview.
 
 **Ngoài phạm vi:** OCR/đọc hình ảnh, đồng bộ trình chiếu với lời nói, chấm điểm, đánh giá cảm xúc/giọng nói, chỉnh sửa giao diện toàn diện và bước 7.3.3.3.
+
+## Sửa lỗi `GEMINI_INVALID_FEEDBACK` với PowerPoint nhiều slide
+
+Khi Gemini trả về 6–8 mục đối chiếu, trước đây **chỉ một** đoạn trích dẫn `slideQuote` hoặc `spokenQuote` không khớp nguyên văn cũng làm từ chối toàn bộ bản nhận xét (mã `GEMINI_INVALID_FEEDBACK`). Lỗi người dùng ghi nhận trên Preview khi bản ghi khoảng 2.146 ký tự và PPTX có 18 slide; ảnh chụp chỉ cho thấy mã lỗi, **không xác định được chính xác mục nào bị sai** vì không lưu hoặc phơi bày dữ liệu người học trong log.
+
+Cơ chế được điều chỉnh mà không gọi Gemini lần hai:
+- Yêu cầu Gemini ưu tiên dẫn chứng ngắn, thật; không ép phải bịa cho đủ 6 mục. Schema cho phép ít mục hơn.
+- Mỗi đối chiếu vẫn được kiểm tra độc lập: số slide hợp lệ, không trùng, trạng thái hợp lệ, chữ trích có thật trên slide, lời nói trích có thật trong E, các trường nhận xét không vượt quá dữ liệu.
+- Mục không vượt qua kiểm tra bị loại **hoàn toàn**, không tự thay trích dẫn bằng nội dung khác. Các mục hợp lệ tiếp tục được hiển thị và lưu. Nếu không có mục chi tiết nào hợp lệ, chỉ hiển thị phần dò từ khóa toàn bộ slide và cảnh báo rõ không có kết luận chi tiết.
+- Trả về/lưu `slideReviewStats` (mục tiêu, số Gemini trả về, số hợp lệ, số bị loại) để người dùng nhận biết mức độ đầy đủ. Báo cáo lưu trước đó vẫn đọc được.
+- Các lỗi ở phần nhận xét cốt lõi hoặc JSON không hợp lệ vẫn bị từ chối; không cố bịa 2 điểm mạnh/2 điểm cần cải thiện. Hạn mức Free Tier giữ nguyên, **lỗi phản hồi có thể vẫn tính một lượt**.
+- Kiểm thử hồi quy có PPTX 18 slide, 40 slide, dữ liệu không hợp lệ, lưu lịch sử, không có PowerPoint, TypeScript và build; không phát sinh yêu cầu Gemini thật trong kiểm thử.
+
+Chưa thể xác nhận 100% chất lượng bằng mô phỏng; cần người dùng thử một lần trên Preview khi còn hạn mức và đối chiếu trực tiếp kết quả với bài thuyết trình.
