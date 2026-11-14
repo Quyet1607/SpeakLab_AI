@@ -32,6 +32,13 @@ const statusStyles = {
   },
 } as const;
 
+/** Filtering is presentation-only: it never hides or mutates the saved report. */
+export function filterReviewSlides(items: AiReviewSlidePoint[], filter: SlideFilter): AiReviewSlidePoint[] {
+  return items.filter(item => filter === 'all' ||
+    (filter === 'attention' && !!item.status && item.status !== 'matched') ||
+    (filter === 'matched' && item.status === 'matched'));
+}
+
 function EvidenceDetails({ item }: { item: AiReviewPoint }) {
   if (!item.evidenceId || !item.evidence) return null;
   return (
@@ -162,9 +169,7 @@ export const AiReviewResults: React.FC<{ review: AiSpeechReview }> = ({ review }
   const attentionCount = detailed.filter(item => item.status &&
     item.status !== 'matched').length;
   const matchedCount = detailed.filter(item => item.status === 'matched').length;
-  const filtered = detailed.filter(item => slideFilter === 'all' ||
-    (slideFilter === 'attention' && !!item.status && item.status !== 'matched') ||
-    (slideFilter === 'matched' && item.status === 'matched'));
+  const filtered = filterReviewSlides(detailed, slideFilter);
   const stats = review.slideReviewStats;
   const partial = !!stats && (stats.rejected > 0 || stats.accepted < stats.target);
 
