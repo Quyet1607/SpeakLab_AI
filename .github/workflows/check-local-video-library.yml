@@ -11,6 +11,7 @@ on:
       - 'tests/freeSpeechReview.test.js'
       - 'tests/aiReviewRoute.test.js'
       - 'tests/pptxReviewText.test.js'
+      - 'tests/localAiReviewLibrary.test.js'
       - 'public/**'
       - 'bun.lock'
       - 'package.json'
@@ -64,6 +65,8 @@ jobs:
         run: node --test tests/aiReviewRoute.test.js
       - name: Test Phase 7.3.1 optional PowerPoint evidence
         run: bun test tests/pptxReviewText.test.js
+      - name: Test Phase 7.3.2 local AI review history
+        run: bun test tests/localAiReviewLibrary.test.js
       - name: TypeScript check
         run: bun run lint
       - name: Build Preview frontend
