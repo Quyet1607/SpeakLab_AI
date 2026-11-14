@@ -102,7 +102,7 @@ export const GoogleAccountControl: React.FC<GoogleAccountControlProps> = ({ curr
             size: 'large',
             shape: 'rectangular',
             text: 'signin_with',
-            width: 210,
+            width: 180,
           });
           setPhase('ready');
         };
