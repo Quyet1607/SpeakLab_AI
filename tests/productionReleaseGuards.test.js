@@ -6,6 +6,7 @@ import { readOAuthConfig } from '../server/driveOAuthBootstrap.js';
 import { ensureFreePreview } from '../server/freeSpeechReview.js';
 import { makeSessionCookie } from '../server/sessionCookie.js';
 import driveVideosHandler from '../api/google-drive/videos.js';
+import authConfigHandler from '../api/auth/config.js';
 
 const validOAuth = {
   GOOGLE_CLIENT_ID: 'fake-client.apps.googleusercontent.com',
@@ -24,6 +25,27 @@ function mockRes() {
     json(body) { this.body = body; return this; },
   };
 }
+
+test('Google login is available without a separate SpeakLab registration flow', () => {
+  const previous = process.env.GOOGLE_CLIENT_ID;
+  try {
+    process.env.GOOGLE_CLIENT_ID = 'public-client.apps.googleusercontent.com';
+    const res = mockRes();
+    authConfigHandler({ method: 'GET' }, res);
+    assert.equal(res.code, 200);
+    assert.equal(res.body.googleSignInAvailable, true);
+    assert.equal(res.body.enrollmentEnabled, false);
+    assert.equal(res.body.clientId, 'public-client.apps.googleusercontent.com');
+
+    const header = readFileSync(new URL('../src/components/common/Header.tsx', import.meta.url), 'utf8');
+    const settings = readFileSync(new URL('../src/pages/SettingsPage.tsx', import.meta.url), 'utf8');
+    assert.match(header, /GoogleAccountControl/u);
+    assert.doesNotMatch(settings, /GoogleIdentityTest|GoogleAccountControl/u);
+  } finally {
+    if (previous === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = previous;
+  }
+});
 
 test('Production refuses Drive OAuth setup even with otherwise valid credentials', () => {
   assert.equal(readOAuthConfig({ ...validOAuth, VERCEL_ENV: 'production' }), null);
