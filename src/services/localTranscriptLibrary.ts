@@ -73,14 +73,14 @@ export function deleteLocalTranscript(sessionId: string, ownerSub: string | null
 
 /** Split recognized text into readable lines without changing or dropping words. */
 export function formatTranscriptLines(text: string, maxLength = 90): string[] {
-  const normalized = text.replace(/\\s+/gu, ' ').trim();
+  const normalized = text.replace(/\s+/gu, ' ').trim();
   if (!normalized) return [];
   const width = Number.isFinite(maxLength) && maxLength > 0 ? Math.floor(maxLength) : 90;
   const sentences = normalized.match(/[^.!?…]+(?:[.!?…]+|$)/gu) || [normalized];
   const lines: string[] = [];
 
   for (const sentence of sentences) {
-    const words = sentence.trim().split(/\\s+/u).filter(Boolean);
+    const words = sentence.trim().split(/\s+/u).filter(Boolean);
     let line = '';
     for (const word of words) {
       const candidate = line ? line + ' ' + word : word;
