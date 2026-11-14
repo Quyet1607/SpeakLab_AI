@@ -77,13 +77,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       setLocalError(null);
       setImportNotice(null);
       if (next.status === 'loading') return;
-      if (next.status !== 'signed_in' || !next.identity?.id) {
-        if (next.status === 'unavailable') {
-          setLocalError('Dịch vụ đăng nhập Google chưa sẵn sàng. Không thể mở lịch sử khi chưa xác minh tài khoản.');
-        }
-        return;
-      }
-      const ownerSub = next.identity.id;
+      const ownerSub = next.status === 'signed_in' && next.identity?.id ? next.identity.id : 'guest';
       setLocalTranscripts(listLocalTranscripts(ownerSub));
       listLocalVideos(ownerSub)
         .then(items => { if (mounted && revision === sessionRevision.current) setLocalVideos(items); })
@@ -123,8 +117,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       // Never show the new record under another account if the session changed.
       const checked = await refreshSession();
       const importedOwner = imported.ownerSub;
-      if (revision === sessionRevision.current && checked.status === 'signed_in' &&
-          checked.identity?.id && importedOwner && checked.identity.id === importedOwner) {
+      if (revision === sessionRevision.current && importedOwner &&
+          (checked.status === 'signed_in' ? checked.identity?.id === importedOwner : importedOwner === 'guest')) {
         setLocalVideos(await listLocalVideos(importedOwner));
         setImportNotice('Đã nhập video vào thư viện của tài khoản trên trình duyệt này.');
       } else if (revision === sessionRevision.current) {
@@ -153,7 +147,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     if (!window.confirm('Xóa bản ghi lời nói và nhận xét AI liên quan? Video vẫn được giữ nguyên.')) return;
     try {
       const checked = await refreshSession();
-      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : 'guest';
       if (!currentOwner || currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
       deleteLocalTranscript(item.sessionId, item.ownerSub);
       deleteLocalAiReview(item.sessionId, item.ownerSub);
@@ -177,8 +171,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
     if (!window.confirm('Xóa vĩnh viễn phần chữ nhận diện của buổi luyện này? Video sẽ được giữ lại.')) return;
     try {
       const checked = await refreshSession();
-      const originalOwner = account.status === 'signed_in' ? account.identity?.id || null : null;
-      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : null;
+      const originalOwner = account.status === 'signed_in' ? account.identity?.id || null : 'guest';
+      const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : 'guest';
       if (!originalOwner || !currentOwner || originalOwner !== currentOwner) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử và thử lại.');
       const removed = deleteCompletedPracticeTranscript(session.id, currentOwner);
       if (removed) onTranscriptDeleted?.();
@@ -247,14 +241,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           </span>
         </div>
         <p className="text-xs text-[#768078]">
-          Video được lưu trong trình duyệt của thiết bị này và nhóm theo tài khoản Google. Đây <strong>không phải phân quyền bảo mật</strong> giữa những người dùng chung trình duyệt. Video không tự xuất hiện trên thiết bị khác; hãy tải về để giữ bản sao hoặc nhập lại trên máy khác.
+          Video được lưu trong trình duyệt của thiết bị này và nhóm theo tài khoản Google hoặc chế độ khách. Đây <strong>không phải phân quyền bảo mật</strong> giữa những người dùng chung trình duyệt. Video không tự xuất hiện trên thiết bị khác; hãy tải về để giữ bản sao hoặc nhập lại trên máy khác.
         </p>
         <div className="text-xs border border-[#D9E5DC] rounded-lg bg-[#F7F9F6] p-3 text-[#3D4740]">
           {account.status === 'signed_in'
             ? <>Đang xem video ghi trên thiết bị dưới tài khoản: <strong>{account.identity?.name || 'Google'}</strong>. Chỉ hiển thị video thuộc tài khoản này.</>
             : account.status === 'loading'
               ? 'Đang kiểm tra phiên đăng nhập…'
-              : 'Cần đăng nhập Google để xem thư viện video.'}
+              : 'Đang xem thư viện video của khách trên thiết bị này.'}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
@@ -267,7 +261,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
           />
           <button
             type="button"
-            disabled={account.status !== 'signed_in' || importing}
+            disabled={importing}
             onClick={() => importInput.current?.click()}
             className="text-xs font-semibold px-3 py-2 bg-[#EEF4F0] border border-[#D9E5DC] text-[#324C3B] rounded-lg flex items-center gap-2 hover:bg-[#DDEBDD] disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -275,7 +269,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
             {importing ? 'Đang nhập video…' : 'Nhập video từ máy'}
           </button>
           <span className="text-[11px] text-[#768078]">
-            Đăng nhập Google để nhập WebM/MP4 (tối đa 1 GB) vào thư viện trên thiết bị này.
+            Nhập WebM/MP4 (tối đa 1 GB) vào thư viện trên thiết bị này; dữ liệu khách và Google được tách riêng.
           </span>
         </div>
         {importNotice && <p role="status" className="text-xs border border-[#D9E5DC] bg-[#EEF4F0] text-[#324C3B] rounded-lg p-3">{importNotice}</p>}
@@ -475,7 +469,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                       topic={session.topic}
                       topicDescription={session.topicDescription}
                       speakingGoal={session.speakingGoal}
-                      ownerSub={account.identity?.id || ''}
+                      ownerSub={account.identity?.id || 'guest'}
                       segments={session.transcriptSegments}
                       signedIn={account.status === 'signed_in'}
                     />
