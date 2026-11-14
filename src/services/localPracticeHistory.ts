@@ -69,7 +69,7 @@ function readAll(): StoredEntry[] {
     const json = localStorage.getItem(KEY);
     if (!json) return [];
     const data: unknown = JSON.parse(json);
-    return Array.isArray(data) ? data.filter(validEntry).slice(0, LIMIT) : [];
+    return Array.isArray(data) ? data.map(item => item && typeof item === 'object' && !('ownerSub' in item && item.ownerSub != null) ? { ...item, ownerSub: 'guest' } : item).filter(validEntry).slice(0, LIMIT) : [];
   } catch {
     return [];
   }
