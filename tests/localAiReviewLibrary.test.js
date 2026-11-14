@@ -96,6 +96,43 @@ describe('Phase 7.3.2 local AI review library', () => {
       .toBe('Nhận xét mới sau khi phân tích lại.');
   });
 
+  test('stores new detailed slide findings while retaining older 7.3.2 reports', () => {
+    saveLocalAiReview(makeRecord()); // Old review with 1 brief comparison remains valid.
+    expect(getLocalAiReview('ses_test_12345', '123456789')?.review.slideComparisons[0].status).toBeUndefined();
+    const detailed = Array.from({ length: 6 }, (_, index) => ({
+      slideNumber: index + 1,
+      status: 'not_found',
+      point: 'Chưa tìm thấy nội dung tương ứng trong đoạn văn bản.',
+      slideQuote: 'Giải pháp bảo vệ dữ liệu',
+      spokenQuote: '', evidenceId: '', evidence: '',
+      covered: 'Chưa xác định thông tin tương ứng trong bản ghi.',
+      missing: 'Không tìm thấy cách giải thích giải pháp trên slide.',
+      action: 'Kiểm tra bản ghi và bổ sung ví dụ về nội dung slide.',
+    }));
+    const overview = Array.from({ length: 10 }, (_, index) => ({
+      slideNumber: index + 1,
+      slideExcerpt: 'Giải pháp bảo vệ dữ liệu',
+      keywordSignal: 'no_shared_keywords',
+      sharedKeywords: [],
+    }));
+    saveLocalAiReview(makeRecord({
+      slideCount: 10,
+      review: { ...review, slideComparisons: detailed, slideOverview: overview },
+    }));
+    const loaded = getLocalAiReview('ses_test_12345', '123456789');
+    expect(loaded?.review.slideComparisons).toHaveLength(6);
+    expect(loaded?.review.slideOverview).toHaveLength(10);
+    expect(JSON.parse(memory.get('speaklab_local_ai_reviews_v1'))).toHaveLength(1);
+    expect(() => saveLocalAiReview(makeRecord({
+      review: { ...review, slideComparisons: [...detailed, ...detailed.slice(0, 3)] },
+    }))).toThrow();
+    expect(() => saveLocalAiReview(makeRecord({
+      review: { ...review, slideComparisons: [{
+        ...detailed[0], status: 'partial', evidenceId: '', evidence: '', spokenQuote: '',
+      }] },
+    }))).toThrow();
+  });
+
   test('deletes only the AI review and leaves transcript/video storage untouched', () => {
     memory.set('speaklab_local_transcripts_v1', 'transcript-data');
     memory.set('speaklab_local_recordings_v1', 'video-data');
