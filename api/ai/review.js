@@ -2,12 +2,12 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js';
 import {
-  FREE_REVIEW_MODEL, validateReviewRequest, makeEvidenceChunks,
+  FREE_REVIEW_MODEL, MAX_DETAILED_SLIDES, validateReviewRequest, makeEvidenceChunks,
   buildReviewPrompt, parseGroundedReview, ensureFreePreview, reserveReviewQuota,
   releaseReviewQuota, classifyReviewProviderError,
 } from '../../server/freeSpeechReview.js';
 
-const assessment = {
+const assessment = (slideCount) => ({
   type: Type.OBJECT,
   properties: {
     summary: { type: Type.STRING },
@@ -31,20 +31,25 @@ const assessment = {
       },
     },
     slideComparisons: {
-      type: Type.ARRAY, maxItems: 2,
+      type: Type.ARRAY, minItems: Math.min(6, slideCount), maxItems: Math.min(MAX_DETAILED_SLIDES, slideCount),
       items: {
         type: Type.OBJECT,
         properties: {
-          slideNumber: { type: Type.INTEGER }, point: { type: Type.STRING },
-          evidenceId: { type: Type.STRING },
+          slideNumber: { type: Type.INTEGER },
+          status: { type: Type.STRING, enum: ['matched', 'partial', 'not_found', 'possible_difference'] },
+          point: { type: Type.STRING }, slideQuote: { type: Type.STRING },
+          spokenQuote: { type: Type.STRING }, evidenceId: { type: Type.STRING },
+          covered: { type: Type.STRING }, missing: { type: Type.STRING },
+          action: { type: Type.STRING },
         },
-        required: ['slideNumber', 'point', 'evidenceId'],
+        required: ['slideNumber', 'status', 'point', 'slideQuote', 'spokenQuote', 'evidenceId',
+          'covered', 'missing', 'action'],
       },
     },
     limitations: { type: Type.ARRAY, maxItems: 4, items: { type: Type.STRING } },
   },
   required: ['summary', 'strengths', 'improvements', 'slideComparisons', 'limitations'],
-};
+});
 
 function secureHeaders(res) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -89,10 +94,10 @@ export default async function handler(req, res) {
       contents: buildReviewPrompt(input, evidence),
       config: {
         temperature: 0.35,
-        // Allow enough output for 4 evidence-grounded items and optional slides.
-        maxOutputTokens: 3200,
+        // One Gemini call only: allow room for up to 8 detailed slide comparisons.
+        maxOutputTokens: input.slides.length ? 7200 : 3200,
         responseMimeType: 'application/json',
-        responseSchema: assessment,
+        responseSchema: assessment(input.slides.length),
       },
     });
     if (!output.text?.trim()) {
