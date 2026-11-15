@@ -76,3 +76,27 @@
 - [ ] Chỉ merge sau khi mọi điều kiện blocker được xác nhận; PR tiếp tục là Draft nếu chưa đủ.
 
 **Cảnh báo dữ liệu:** việc xóa vật lý đã xảy ra trước khi phục hồi mã nguồn không thể hoàn tác bằng GitHub. Khôi phục code chỉ cho phép đọc lại các bản ghi còn tồn tại.
+
+
+## 7. Nghiệm thu tài khoản khách được chủ dự án xác nhận (15/11/2026)
+
+Chủ dự án đã xác nhận kiểm tra thành công trên bản Vercel Preview bốn trường hợp:
+1. Không đăng nhập Google vẫn vào được Tổng quan và Phòng luyện.
+2. Luyện tập bằng khách, kết thúc và xem lại Lịch sử.
+3. Tải lại trang và kiểm tra lịch sử/video khách vẫn tồn tại.
+4. Đăng nhập rồi đăng xuất Google, dữ liệu khách và tài khoản Google không bị trộn/xóa.
+
+Đây là **xác nhận nghiệm thu từ người dùng**, không thay thế CI/kiểm thử bảo mật độc lập, không chứng minh các thao tác camera, micro, PPTX, Gemini nhiều slide hoặc cấu hình Production.
+
+Đã cập nhật cả `public/` và `docs/` cho Privacy/Terms: mô tả chế độ khách, phân nhóm dữ liệu khách/Google và vị trí đăng xuất ở menu Tài khoản.
+
+### Các kiểm tra bắt buộc trước merge vẫn mở
+- [ ] GitHub Actions xanh trên commit cuối sau cập nhật trang pháp lý.
+- [ ] Xác nhận Preview mới nhất trỏ đúng commit; đã nhận bằng chứng screenshot Ready nhưng chưa xác minh SHA tương ứng.
+- [ ] Nghiệm thu đầy đủ mic/camera/share, TXT, PPTX, nhận xét AI nếu muốn mở tính năng trên Production.
+- [ ] Xác nhận tên miền Production, `GOOGLE_CLIENT_ID`, `SPEAKLAB_SESSION_SECRET`, Google authorized origins (không tiết lộ giá trị bí mật).
+- [ ] Rà soát, phê duyệt văn bản Privacy/Terms; ghi kênh liên hệ chính thức và đồng thuận phù hợp khi áp dụng cho học sinh.
+- [ ] Bật bảo vệ nhánh main và yêu cầu CI qua PR; xác nhận khả năng rollback.
+- [ ] Sao lưu dữ liệu Preview quan trọng vì IndexedDB/localStorage không tự chuyển sang Production.
+
+Không tự bật Gemini Free Tier/Drive trên Production trong lần merge; giới hạn fail-closed được duy trì.
