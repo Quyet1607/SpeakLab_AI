@@ -116,7 +116,7 @@ export function saveCompletedPracticeSession(
     ownerSub,
   };
   if (!(ownerSub === 'guest' || /^[0-9]{5,64}$/.test(ownerSub)) || !validEntry(entry)) throw new Error('Vui lòng đăng nhập Google để lưu lịch sử buổi luyện.');
-  const remaining = readAll().filter(item => item.id !== entry.id);
+  const remaining = readAll().filter(item => !(item.id === entry.id && item.ownerSub === entry.ownerSub));
   try {
     localStorage.setItem(KEY, JSON.stringify([entry, ...remaining].slice(0, LIMIT)));
   } catch {
