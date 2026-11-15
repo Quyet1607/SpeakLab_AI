@@ -30,6 +30,7 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'tests/localPracticeHistory.test.js'
+      - 'tests/localAssessmentReport.test.js'
       - 'tests/localReviewSlideLibrary.test.js'
       - 'tests/localVideoLibrary.test.js'
       - 'tests/practiceBrief.test.js'
@@ -65,6 +66,8 @@ jobs:
         run: bun test tests/practiceBrief.test.js
       - name: Test local account history and guest cleanup
         run: bun test tests/localPracticeHistory.test.js
+      - name: Test Phase 8.3 evidence-based local assessment reports
+        run: bun test tests/localAssessmentReport.test.js
       - name: Test guest slide-text cleanup
         run: bun test tests/localReviewSlideLibrary.test.js
       - name: Test guest video cleanup
