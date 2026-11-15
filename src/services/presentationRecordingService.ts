@@ -1,7 +1,7 @@
 /**
- * Local PowerPoint-screen + microphone recorder (Phase 3.2A).
- * Does not own, replace or stop original screen / microphone tracks.
- * Never uploads media. Webcam compositing belongs to Phase 3.2B.
+ * Local video recorder: shared PowerPoint screen + mic OR webcam + mic.
+ * Does not own, replace or stop original video/microphone tracks.
+ * Never uploads media. Simultaneous screen + webcam compositing is not enabled.
  */
 export interface PresentationRecordingResult {
   blob: Blob;
@@ -11,7 +11,8 @@ export interface PresentationRecordingResult {
   bytes: number;
 }
 
-export type RecordingInput = 'screen' | 'microphone';
+export type RecordingVideoSource = 'screen' | 'camera' | 'meeting';
+export type RecordingInput = RecordingVideoSource | 'microphone';
 
 const MIME_OPTIONS = [
   'video/webm;codecs=vp8,opus',
@@ -32,13 +33,18 @@ export class ScreenAudioRecordingSession {
   private removeInputListeners: () => void;
 
   constructor(
-    screenStream: MediaStream,
+    videoStream: MediaStream,
     microphoneStream: MediaStream,
     private onInputEnded: (input: RecordingInput) => void,
+    private videoSource: RecordingVideoSource = 'screen',
   ) {
-    const video = screenStream.getVideoTracks().find(t => t.readyState === 'live' && t.enabled);
+    const video = videoStream.getVideoTracks().find(t => t.readyState === 'live' && t.enabled);
     const audio = microphoneStream.getAudioTracks().find(t => t.readyState === 'live' && t.enabled);
-    if (!video) throw new Error('Chưa có nguồn chia sẻ PowerPoint đang hoạt động.');
+    if (!video) throw new Error(videoSource === 'camera'
+      ? 'Hãy bật camera thật trước khi ghi hình.'
+      : videoSource === 'meeting'
+        ? 'Không tạo được hình ảnh cuộc họp mô phỏng.'
+        : 'Chưa có nguồn chia sẻ PowerPoint đang hoạt động.');
     if (!audio) throw new Error('Hãy bật micro thật trước khi ghi hình.');
     if (typeof MediaRecorder === 'undefined') {
       throw new Error('Trình duyệt này chưa hỗ trợ ghi video.');
@@ -57,14 +63,14 @@ export class ScreenAudioRecordingSession {
         mimeType ? { mimeType, videoBitsPerSecond: 2_500_000, audioBitsPerSecond: 128_000 } : undefined,
       );
     } catch {
-      throw new Error('Không thể khởi tạo ghi hình màn hình và micro trên thiết bị này.');
+      throw new Error('Không thể khởi tạo ghi hình video và micro trên thiết bị này.');
     }
     this.resultPromise = new Promise((resolve, reject) => {
       this.resolveResult = resolve;
       this.rejectResult = reject;
     });
 
-    const handleVideoEnd = () => this.onInputEnded('screen');
+    const handleVideoEnd = () => this.onInputEnded(this.videoSource);
     const handleAudioEnd = () => this.onInputEnded('microphone');
     video.addEventListener('ended', handleVideoEnd);
     audio.addEventListener('ended', handleAudioEnd);
@@ -92,7 +98,7 @@ export class ScreenAudioRecordingSession {
       const blob = new Blob(this.chunks, { type: format });
       this.chunks = [];
       if (!blob.size) {
-        this.fail(new Error('Bản ghi trống. Hãy kiểm tra màn hình chia sẻ và micro.'));
+        this.fail(new Error('Bản ghi trống. Hãy kiểm tra camera hoặc màn hình chia sẻ và micro.'));
         return;
       }
       this.finished = true;
@@ -125,7 +131,7 @@ export class ScreenAudioRecordingSession {
     if (this.recorder.state !== 'inactive') {
       try { this.recorder.stop(); } catch { /* already stopped */ }
     }
-    // Microphone and screen owners independently manage original tracks.
+    // Microphone and video source owners independently manage original tracks.
   }
 
   private fail(error: Error) {

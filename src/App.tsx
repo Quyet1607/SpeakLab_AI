@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ActivePage,
   PracticeSession,
   PresentationDeck,
   VirtualParticipant,
-  PracticeSetupConfig
+  PracticeSetupConfig,
+  type SpeechTranscriptSegment
 } from './types';
 import {
   mockCurrentUser,
@@ -18,6 +19,10 @@ import {
 import { sessionService } from './services/sessionService';
 import { reportService } from './services/reportService';
 import { AppLayout } from './layouts/AppLayout';
+import { refreshSession, subscribeSession, type SessionState } from './services/accountSession';
+import { listCompletedPracticeSessions, saveCompletedPracticeSession } from './services/localPracticeHistory';
+import { extractPptxTextForReview } from './services/pptxReviewText';
+import { saveLocalReviewSlides } from './services/localReviewSlideLibrary';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -29,11 +34,26 @@ import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
-  const [sessions, setSessions] = useState<PracticeSession[]>(sessionService.getRecentSessions());
+  const [accountSession, setAccountSession] = useState<SessionState>({ status: 'loading', identity: null });
+
+  useEffect(() => {
+    const unsubscribe = subscribeSession(setAccountSession);
+    void refreshSession();
+    return unsubscribe;
+  }, []);
+
+  const [sessions, setSessions] = useState<PracticeSession[]>([]);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const [sessionOwnerSub, setSessionOwnerSub] = useState<string>('');
+
+  useEffect(() => {
+    if (accountSession.status === 'loading') return;
+    setSessions(listCompletedPracticeSessions(accountSession.status === 'signed_in' && accountSession.identity?.id ? accountSession.identity.id : 'guest'));
+  }, [accountSession]);
 
   // Setup configuration state retained in current session
   const [setupConfig, setSetupConfig] = useState<PracticeSetupConfig>({
-    title: 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI',
+    title: 'Buổi luyện thuyết trình của tôi',
     modeId: 'defense',
     deckId: 'deck_ai_waste',
     participantCount: 6,
@@ -42,21 +62,35 @@ export default function App() {
 
   // Calculate user profile stats dynamically from the actual sessions list
   const userProfile = useMemo(() => {
-    const stats = sessionService.getUserStats();
+    const totalSeconds = sessions.reduce((sum, s) => sum + s.durationSeconds, 0);
+    const totalMinutes = Math.round(totalSeconds / 60);
+    const stats = {
+      totalSessions: sessions.length,
+      totalPracticeMinutes: totalMinutes,
+      avgMinutesPerSession: sessions.length ? Math.round(totalMinutes / sessions.length) : 0,
+      totalReports: 0,
+      improvementPercentage: 0,
+    };
     return {
       ...mockCurrentUser,
+      fullName: accountSession.identity?.name || 'Khách',
+      avatarInitials: (accountSession.identity?.name || 'K').split(/\s+/).filter(Boolean).map(w => w[0]).slice(-2).join('').toUpperCase(),
+      roleDescription: accountSession.status === 'signed_in' ? (accountSession.identity?.role === 'teacher' ? 'Tài khoản Google (giáo viên)' : 'Tài khoản Google cá nhân') : 'Chế độ khách trên thiết bị',
+      school: 'Hồ sơ luyện tập cá nhân',
+      grade: accountSession.status === 'signed_in' ? 'Đã đăng nhập Google' : 'Chưa đăng nhập',
       stats: {
         ...mockCurrentUser.stats,
         totalSessions: stats.totalSessions,
         totalPracticeMinutes: stats.totalPracticeMinutes,
         avgMinutesPerSession: stats.avgMinutesPerSession,
         totalReports: stats.totalReports,
+        improvementPercentage: 0,
       },
     };
-  }, [sessions]);
+  }, [sessions, accountSession]);
 
   // Active Session State
-  const [currentSession, setCurrentSession] = useState<PracticeSession>(sessions[0]);
+  const [currentSession, setCurrentSession] = useState<PracticeSession>(() => sessionService.getRecentSessions()[0]);
   const [currentDeck, setCurrentDeck] = useState<PresentationDeck>(mockPresentationDecks[0]);
   const [participants, setParticipants] = useState<VirtualParticipant[]>(() =>
     sessionService.getParticipantsForSession(6, 'defense')
@@ -65,8 +99,11 @@ export default function App() {
 
   // Handle starting a new simulated practice session
   const handleStartSession = (config: PracticeSetupConfig) => {
-    // Save chosen config in state
+    const ownerSub = accountSession.status === 'signed_in' ? accountSession.identity?.id || 'guest' : 'guest';
+    // Guest practice is saved locally; Google sessions keep their own owner label.
     setSetupConfig(config);
+    setSessionOwnerSub(ownerSub);
+    setHistoryNotice(null);
 
     const newSession = sessionService.createSession(config);
     const deck =
@@ -82,18 +119,54 @@ export default function App() {
     setCurrentSession(newSession);
     setCurrentDeck(deck);
     setParticipants(activeParticipants);
-    setSessions(sessionService.getRecentSessions());
     setActivePage('meeting_room');
+  };
+
+  const handleFinishSession = async (actualSeconds: number, destination: 'report' | 'dashboard', transcript: SpeechTranscriptSegment[]) => {
+    const checked = await refreshSession();
+    const activeOwner = checked.status === 'signed_in' ? checked.identity?.id || null : 'guest';
+    // Bind a completed session to the account which started the practice,
+    // not another Google account that may have signed in midway.
+    try {
+      if (!sessionOwnerSub) throw new Error('Không xác định được phiên luyện tập.');
+      saveCompletedPracticeSession({ ...currentSession, transcriptSegments: transcript }, actualSeconds, sessionOwnerSub);
+      // Preserve slide TEXT for this completed session only (not the PPTX file).
+      // Never block recording history if slide extraction is unavailable.
+      let slideNotice = '';
+      const pptx = currentSession.presentationSource;
+      if (pptx?.type === 'pptx' && pptx.pptxInfo?.file) {
+        try {
+          const slideText = await extractPptxTextForReview(pptx.pptxInfo.file);
+          if (!saveLocalReviewSlides(currentSession.id, sessionOwnerSub, slideText)) {
+            slideNotice = ' PPTX không chứa chữ đọc được; phân tích vẫn sử dụng TXT.';
+          }
+        } catch {
+          slideNotice = ' Chưa đọc được PPTX; bạn có thể chọn lại khi phân tích tại Lịch sử.';
+        }
+      }
+      setSessions(listCompletedPracticeSessions(sessionOwnerSub));
+      setHistoryNotice(sessionOwnerSub !== activeOwner
+        ? 'Buổi luyện đã lưu dưới chế độ tài khoản khi bắt đầu. Chuyển về đúng chế độ để xem trong lịch sử.'
+        : destination === 'report'
+          ? 'Đã lưu buổi luyện thực tế. Có thể nhận xét AI từ bản ghi tại Lịch sử.' + slideNotice
+          : slideNotice || null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Không lưu được lịch sử buổi luyện.');
+    }
+    setActivePage(destination === 'report' ? 'history' : 'dashboard');
   };
 
   // Replay an existing session
   const handleReplaySession = (session: PracticeSession) => {
     setSetupConfig({
       title: session.title,
+      topicTitle: session.topic,
+      topicDescription: session.topicDescription || '',
+      speakingGoal: session.speakingGoal || '',
       modeId: session.mode,
       deckId: 'deck_ai_waste',
       participantCount: session.participantCount,
-      durationMinutes: Math.round(session.durationSeconds / 60),
+      durationMinutes: Math.max(1, Math.round(session.durationSeconds / 60)),
     });
     setCurrentSession(session);
     setActivePage('practice_setup');
@@ -110,6 +183,10 @@ export default function App() {
   };
 
   const currentReport = reportService.getReportById(selectedReportId);
+
+  if (accountSession.status === 'loading') {
+    return <main className="min-h-screen flex items-center justify-center text-[#324C3B]" role="status">Đang kiểm tra phiên đăng nhập…</main>;
+  }
 
   return (
     <AppLayout
@@ -142,22 +219,25 @@ export default function App() {
         <MeetingRoomPage
           currentUser={userProfile}
           session={currentSession}
+          sessionOwnerSub={sessionOwnerSub}
           deck={currentDeck}
           participants={participants}
           onNavigate={(page) => setActivePage(page)}
-          onFinishSession={() => {
-            setSelectedReportId('rep_01');
-            setActivePage('report');
-          }}
+          onFinishSession={(seconds, destination, transcript) => { void handleFinishSession(seconds, destination, transcript); }}
         />
       )}
 
       {activePage === 'history' && (
         <HistoryPage
           sessions={sessions}
+          notice={historyNotice}
           onNavigate={(page) => setActivePage(page)}
           onSelectSessionForReport={handleSelectSessionForReport}
           onReplaySession={handleReplaySession}
+          onTranscriptDeleted={() => {
+            const owner = accountSession.status === 'signed_in' ? accountSession.identity?.id || 'guest' : 'guest';
+            setSessions(listCompletedPracticeSessions(owner));
+          }}
         />
       )}
 

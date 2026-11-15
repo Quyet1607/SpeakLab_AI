@@ -23,12 +23,14 @@ interface ScreenShareGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirmStartShare: () => void;
+  isReplacingShare?: boolean;
 }
 
 export const ScreenShareGuideModal: React.FC<ScreenShareGuideModalProps> = ({
   isOpen,
   onClose,
   onConfirmStartShare,
+  isReplacingShare = false,
 }) => {
   const capability = screenShareService.getCapability();
   const isSupported = capability.isSupported;
@@ -37,13 +39,13 @@ export const ScreenShareGuideModal: React.FC<ScreenShareGuideModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isSupported ? 'Chia sẻ màn hình PowerPoint có hiệu ứng' : 'Thông tin chia sẻ màn hình'}
+      title={isSupported ? (isReplacingShare ? 'Đổi cửa sổ đang chia sẻ' : 'Chia sẻ màn hình PowerPoint có hiệu ứng') : 'Thông tin chia sẻ màn hình'}
       subtitle={isSupported ? 'Đợt 2.3 · Trình chiếu trực tiếp với Animation và Transition đầy đủ' : 'Khả năng hỗ trợ trên thiết bị hiện tại'}
       maxWidth="xl"
       footer={
         <div className="flex items-center justify-between w-full">
           <Button variant="ghost" size="sm" onClick={onClose}>
-            {isSupported ? 'Để sau / Giữ slide nội bộ' : 'Đóng'}
+            {isSupported ? (isReplacingShare ? 'Giữ màn hình hiện tại' : 'Để sau') : 'Đóng'}
           </Button>
 
           {isSupported ? (
@@ -54,7 +56,7 @@ export const ScreenShareGuideModal: React.FC<ScreenShareGuideModalProps> = ({
               className="flex items-center gap-2"
             >
               <Share2 className="w-4 h-4" />
-              <span>Bắt đầu chia sẻ ngay</span>
+              <span>{isReplacingShare ? 'Chọn màn hình mới' : 'Bắt đầu chia sẻ ngay'}</span>
             </Button>
           ) : (
             <Button

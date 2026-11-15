@@ -29,14 +29,14 @@ No refresh token should be created through an insecure/public endpoint, and no s
 3. Open the **real branch Preview domain** (not Production): `https://<branch-preview-host>/api/google-drive/oauth/start`.
 4. Paste the setup key into the **private form on the Preview site**, never in the URL or chat. The POST verifies the key and redirects to Google.
 5. At Google consent, choose the owner account. The callback checks signed state, verified owner email, Drive `drive.file` folder visibility, and the ability to add children.
-6. On success the browser shows a verification result only. **No token is stored** and video still stays local. A warning about missing folder access means the pre-existing folder needs explicit app permission (Google Picker) or an app-created folder.
+6. Under option 1, once the verified teacher authorizes the app, the callback searches for a single existing app-owned folder named `SpeakLab AI - Video recordings`, otherwise creates it via Google Drive API using the `drive.file` scope. It verifies write access and displays the new Folder ID. The teacher copies that ID into `GOOGLE_DRIVE_FOLDER_ID` in **Vercel Preview** and redeploys. Existing manual folder remains unchanged. **No token is stored** and videos stay local; repeat authorization is needed for the temporary check.
 
 The setup form should not be publicly advertised. The POST is protected with a high-entropy key, but a proper one-time admin authorization UI + rate limiting should be added before wider deployment.
 
 ## Before enabling Drive upload
 1. Confirm the configured **preview callback URI** matches the deployed branch Preview domain exactly and is registered in the Google OAuth client.
 2. Preliminary teacher-only OAuth consent verification is present, protected by a setup key and signed state; it intentionally does **not** persist tokens. Implement protected durable server-side token storage before enabling Drive uploads.
-3. Verify the `drive.file` scope grants app access to this **pre-existing folder**. Folder ID alone is insufficient; Google Picker or another explicit authorization step may be needed.
+3. For an app-created folder, verify `drive.file` access through Drive API. Do not assume a manually-created folder ID is accessible.
 4. Implement login and server-side authorization for actual students. The current React app has mock user data, NOT a production-grade authentication model.
 5. Implement chunked/resumable transfer of video. Vercel Functions have a 4.5 MB request/response payload limit; NEVER upload a full video via a single Function request.
 6. Store the mapping of each session and authenticated owner to a Drive file ID in a server-managed database with access controls. Do not trust a client-provided userId or fileId for delete.

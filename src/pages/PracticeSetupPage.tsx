@@ -31,6 +31,7 @@ import { Button } from '../components/ui/Button';
 import { DemoNotice } from '../components/ui/DemoNotice';
 import { PptxUploader } from '../features/presentation/PptxUploader';
 import { pptxSessionStore } from '../services/pptxService';
+import { PRACTICE_BRIEF_LIMITS, normalizePracticeBrief, validatePracticeBrief } from '../services/practiceBrief';
 
 interface PracticeSetupPageProps {
   availableModes: PracticeMode[];
@@ -53,8 +54,12 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
     initialConfig?.modeId || 'defense'
   );
   const [sessionTitle, setSessionTitle] = useState(
-    initialConfig?.title || 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI'
+    initialConfig?.title || 'Buổi luyện thuyết trình của tôi'
   );
+  const [topicTitle, setTopicTitle] = useState(initialConfig?.topicTitle || '');
+  const [topicDescription, setTopicDescription] = useState(initialConfig?.topicDescription || '');
+  const [speakingGoal, setSpeakingGoal] = useState(initialConfig?.speakingGoal || '');
+  const [topicError, setTopicError] = useState<string | null>(null);
   const [selectedDeckId, setSelectedDeckId] = useState<string>(
     initialConfig?.deckId || availableDecks[0]?.id || ''
   );
@@ -66,36 +71,25 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
   );
   const [expandedMobileModeId, setExpandedMobileModeId] = useState<PracticeModeType | null>(null);
 
-  // Active Presentation Source: Demo vs PPTX
-  const [presentationSource, setPresentationSource] = useState<PresentationSource>(() => {
-    if (initialConfig?.presentationSource) {
-      return initialConfig.presentationSource;
-    }
-    const storedPptx = pptxSessionStore.getPptx();
-    if (storedPptx) {
-      return {
-        type: 'pptx',
-        pptxInfo: storedPptx,
-        name: storedPptx.name,
-        slideCount: storedPptx.slideCount,
-        status: 'ready',
-      };
-    }
-    const defaultDeck = availableDecks[0];
-    return {
-      type: 'demo',
-      deckId: defaultDeck?.id || 'deck_ai_waste',
-      name: defaultDeck?.title || 'Slide mẫu',
-      slideCount: defaultDeck?.slides.length || 6,
+  // Meeting begins WITHOUT an auto-attached deck, even if a PPTX was used
+  // in an older session. Showing slides requires a deliberate choice.
+  const [presentationSource, setPresentationSource] = useState<PresentationSource>(() =>
+    initialConfig?.presentationSource || {
+      type: 'none',
+      name: 'Không trình chiếu',
+      slideCount: 0,
       status: 'ready',
-    };
-  });
+    }
+  );
 
   // Sync back to parent whenever config changes so returning to this page retains choices
   useEffect(() => {
     if (onConfigChange) {
       onConfigChange({
         title: sessionTitle,
+        topicTitle,
+        topicDescription,
+        speakingGoal,
         modeId: selectedModeId,
         deckId: selectedDeckId,
         participantCount,
@@ -103,12 +97,23 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
         presentationSource,
       });
     }
-  }, [sessionTitle, selectedModeId, selectedDeckId, participantCount, durationMinutes, presentationSource, onConfigChange]);
+  }, [sessionTitle, topicTitle, topicDescription, speakingGoal, selectedModeId, selectedDeckId, participantCount, durationMinutes, presentationSource, onConfigChange]);
 
   const selectedMode =
     availableModes.find((m) => m.id === selectedModeId) || availableModes[0];
   const selectedDeck =
     availableDecks.find((d) => d.id === selectedDeckId) || availableDecks[0];
+
+  const handleWithoutSlides = () => {
+    setPresentationSource({
+      type: 'none',
+      name: 'Không trình chiếu',
+      slideCount: 0,
+      status: 'ready',
+    });
+    // Clear the previous internal presentation selection.
+    pptxSessionStore.setNoPresentation();
+  };
 
   const handleSelectDemoDeck = (deck: PresentationDeck) => {
     setSelectedDeckId(deck.id);
@@ -126,15 +131,24 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
   const handlePptxSourceChange = (newSource: PresentationSource) => {
     setPresentationSource(newSource);
     // If current title is default, suggest clean title from PPTX filename
-    if (sessionTitle === 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI') {
+    if (sessionTitle === 'Buổi luyện thuyết trình của tôi' && newSource.type === 'pptx') {
       const cleanName = newSource.name.replace(/\.pptx$/i, '').replace(/[_-]/g, ' ');
       setSessionTitle(`Thuyết trình: ${cleanName}`);
     }
   };
 
   const handleStart = () => {
+    const brief = normalizePracticeBrief({ topicTitle, topicDescription, speakingGoal });
+    const error = validatePracticeBrief(brief);
+    if (error) {
+      setTopicError(error);
+      document.getElementById('practice-topic-title')?.focus();
+      return;
+    }
+    setTopicError(null);
     onStartSession({
-      title: sessionTitle.trim() || `Buổi luyện: ${selectedMode.title}`,
+      title: sessionTitle.trim().slice(0, 180) || `Buổi luyện: ${selectedMode.title}`,
+      ...brief,
       modeId: selectedModeId,
       deckId: selectedDeckId,
       participantCount,
@@ -265,32 +279,81 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-[#3D4740] mb-1.5">
-                Tên buổi luyện / Đề tài
+              <label htmlFor="practice-session-title" className="block text-xs font-semibold text-[#3D4740] mb-1.5">
+                Tên buổi luyện
               </label>
               <input
+                id="practice-session-title"
                 type="text"
+                maxLength={180}
                 value={sessionTitle}
                 onChange={(e) => setSessionTitle(e.target.value)}
-                placeholder="Ví dụ: Thuyết trình Dự án Nghiên cứu Khoa học 2026..."
+                placeholder="Ví dụ: Buổi luyện bảo vệ lần thứ nhất"
                 className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-[#E4E9E3] text-sm text-[#3D4740] focus:outline-none focus:ring-2 focus:ring-[#83A58E] focus:border-transparent transition-all shadow-2xs"
               />
-              <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                <span className="text-[11px] text-[#768078]">Gợi ý nhanh:</span>
-                {[
-                  'Bảo vệ Đề tài: AI Phân loại Rác Học đường',
-                  'Kế hoạch Khởi nghiệp Xanh: Bao bì EcoHusk',
-                  'Bài nói Kỹ năng Tranh biện Tự do',
-                ].map((sug, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setSessionTitle(sug)}
-                    className="text-[11px] px-2 py-0.5 rounded bg-[#F7F9F6] text-[#556057] hover:bg-[#EEF4F0] hover:text-[#324C3B] border border-[#E4E9E3] transition-colors cursor-pointer"
-                  >
-                    {sug}
-                  </button>
-                ))}
+              <p className="text-[11px] mt-1 text-[#768078]">Tên để quản lý buổi luyện và video; có thể giữ tên mặc định.</p>
+            </div>
+
+            <div className="rounded-xl border border-[#D9E5DC] bg-[#F7F9F6] p-4 space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-[#324C3B]">Nội dung đề tài của bạn</h4>
+                <p className="text-[11px] text-[#657568] mt-1">
+                  Đây là thông tin do bạn nhập để chuẩn bị luyện tập. AI chưa tự phân tích hay tạo câu hỏi ở giai đoạn này.
+                </p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label htmlFor="practice-topic-title" className="text-xs font-semibold text-[#3D4740]">
+                    Tên đề tài <span className="text-[#873631]">*</span>
+                  </label>
+                  <span className="text-[11px] text-[#768078]">{topicTitle.length}/{PRACTICE_BRIEF_LIMITS.topicTitle}</span>
+                </div>
+                <input
+                  id="practice-topic-title"
+                  type="text"
+                  required
+                  maxLength={PRACTICE_BRIEF_LIMITS.topicTitle}
+                  value={topicTitle}
+                  onChange={(e) => {
+                    setTopicTitle(e.target.value);
+                    if (topicError) setTopicError(null);
+                  }}
+                  aria-invalid={Boolean(topicError)}
+                  aria-describedby={topicError ? 'practice-topic-error' : undefined}
+                  placeholder="Nhập đề tài thực tế mà bạn muốn trình bày"
+                  className={`w-full px-3.5 py-2.5 rounded-lg bg-white border text-sm text-[#3D4740] focus:outline-none focus:ring-2 focus:ring-[#83A58E] ${topicError ? 'border-[#A33E37]' : 'border-[#D9E5DC]'}`}
+                />
+                {topicError && <p id="practice-topic-error" role="alert" className="text-[11px] mt-1 text-[#A33E37]">{topicError}</p>}
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label htmlFor="practice-topic-description" className="text-xs font-semibold text-[#3D4740]">Mô tả ngắn đề tài (không bắt buộc)</label>
+                  <span className="text-[11px] text-[#768078]">{topicDescription.length}/{PRACTICE_BRIEF_LIMITS.topicDescription}</span>
+                </div>
+                <textarea
+                  id="practice-topic-description"
+                  rows={3}
+                  maxLength={PRACTICE_BRIEF_LIMITS.topicDescription}
+                  value={topicDescription}
+                  onChange={(e) => setTopicDescription(e.target.value)}
+                  placeholder="Bối cảnh, nội dung chính, đối tượng và thông tin mà bạn sẽ trình bày..."
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-[#D9E5DC] text-sm text-[#3D4740] focus:outline-none focus:ring-2 focus:ring-[#83A58E] resize-y"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label htmlFor="practice-speaking-goal" className="text-xs font-semibold text-[#3D4740]">Mục tiêu bài nói (không bắt buộc)</label>
+                  <span className="text-[11px] text-[#768078]">{speakingGoal.length}/{PRACTICE_BRIEF_LIMITS.speakingGoal}</span>
+                </div>
+                <textarea
+                  id="practice-speaking-goal"
+                  rows={2}
+                  maxLength={PRACTICE_BRIEF_LIMITS.speakingGoal}
+                  value={speakingGoal}
+                  onChange={(e) => setSpeakingGoal(e.target.value)}
+                  placeholder="Ví dụ: Trình bày luận điểm rõ ràng, bảo vệ phương pháp và trả lời câu hỏi đúng trọng tâm..."
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-white border border-[#D9E5DC] text-sm text-[#3D4740] focus:outline-none focus:ring-2 focus:ring-[#83A58E] resize-y"
+                />
               </div>
             </div>
 
@@ -364,7 +427,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
                 3. Tài liệu trình chiếu
               </h3>
               <p className="text-xs text-[#768078] mt-0.5">
-                Chọn bộ slide mẫu hoặc tải lên tệp PowerPoint (.pptx) cá nhân từ thiết bị của bạn
+                PowerPoint là tùy chọn; không tự thêm slide vào phòng. Bạn có thể chia sẻ cửa sổ bên ngoài trong lúc luyện tập.
               </p>
             </div>
 
@@ -374,12 +437,28 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
                   ? 'text-[#2A4433] bg-[#EEF4F0] border-[#83A58E]'
                   : 'text-[#4A6453] bg-[#EEF4F0] border-[#D9E5DC]'
               }`}>
-                {presentationSource.type === 'pptx'
-                  ? `Đang chọn: PowerPoint cá nhân (${presentationSource.slideCount} slides)`
-                  : `Đang chọn: Slide mẫu (${selectedDeck.slides.length} slides)`}
+                {presentationSource.type === 'none'
+                  ? 'Mặc định: Phòng họp không trình chiếu'
+                  : presentationSource.type === 'pptx'
+                    ? `Đã chọn: PowerPoint cá nhân (${presentationSource.slideCount} slides)`
+                    : `Đã chọn: Slide mẫu (${selectedDeck.slides.length} slides)`}
               </span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleWithoutSlides}
+            className={`w-full text-left p-4 rounded-xl border transition-colors ${presentationSource.type === 'none'
+              ? 'bg-[#EEF4F0] border-[#83A58E] ring-1 ring-[#83A58E] text-[#324C3B]'
+              : 'bg-white border-[#E4E9E3] text-[#556057] hover:border-[#83A58E]'}`}
+          >
+            <span className="font-bold text-sm">Không dùng PowerPoint – Phòng họp luyện tập</span>
+            <p className="text-xs mt-1">
+              Mặc định hiển thị người đang đăng nhập và các tài khoản mô phỏng như Google Meet hoặc Teams.
+              Chỉ hiện slide khi bạn chủ động chọn tài liệu hoặc chia sẻ màn hình.
+            </p>
+          </button>
 
           {/* Sub-section A: Available Demo Decks */}
           <div className="space-y-2">
@@ -455,7 +534,7 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
             <PptxUploader
               currentSource={presentationSource}
               onSourceChange={handlePptxSourceChange}
-              onDeckSelectRequested={() => handleSelectDemoDeck(selectedDeck)}
+              onDeckSelectRequested={handleWithoutSlides}
             />
           </div>
         </div>

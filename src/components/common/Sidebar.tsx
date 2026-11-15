@@ -178,6 +178,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
+        <nav aria-label="Thông tin pháp lý" className="mt-3 px-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+          <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-[#4A6954] hover:underline">
+            Quyền riêng tư
+          </a>
+          <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-[#4A6954] hover:underline">
+            Điều khoản
+          </a>
+        </nav>
+
         {/* Footer info */}
         <div className="mt-3 px-2 flex items-center justify-between text-[11px] text-[#768078]">
           <span className="flex items-center gap-1">

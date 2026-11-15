@@ -99,7 +99,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <p className="text-[11px] text-[#5A7D65] mt-1 flex items-center gap-1 font-medium">
             <TrendingUp className="w-3 h-3 shrink-0" />
-            <span>3 buổi trong tuần này</span>
+            <span>Chỉ tính buổi đã hoàn thành trên thiết bị</span>
           </p>
         </div>
 
@@ -118,7 +118,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <span className="text-xs text-[#768078]">giờ tích lũy</span>
           </div>
           <p className="text-[11px] text-[#768078] mt-1">
-            Trung bình {currentUser.stats.avgMinutesPerSession || 12} phút / buổi
+            Trung bình {currentUser.stats.avgMinutesPerSession} phút / buổi
           </p>
         </div>
 
@@ -138,7 +138,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <p className="text-[11px] text-[#5A7D65] mt-1 flex items-center gap-1 font-medium">
             <CheckCircle2 className="w-3 h-3 shrink-0" />
-            <span>Điểm trung bình: 8.3/10 (Dữ liệu minh họa)</span>
+            <span>Chưa có báo cáo đánh giá tự động từ dữ liệu thực</span>
           </p>
         </div>
 
@@ -152,12 +152,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <div className="mt-3 flex flex-wrap items-baseline gap-1.5">
             <span className="text-2xl md:text-3xl font-bold text-[#3D5C46] tabular-nums">
-              +{currentUser.stats.improvementPercentage}%
+              —
             </span>
-            <span className="text-xs text-[#768078]">tự tin & lưu loát</span>
+            <span className="text-xs text-[#768078]">chưa đo lường</span>
           </div>
           <p className="text-[11px] text-[#768078] mt-1">
-            (Dữ liệu minh họa cho Đợt 1)
+            Chỉ hiển thị khi có phương pháp đánh giá thực tế
           </p>
         </div>
       </div>
@@ -173,7 +173,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   Các buổi luyện tập gần đây
                 </h3>
                 <p className="text-xs text-[#768078] mt-0.5">
-                  Dữ liệu ghi lại lịch sử thuyết trình và báo cáo mẫu
+                  Những buổi thực sự hoàn thành trên thiết bị này
                 </p>
               </div>
 
@@ -187,6 +187,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
 
             <div className="divide-y divide-[#E4E9E3]/70">
+              {recentSessions.length === 0 && (
+                <p className="py-7 text-xs text-[#768078]">Chưa có buổi luyện hoàn thành. Hãy bắt đầu luyện và nhấn Kết thúc để lưu lịch sử.</p>
+              )}
               {recentSessions.slice(0, 3).map((session) => (
                 <div
                   key={session.id}
@@ -221,16 +224,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       </div>
                     )}
 
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        onSelectSessionForReport(session.id);
-                        onNavigate('report');
-                      }}
-                    >
-                      Xem báo cáo
-                    </Button>
+                    {session.reportId ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          onSelectSessionForReport(session.id);
+                          onNavigate('report');
+                        }}
+                      >
+                        Xem báo cáo
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" size="sm" onClick={() => onNavigate('history')}>
+                        Xem lịch sử
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -238,7 +247,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           <div className="mt-4 pt-3 border-t border-[#E4E9E3] flex items-center justify-between text-xs text-[#768078]">
-            <span>Đang xem 3 / {recentSessions.length} buổi gần nhất</span>
+            <span>Đang xem {Math.min(3, recentSessions.length)} / {recentSessions.length} buổi hoàn thành</span>
             <button
               onClick={() => onNavigate('practice_setup')}
               className="text-xs font-medium text-[#4A6453] hover:underline"
