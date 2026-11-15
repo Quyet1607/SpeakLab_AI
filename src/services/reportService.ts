@@ -4,25 +4,22 @@
  */
 
 import { EvaluationReport } from '../types';
-import { mockDefaultReport } from '../data/mockData';
 
 class ReportService {
-  private reports: Map<string, EvaluationReport> = new Map([
-    ['rep_01', mockDefaultReport],
-  ]);
+  private reports: Map<string, EvaluationReport> = new Map();
 
   /**
    * Lấy báo cáo chi tiết theo reportId
    */
-  getReportById(reportId: string): EvaluationReport {
-    return this.reports.get(reportId) || mockDefaultReport;
+  getReportById(reportId: string): EvaluationReport | null {
+    return this.reports.get(reportId) || null;
   }
 
   /**
    * Lấy báo cáo mới nhất (mặc định cho bản demo)
    */
-  getLatestReport(): EvaluationReport {
-    return mockDefaultReport;
+  getLatestReport(): EvaluationReport | null {
+    return null;
   }
 }
 
