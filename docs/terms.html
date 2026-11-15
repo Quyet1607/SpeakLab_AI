@@ -17,7 +17,7 @@
 <main id="main" class="container"><article>
   <span class="eyebrow">Điều kiện sử dụng bản thử nghiệm</span>
   <h1>Điều khoản sử dụng</h1>
-  <p class="muted">Bản dự thảo cho môi trường thử nghiệm · Cập nhật: 14/11/2026</p>
+  <p class="muted">Bản dự thảo cho môi trường thử nghiệm · Cập nhật: 15/11/2026</p>
   <div class="note alert"><p><strong>Lưu ý:</strong> SpeakLab AI hiện là ứng dụng thử nghiệm. Video chỉ được lưu và xem trên thiết bị qua trình duyệt; không có tính năng lưu video tự động lên Google Drive. Nội dung dưới đây cần được đơn vị vận hành rà soát, thông qua trước khi phát hành rộng rãi.</p></div>
 
   <h2>1. Mục đích ứng dụng</h2>
@@ -29,27 +29,27 @@
   <h2>3. Ghi âm, ghi hình và nội dung</h2>
   <p>Chỉ ghi âm, ghi hình hoặc chia sẻ nội dung mà mình có quyền sử dụng và có sự đồng ý phù hợp của người liên quan. Không ghi tài liệu mật, thông tin nhạy cảm, hoặc bài trình bày của người khác khi chưa được phép. Khi học sinh chưa đủ độ tuổi tự đồng ý theo quy định áp dụng, cần có sự hướng dẫn và chấp thuận phù hợp của cha mẹ/người giám hộ hoặc nhà trường.</p>
 
-  <h2>4. Lưu video tại thiết bị</h2>
-  <p>Hiện tại video được lưu cục bộ trên trình duyệt của thiết bị. Người dùng có thể xem, tải về hoặc xóa bản ghi trong Lịch sử luyện tập. Khi xóa dữ liệu trình duyệt, đổi thiết bị hoặc vượt quá dung lượng lưu trữ, video có thể không còn. Người dùng nên tải bản sao cần giữ về nơi an toàn. Không được hiểu nhãn “chờ đồng bộ Drive” là bảo đảm đã sao lưu video.</p>
+  <h2>4. Lưu video và lịch sử tại thiết bị</h2>
+  <p>Hiện tại video được lưu cục bộ trong IndexedDB; thông tin buổi luyện, văn bản lời nói, chữ trích từ PPTX và nhận xét AI đã lưu được quản lý cục bộ trên trình duyệt của thiết bị. Người dùng có thể xem, tải về hoặc xóa bản ghi trong Lịch sử luyện tập. Khi xóa dữ liệu trình duyệt, đổi thiết bị hoặc vượt quá dung lượng lưu trữ, video có thể không còn. Người dùng nên tải bản sao cần giữ về nơi an toàn. Không có tự động đồng bộ video lên Google Drive; các thành phần thử nghiệm Drive không phải cam kết lưu trữ đám mây. Dữ liệu Preview không tự chuyển sang Production và không tự đồng bộ giữa các trình duyệt/thiết bị.</p>
 
   <h2>5. Tính năng mô phỏng và giới hạn</h2>
   <p>Một số đánh giá, điểm số, nhân vật hội đồng và gợi ý phản biện là thành phần mô phỏng. Không dùng chúng làm kết quả chấm điểm, nhận xét sư phạm chính thức hoặc căn cứ quyết định ảnh hưởng tới học sinh khi chưa được xác minh độc lập. Hệ thống có thể thay đổi trong quá trình phát triển và kiểm thử.</p>
 
   <h3>Nhận xét AI từ bản ghi và PowerPoint</h3>
-  <p>Trên môi trường Preview được cấu hình, người dùng có thể tự chọn gửi đề tài, mục tiêu, bản ghi lời nói dạng văn bản và chữ trích xuất từ PowerPoint cho Google Gemini để nhận xét. Đây là chức năng tùy chọn, không gửi video, âm thanh hoặc tệp PPTX nguyên bản, không thay thế đánh giá của giáo viên. Phản hồi AI có thể sai hoặc thiếu; người học cần kiểm tra dẫn chứng trước khi sử dụng. Đề nghị không sử dụng dữ liệu nhạy cảm hay dữ liệu học sinh khi chưa có sự đồng ý phù hợp.</p>
-  <p>Phân tích mới sử dụng hạn mức miễn phí, không bảo đảm sẵn có hoặc trả đủ nhận xét cho mọi slide. Việc xóa nhận xét cục bộ không phải là yêu cầu xóa dữ liệu đã chuyển đến nhà cung cấp.</p>
+  <p>Chỉ khi đăng nhập Google trên môi trường Preview được cấu hình, người dùng có thể đọc thông báo, đánh dấu đồng ý và tự chọn gửi đề tài, mô tả, mục tiêu, bản ghi lời nói dạng văn bản và chữ trích xuất từ PowerPoint cho Google Gemini để nhận xét. Đây là chức năng tùy chọn, không gửi video, âm thanh hoặc tệp PPTX nguyên bản, không thay thế đánh giá của giáo viên. Phản hồi AI có thể sai hoặc thiếu; người học cần kiểm tra dẫn chứng trước khi sử dụng. Đề nghị không sử dụng dữ liệu nhạy cảm hay dữ liệu học sinh khi chưa có sự đồng ý phù hợp.</p>
+  <p>Phân tích mới sử dụng hạn mức Free Tier, có giới hạn lượt nội bộ và không bảo đảm sẵn có hoặc trả đủ nhận xét cho mọi slide. Tính năng nhận xét Gemini bị khóa trong Production theo cấu hình hiện tại; chế độ khách không thể gọi API này. Việc xóa nhận xét cục bộ không phải là yêu cầu xóa dữ liệu đã chuyển đến nhà cung cấp.</p>
 
-  <h2>6. Dịch vụ bên thứ ba</h2>
-  <p>Đăng nhập Google và việc triển khai trang web có thể phụ thuộc các dịch vụ bên thứ ba. Nếu sau này bổ sung lưu trữ trực tuyến, thay đổi phải được công bố rõ trước khi hoạt động. Không có quyền mặc nhiên truy cập video của tài khoản khác.</p>
+  <h2>6. Dịch vụ bên thứ ba và nhận diện lời nói</h2>
+  <p>Đăng nhập Google, dịch vụ Google Gemini theo yêu cầu tự nguyện, hạ tầng Vercel và khả năng nhận diện giọng nói của trình duyệt có thể phụ thuộc các dịch vụ bên thứ ba. Khi bật nhận diện giọng nói, trình duyệt có thể gửi âm thanh đến dịch vụ xử lý của nhà cung cấp trình duyệt; SpeakLab không bảo đảm việc xử lý hoàn toàn ngoại tuyến. Nếu sau này bổ sung lưu trữ trực tuyến, thay đổi phải được công bố rõ trước khi hoạt động. Không có quyền mặc nhiên truy cập video của tài khoản khác.</p>
 
   <h2>7. Bảo mật và sử dụng phù hợp</h2>
-  <p>Không tìm cách truy cập dữ liệu, video hoặc phiên đăng nhập của người khác, không can thiệp các chức năng bảo mật, không sử dụng ứng dụng để ghi hình trái phép hoặc làm ảnh hưởng tới hoạt động của người dùng khác. Nếu phát hiện vấn đề bảo mật, cần báo cho đơn vị vận hành qua kênh hỗ trợ chính thức sau khi được công bố.</p>
+  <p>Không tìm cách truy cập dữ liệu, video hoặc phiên đăng nhập của người khác, không can thiệp các chức năng bảo mật, không sử dụng ứng dụng để ghi hình trái phép hoặc làm ảnh hưởng tới hoạt động của người dùng khác. Kênh báo cáo bảo mật và liên hệ chính thức cần được công bố trước khi mở rộng sử dụng. Người dùng không nên chuyển dữ liệu nhạy cảm qua kênh chưa xác thực.</p>
 
   <h2>8. Thay đổi và ngừng sử dụng</h2>
   <p>Do đây là bản thử nghiệm, chức năng và điều khoản có thể thay đổi khi dự án phát triển. Người dùng có thể ngừng sử dụng ứng dụng, đăng xuất và xóa video cục bộ theo các chức năng hiện có. Phiên bản này không cung cấp thao tác xóa video từ một kho lưu trữ đám mây.</p>
 
   <h2>9. Liên hệ</h2>
-  <p>Thông tin đơn vị vận hành và kênh liên hệ chính thức phải được xác nhận, công khai trước khi phát hành rộng rãi. Trong giai đoạn thử nghiệm, không nhập thông tin cá nhân nhạy cảm hoặc sử dụng video học sinh thật khi chưa có quy trình đồng thuận phù hợp.</p>
+  <p>Danh tính đơn vị vận hành, kênh liên hệ chính thức và quy trình giải quyết yêu cầu dữ liệu chưa hoàn tất trong bản dự thảo này; cần được phê duyệt và công khai trước khi phát hành rộng rãi. Trong giai đoạn thử nghiệm, không nhập thông tin cá nhân nhạy cảm hoặc sử dụng video học sinh thật khi chưa có quy trình đồng thuận phù hợp.</p>
 
   <p class="muted"><strong>Ghi chú:</strong> Văn bản này là bản dự thảo sản phẩm; không phải ý kiến tư vấn pháp lý và không tự động đáp ứng yêu cầu xác minh OAuth.</p>
 </article></main>
