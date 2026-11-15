@@ -95,7 +95,7 @@ export default function App() {
   const [participants, setParticipants] = useState<VirtualParticipant[]>(() =>
     sessionService.getParticipantsForSession(6, 'defense')
   );
-  const [selectedReportId, setSelectedReportId] = useState<string>('rep_01');
+  const [selectedReportId, setSelectedReportId] = useState<string>('');
 
   // Handle starting a new simulated practice session
   const handleStartSession = (config: PracticeSetupConfig) => {
@@ -172,14 +172,10 @@ export default function App() {
     setActivePage('practice_setup');
   };
 
-  // Select a session to view report
+  // Only a real local completed session can be selected. Never fall back to rep_01.
   const handleSelectSessionForReport = (sessionId: string) => {
-    const session = sessionService.getSessionById(sessionId);
-    if (session && session.reportId) {
-      setSelectedReportId(session.reportId);
-    } else {
-      setSelectedReportId('rep_01');
-    }
+    const session = sessions.find(item => item.id === sessionId);
+    setSelectedReportId(session?.reportId || '');
   };
 
   const currentReport = reportService.getReportById(selectedReportId);
@@ -241,13 +237,19 @@ export default function App() {
         />
       )}
 
-      {activePage === 'report' && (
+      {activePage === 'report' && (currentReport ? (
         <ReportPage
           report={currentReport}
           onNavigate={(page) => setActivePage(page)}
           onPracticeAgain={() => setActivePage('practice_setup')}
         />
-      )}
+      ) : (
+        <section className="rounded-xl bg-white border border-[#D9E5DC] p-6 space-y-3" role="status">
+          <h2 className="text-lg font-bold text-[#324C3B]">Chưa có báo cáo đánh giá</h2>
+          <p className="text-sm text-[#65786A]">Không tìm thấy báo cáo đánh giá thực tế cho buổi luyện này. Hệ thống không hiển thị điểm và nhận xét Demo thay thế.</p>
+          <button type="button" onClick={() => setActivePage('history')} className="rounded-lg border border-[#BFD4C2] px-3 py-2 text-sm font-semibold text-[#324C3B]">Quay lại Lịch sử</button>
+        </section>
+      ))}
 
       {activePage === 'settings' && (
         <SettingsPage currentUser={userProfile} />
