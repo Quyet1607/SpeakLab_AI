@@ -33,12 +33,36 @@ import { SettingsPage } from './pages/SettingsPage';
 export default function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const [accountSession, setAccountSession] = useState<SessionState>({ status: 'loading', identity: null });
+  const [groqPilotReady, setGroqPilotReady] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeSession(setAccountSession);
     void refreshSession();
     return unsubscribe;
   }, []);
+
+  // This controls UI visibility only. The pilot API independently enforces
+  // signed teacher session, Preview branch, and synthetic-only requests.
+  useEffect(() => {
+    let active = true;
+    setGroqPilotReady(false);
+    if (accountSession.status !== 'signed_in' || accountSession.identity?.role !== 'teacher') return;
+    void (async () => {
+      try {
+        const response = await fetch('/api/groq/pilot', {
+          method: 'GET', credentials: 'same-origin', cache: 'no-store',
+        });
+        const data = await response.json();
+        if (active && response.ok && data?.ready === true &&
+            data?.syntheticOnly === true && data?.branch === 'feature/groq-synthetic-pilot') {
+          setGroqPilotReady(true);
+        }
+      } catch {
+        // Leave link hidden if session, Preview or pilot readiness cannot be verified.
+      }
+    })();
+    return () => { active = false; };
+  }, [accountSession]);
 
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
@@ -184,6 +208,7 @@ export default function App() {
       {activePage === 'dashboard' && (
         <DashboardPage
           currentUser={userProfile}
+          groqPilotReady={groqPilotReady}
           recentSessions={sessions}
           onNavigate={(page) => setActivePage(page)}
         />
