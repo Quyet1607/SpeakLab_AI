@@ -1,61 +1,44 @@
-# GroqCloud Free Tier — chạy thử an toàn bằng dữ liệu giả lập
+# SpeakLab_AI — Groq Free Tier trên Vercel Preview
 
-Ngày cập nhật: 17/11/2026. Phạm vi: **proof of concept trên máy người vận hành**, không phải tích hợp học sinh vào SpeakLab_AI.
+Cập nhật: 17/11/2026 · Nhánh: `feature/groq-synthetic-pilot` · PR #3 (Draft)
 
-## Nguyên tắc
-- Chỉ chạy `scripts/groqSyntheticPilot.mjs`: dữ liệu TXT và slide được **viết cố định trong mã**, 100% giả lập. Không có đầu vào từ người dùng, tệp hoặc lịch sử học sinh.
-- **Không tạo** endpoint frontend, không cấu hình `GROQ_API_KEY` trên Vercel, không thay đổi Gemini Preview/Production, không gửi dữ liệu học sinh thật.
-- Mặc định chạy `node scripts/groqSyntheticPilot.mjs` chỉ kiểm tra offline; **chỉ** lệnh có `--live` mới gửi một request Groq.
-- Mô hình mặc định `openai/gpt-oss-20b`, là mô hình Groq hiện có hỗ trợ structured JSON strict. Không mặc định dùng Qwen vì model Qwen hiện trên Groq có thể là Preview hoặc không nằm trong Free Tier.
-- Kết quả được kiểm tra đủ năm tiêu chí, không được chứa điểm số và các trích dẫn phải có thật trong TXT hoặc PPTX giả lập tương ứng. Mọi lỗi bị từ chối thay vì biến thành báo cáo học sinh.
-- Lệnh không ghi API key, dữ liệu đầu vào hay phản hồi vào tệp/đám mây. Console có thể hiển thị **kết quả giả lập** nếu vượt kiểm tra.
-- Không bật Billing/Developer plan. Nếu Free Tier báo hết quota (HTTP 429), dừng; không gọi lại và không tự chuyển sang mô hình trả phí.
+## Phạm vi an toàn
+- **Chỉ dành cho người vận hành có tài khoản Google vai trò giáo viên.** Không mở nút cho học sinh hoặc khách.
+- Có trang riêng tại `/groq-pilot.html` trên **Vercel Preview của nhánh này**; không cần cài Node.js hoặc Bun trên Windows.
+- Dữ liệu gửi Groq là bài nói giả lập cố định trong `scripts/groqSyntheticPilot.mjs` và 2 đoạn chữ PPTX giả. Không có đầu vào học sinh từ giao diện, URL, lịch sử, TXT hoặc video.
+- API `/api/groq/pilot` chỉ hoạt động khi `VERCEL_ENV=preview`, `VERCEL_GIT_COMMIT_REF=feature/groq-synthetic-pilot`, phiên cookie Google hợp lệ vai trò `teacher`, và `GROQ_API_KEY` có trong Vercel Preview.
+- GET chỉ xem trạng thái, **không gọi Groq**. POST yêu cầu chính xác hai cờ `syntheticOnly` và `confirmOneCall`, kiểm tra cùng origin/JSON và không cho gửi văn bản tùy ý.
+- Một lần nhấn tạo tối đa một yêu cầu AI. Chặn nhấn lặp trong bộ nhớ từng Vercel Function instance tối thiểu 60 giây; **đây không phải quota bền vững toàn cục**, nên chỉ dùng thử nội bộ, không dùng cho học sinh.
+- API key luôn ở máy chủ; không in vào HTML/JS/log. Không tự gọi lại, không chuyển sang dịch vụ có phí. Model: `openai/gpt-oss-20b` với JSON Schema strict.
 
-## Tài khoản và bảo vệ dữ liệu trước khi có học sinh THCS
-Theo Groq Services Agreement (22/06/2026) phần 6.3, bên vận hành ứng dụng dành cho người chưa đủ tuổi chịu trách nhiệm về các luật liên quan và dữ liệu trẻ em. Đây **không phải** giấy xác nhận ứng dụng đủ điều kiện. Cần kiểm tra điều khoản mô hình, DPA, phân quyền máy chủ, xử lý xuyên biên giới, thông báo và đồng thuận pháp lý trước khi xử lý dữ liệu học sinh thật.
+## Cấu hình Vercel
+1. Mở Project → Settings → Environment Variables.
+2. Kiểm tra `GROQ_API_KEY` đã có giá trị và chỉ áp dụng **Preview**, ưu tiên giới hạn nhánh `feature/groq-synthetic-pilot`. Tuyệt đối không dán key lên GitHub hoặc trò chuyện.
+3. Kiểm tra `GOOGLE_CLIENT_ID` và `SPEAKLAB_SESSION_SECRET` cũng hoạt động trên Preview. **Đăng nhập Google trên chính tên miền Preview**; nếu Google báo `origin_mismatch`, thêm origin Preview đúng như URL vào Google Cloud OAuth Client.
+4. Để tài khoản được nhận là `teacher`, `GOOGLE_DRIVE_OWNER_EMAIL` trên Preview phải đúng email Google của người vận hành. Đây chỉ là nhãn vai trò, không tự bật tính năng Drive.
+5. Nếu API báo nhánh không hợp lệ, mở Vercel Settings → Environment Variables → **Automatically expose System Environment Variables**, bật để có `VERCEL_GIT_COMMIT_REF` và `VERCEL_ENV`. Bật/tạo biến môi trường mới cần một deployment mới để có hiệu lực.
+6. Đợi Vercel Preview của commit mới báo Ready. Vào `https://speak-lab-ai-git-feature-groq-synthetic-pilot-speak-lab.vercel.app/` rồi đăng nhập Google, sau đó mở `/groq-pilot.html` trên **cùng tên miền**.
+7. Nếu trạng thái **Sẵn sàng**, bấm đúng một lần **Chạy thử Groq với dữ liệu giả lập**. Phản hồi được hiển thị kèm 5 tiêu chí và trích dẫn (chỉ khi bộ kiểm chứng của script đã chấp nhận).
+8. Nếu báo 401: đăng nhập Google cùng hostname; 403: kiểm tra chủ tài khoản `GOOGLE_DRIVE_OWNER_EMAIL` và origin; 503: kiểm tra `GROQ_API_KEY` và deployment; 429: dừng, không thử liên tục; 502: mô hình trả thiếu bằng chứng hoặc API gặp lỗi, không sử dụng kết quả.
 
-Groq công bố inference requests mặc định không lưu Customer Data, nhưng có thể lưu tạm để chống lạm dụng/vận hành, tối đa 30 ngày. Trên Console > Data Controls, kiểm tra Zero Data Retention (ZDR); ZDR không thay thế việc tuân thủ pháp luật.
+## Kiểm thử tự động
+GitHub Actions chạy `node --test tests/groqSyntheticPilot.test.js` và `node --test tests/groqVercelPilotRoute.test.js`, **không dùng API key thật**; kiểm tra chặn môi trường Production, chặn guest/learner, xác nhận nguồn giả lập, CSRF và fail-closed.
 
-Tài liệu:
+## Kiểm thử chất lượng bằng tay
+- [ ] Vercel Preview Ready, không lộ key trong response/DevTools.
+- [ ] Khi chưa đăng nhập, endpoint trả 401.
+- [ ] Chỉ tài khoản người vận hành có vai trò giáo viên được bật nút.
+- [ ] JSON có đúng 5 tiêu chí R1–R5.
+- [ ] Mọi trích dẫn đúng nguồn TXT hoặc slide mẫu, không bịa phát biểu.
+- [ ] Viết tiếng Việt có dấu, không tự bịa điểm hay lời nhận xét hội đồng.
+- [ ] Không có dữ liệu của người học thật đi đến Groq.
+
+## Điều kiện mở cho học sinh THCS sau này
+**Chưa đủ điều kiện triển khai**: phải thiết kế quyền/đồng thuận của phụ huynh và người học theo trường hợp pháp luật yêu cầu; kiểm chứng hợp đồng, lưu giữ dữ liệu, điều khoản xử lý trẻ em; xây dựng gateway quota bền vững, kiểm quyền phía máy chủ theo buổi luyện và đánh giá chất lượng với giáo viên. Phân nhóm localStorage hiện tại chưa phải ranh giới bảo mật. Chỉ khi hoàn tất các điều kiện mới xem xét kết nối AI với dữ liệu thực.
+
+Nguồn kỹ thuật:
+- https://console.groq.com/docs/structured-outputs
+- https://console.groq.com/docs/rate-limits
 - https://console.groq.com/docs/legal/services-agreement
 - https://console.groq.com/docs/legal/customer-data-processing-addendum
-- https://console.groq.com/docs/your-data
-- https://console.groq.com/docs/rate-limits
-- https://console.groq.com/docs/structured-outputs
-- https://console.groq.com/docs/models
-
-## Hướng dẫn Windows PowerShell
-
-1. Mở https://console.groq.com và tự tạo tài khoản (người vận hành từ 18 tuổi trở lên), chọn Free. Không bật thanh toán. Vào https://console.groq.com/keys để tự tạo API key. **Không gửi key qua ChatGPT/GitHub hay ảnh chụp.**
-2. Tải/clone repository và checkout nhánh `feature/groq-synthetic-pilot`. Cài Node.js LTS nếu chưa có.
-3. Tại thư mục repo chạy kiểm thử offline:
-
-```powershell
-node --test tests/groqSyntheticPilot.test.js
-node scripts/groqSyntheticPilot.mjs
-```
-
-4. Chỉ khi đã kiểm tra đang dùng Free Tier, nhập key tạm trong chính PowerShell này bằng nhập ẩn:
-
-```powershell
-$secret = Read-Host "Nhập Groq API Key (ẩn)" -AsSecureString
-$env:GROQ_API_KEY = [System.Net.NetworkCredential]::new("", $secret).Password
-node scripts/groqSyntheticPilot.mjs --live
-Remove-Item Env:GROQ_API_KEY
-Remove-Variable secret
-```
-
-Nếu script báo 429, dừng thử (quota miễn phí). Nếu báo nguồn không khớp, đó là phát hiện chất lượng chưa đạt; không sửa validator để né kiểm tra.
-
-## Tiêu chí đánh giá đợt thử
-- [ ] Có tài khoản Groq Free, xác minh được model trong console và hạn mức theo tài khoản.
-- [x] Tạo được chương trình test với bài nói giả, không nhận dữ liệu học sinh.
-- [ ] Gửi thành công **một** lời gọi API thật bằng key chỉ có trên máy người vận hành (chưa thực hiện vì không có key).
-- [ ] JSON trả về đủ 5 mục R1–R5.
-- [ ] 100% câu trích dẫn trùng nguồn tương ứng.
-- [ ] Không có điểm /10 hoặc kết luận ánh mắt, ngữ điệu, khả năng cá nhân.
-- [ ] Nhận xét tiếng Việt có dấu và gợi ý cụ thể, giáo viên kiểm tra thủ công.
-- [ ] Hoàn thành kiểm tra pháp lý, đồng thuận, DPA, lưu trữ và rủi ro trẻ em trước khi dùng dữ liệu thật.
-
-## Điều kiện trước khi tích hợp SpeakLab_AI
-Không nối script này vào app; không bật nút dùng API cho học sinh. Muốn đi xa hơn phải thiết kế backend xác thực phiên, kiểm quyền server-side (hiện lịch sử chia bằng nhãn localStorage, chưa phải biện pháp cách ly bảo mật), quota theo người dùng, cấu hình feature flag mặc định off, kiểm tra dữ liệu cá nhân và cơ chế từ chối tự động khi hết hạn mức.
+- https://vercel.com/docs/environment-variables/system-environment-variables
