@@ -1,6 +1,7 @@
 /**
  * Groq Free Tier: synthetic-only quality pilot for SpeakLab_AI.
  * No app endpoint, no student data, no environment auto-activation.
+ * All live requests go through the shared server-side Groq provider adapter.
  * Usage:
  *    node scripts/groqSyntheticPilot.mjs
  *    $env:GROQ_API_KEY = (Read-Host "Groq API key")  # Windows PowerShell
@@ -8,8 +9,9 @@
  *    Remove-Item Env:GROQ_API_KEY
  */
 import { pathToFileURL } from 'node:url';
+import { GROQ_REVIEW_MODEL, requestGroqReview } from '../server/groqReviewProvider.js';
 
-export const MODEL = 'openai/gpt-oss-20b';
+export const MODEL = GROQ_REVIEW_MODEL;
 export const SAMPLE = Object.freeze({
   topic: 'Giảm rác nhựa ở trường học (dữ liệu hoàn toàn giả lập)',
   goal: 'Nêu hai giải pháp thực tế và thừa nhận giới hạn bằng chứng',
@@ -147,55 +149,34 @@ export function validateReview(value) {
   return normalized;
 }
 
+function serializeMessages(messages) {
+  return messages.map(message => message.role.toUpperCase() + ':\n' + message.content).join('\n\n');
+}
+
 export async function runPilot({ live = false, apiKey = process.env.GROQ_API_KEY, fetcher = fetch } = {}) {
   if (!live) return { mode: 'offline', model: MODEL, hasSyntheticInput: true };
   if (!apiKey || !apiKey.trim()) throw pilotError('GROQ_CONFIG', 'Thiếu GROQ_API_KEY. Không có yêu cầu API nào được gửi.');
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  const originalRequest = makeRequest();
+  // Reuse the same provider adapter as the production review contract. Only
+  // this fixed synthetic prompt/schema is passed; no caller-supplied text exists.
+  const result = await requestGroqReview({
+    apiKey,
+    prompt: serializeMessages(originalRequest.messages),
+    schema: originalRequest.response_format.json_schema.schema,
+    maxOutputTokens: originalRequest.max_completion_tokens,
+    fetcher,
+    timeoutMs: 30000,
+  });
+
+  let parsed;
   try {
-    const result = await fetcher('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(makeRequest()),
-      signal: controller.signal,
-    });
-    if (!result.ok) {
-      if (result.status === 429) {
-        throw pilotError('GROQ_RATE_LIMIT', 'Đã chạm giới hạn Groq Free Tier (429). Không tự thử lại hoặc đổi API có phí.');
-      }
-      throw pilotError('GROQ_UPSTREAM_HTTP', 'Groq API trả về HTTP ' + result.status + '.', result.status);
-    }
-    let payload;
-    try {
-      payload = await result.json();
-    } catch {
-      throw pilotError('GROQ_INVALID_RESPONSE', 'Groq trả về dữ liệu không phải JSON hợp lệ.');
-    }
-    const raw = payload?.choices?.[0]?.message?.content;
-    if (typeof raw !== 'string' || raw.length > 12000) {
-      throw pilotError('GROQ_INVALID_RESPONSE', 'Groq trả phản hồi trống hoặc quá dài.');
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw pilotError('GROQ_INVALID_RESPONSE', 'Groq không trả về JSON đánh giá hợp lệ.');
-    }
-    const review = validateReview(parsed);
-    return { mode: 'live', model: MODEL, review };
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw pilotError('GROQ_TIMEOUT', 'Hết thời gian chờ phản hồi Groq sau 30 giây.');
-    }
-    if (error?.code) throw error;
-    // Do not expose raw provider/network errors, which may contain request details.
-    throw pilotError('GROQ_NETWORK', 'Không thể kết nối ổn định tới Groq API.');
-  } finally {
-    clearTimeout(timeout);
+    parsed = JSON.parse(result.text);
+  } catch {
+    throw pilotError('GROQ_INVALID_RESPONSE', 'Groq không trả về JSON đánh giá hợp lệ.');
   }
+  const review = validateReview(parsed);
+  return { mode: 'live', model: result.model, review };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -64,37 +64,53 @@ test('rejects duplicate criteria, fabricated grades and wrong source', () => {
   assert.throws(() => validateReview(slide), /Dẫn chứng được chọn không thuộc nguồn của tiêu chí R4/);
 });
 
-test('live pilot only sends built-in dummy text and checks returned quotes', async () => {
+test('live pilot uses the shared Groq adapter and sends only built-in synthetic content once', async () => {
   let calls = 0;
   const result = await runPilot({
     live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
     fetcher: async (url, options) => {
       calls++;
       assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
+      assert.equal(options.method, 'POST');
       assert.equal(options.headers.Authorization, 'Bearer DUMMY_TEST_TOKEN_NOT_A_SECRET');
       const req = JSON.parse(options.body);
+      assert.equal(req.model, MODEL);
       assert.equal(req.messages[1].content.includes(SAMPLE.transcript), true);
       assert.equal(req.messages[1].content.includes(SAMPLE.slides[1]), true);
+      assert.equal(req.response_format.json_schema.strict, true);
       assert.equal(req.response_format.json_schema.schema.properties.criteria.items.properties.evidenceId.type, 'string');
       assert.equal(req.messages[1].content.includes('R4_B'), true);
-      return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(validReview()) } }] }) };
+      assert.equal(req.messages[1].content.includes('DỮ LIỆU GIẢ LẬP'), true);
+      return { ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(validReview()) } }] }) };
     },
   });
   assert.equal(calls, 1);
   assert.equal(result.mode, 'live');
+  assert.equal(result.model, MODEL);
   assert.equal(result.review.criteria[0].evidenceId, 'R1_A');
   assert.equal(result.review.criteria[0].quote, 'giảm rác nhựa ở trường học');
 });
 
-
 test('malformed provider JSON is rejected with a safe diagnostic code', async () => {
   await assert.rejects(runPilot({
     live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
-    fetcher: async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{bad json' } }] }) }),
+    fetcher: async () => ({ ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: '{bad json' } }] }) }),
   }), error => error.code === 'GROQ_INVALID_RESPONSE');
 });
 
-test('upstream HTTP failures preserve status category without exposing response body', async () => {
+test('adapter output truncation is rejected without a second request', async () => {
+  let calls = 0;
+  await assert.rejects(runPilot({
+    live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
+    fetcher: async () => {
+      calls++;
+      return { ok: true, json: async () => ({ choices: [{ finish_reason: 'length', message: { content: '' } }] }) };
+    },
+  }), error => error.code === 'GROQ_OUTPUT_LIMIT');
+  assert.equal(calls, 1);
+});
+
+test('upstream HTTP failures preserve safe status categories without exposing response body', async () => {
   await assert.rejects(runPilot({
     live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
     fetcher: async () => ({ ok: false, status: 503, text: async () => 'private provider details' }),
@@ -106,6 +122,6 @@ test('429 stops without retries or fallback to paid model', async () => {
   await assert.rejects(runPilot({
     live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
     fetcher: async () => { calls++; return { ok: false, status: 429 }; },
-  }), /429/);
+  }), error => error.code === 'GROQ_RATE_LIMIT');
   assert.equal(calls, 1);
 });
