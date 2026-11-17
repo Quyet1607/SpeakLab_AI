@@ -60,8 +60,8 @@ test('rejects duplicate criteria, fabricated grades and wrong source', () => {
   grade.summary = 'Điểm tổng: 9/10 cho bài này.';
   assert.throws(() => validateReview(grade), /điểm số/);
   const slide = validReview();
-  slide.criteria[3].quote = 'Em xin cảm ơn.';
-  assert.throws(() => validateReview(slide), /Dẫn chứng R4/);
+  slide.criteria[3].evidenceId = 'R1_A';
+  assert.throws(() => validateReview(slide), /Dẫn chứng được chọn không thuộc nguồn của tiêu chí R4/);
 });
 
 test('live pilot only sends built-in dummy text and checks returned quotes', async () => {
@@ -82,7 +82,8 @@ test('live pilot only sends built-in dummy text and checks returned quotes', asy
   });
   assert.equal(calls, 1);
   assert.equal(result.mode, 'live');
-  assert.deepEqual(result.review, validReview());
+  assert.equal(result.review.criteria[0].evidenceId, 'R1_A');
+  assert.equal(result.review.criteria[0].quote, 'giảm rác nhựa ở trường học');
 });
 
 
