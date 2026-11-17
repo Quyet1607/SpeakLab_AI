@@ -1,6 +1,7 @@
 /* This static UI sends no student content and renders responses as plain text. */
 const status = document.getElementById('status');
 const button = document.getElementById('run');
+const samplePicker = document.getElementById('sample');
 const result = document.getElementById('result');
 const reviewRoot = document.getElementById('review');
 const changeStatus = (message) => { status.textContent = message; };
@@ -21,6 +22,7 @@ async function checkReady() {
     }
     changeStatus('Sẵn sàng. Đã xác nhận tài khoản vận hành và có khóa Groq trên máy chủ Preview.');
     button.disabled = false;
+    samplePicker.disabled = false;
   } catch {
     changeStatus('Không thể liên lạc API thử nghiệm trên Vercel Preview.');
   }
@@ -28,6 +30,7 @@ async function checkReady() {
 
 button.addEventListener('click', async () => {
   button.disabled = true;
+  samplePicker.disabled = true;
   button.textContent = 'Đã dùng lượt thử này';
   result.hidden = true;
   reviewRoot.replaceChildren();
@@ -38,7 +41,8 @@ button.addEventListener('click', async () => {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
       cache: 'no-store',
-      body: JSON.stringify({ syntheticOnly: true, confirmOneCall: true }),
+      body: JSON.stringify({ syntheticOnly: true, confirmOneCall: true,
+        ...(samplePicker.value ? { caseId: samplePicker.value } : {}) }),
     });
     const data = await response.json().catch(() => ({ error: 'Máy chủ trả về phản hồi không đọc được.' }));
     if (!response.ok) {
@@ -48,6 +52,7 @@ button.addEventListener('click', async () => {
     }
     changeStatus('Đã nhận kết quả Groq qua Vercel Preview. Không có dữ liệu học sinh được gửi.');
     result.hidden = false;
+    if (data.sample?.label) line(reviewRoot, 'h3', 'Bài giả lập: ' + data.sample.label);
     line(reviewRoot, 'p', data.review?.summary);
     for (const c of data.review?.criteria || []) {
       const article = document.createElement('article');
