@@ -93,7 +93,9 @@ test('adult Preview: rejects cross-origin and missing confirmations before quota
     { ...sample, confirmOneCall: false },
     { ...sample, transcript: 'quá ngắn' },
     { ...sample, studentId: '1234' },
-    { ...sample, slides: Array.from({ length: 4 }, (_, i) => ({ number: i + 1, text: 'Bài không phù hợp' })) },
+    { ...sample, slides: Array.from({ length: 41 }, (_, i) => ({ number: i + 1, text: 'Bài không phù hợp' })) },
+    { ...sample, transcript: 'A'.repeat(24001) },
+    { ...sample, slides: Array.from({ length: 40 }, (_, i) => ({ number: i + 1, text: 'A'.repeat(420) })) },
     { ...sample, topic: 'Một lớp 8A cần thực hiện dự án' },
     { ...sample, transcript: sample.transcript + ' Liên hệ somebody@example.com.' },
     { ...sample, transcript: sample.transcript + ' Gọi số 0912345678.' },
@@ -114,6 +116,29 @@ test('adult Preview: admitted adult-authored text is reserved then sent exactly 
   assert.equal(res.data.model, 'mock-groq');
   assert.deepEqual(calls, ['configured', 'reserved', 'provider', 'released']);
   assert.doesNotMatch(JSON.stringify(res.data), /MOCK_ONLY|adultSelfAuthored|confirmExternalTransfer/u);
+});
+test('adult Preview: accepts every slide in 18 and 40-slide adult-authored decks with one mock call', async () => {
+  for (const count of [18, 40]) {
+    const body = { ...sample, slides: Array.from({ length: count }, (_, i) => ({
+      number: i + 1, text: 'Biện pháp di chuyển an toàn và giảm khí thải số ' + (i + 1),
+    })) };
+    const { res, calls } = await request({ body });
+    assert.equal(res.statusCode, 200, count + ' slides');
+    assert.deepEqual(calls, ['configured', 'reserved', 'provider', 'released']);
+  }
+});
+test('adult Preview: GET returns full text limits without spending a Groq call', async () => {
+  const { res, calls } = await request({ method: 'GET' });
+  assert.equal(res.data.maxSlides, 40);
+  assert.equal(res.data.maxTranscriptChars, 24000);
+  assert.equal(res.data.maxSlideTotal, 16000);
+  assert.deepEqual(calls, []);
+});
+test('adult Preview: rejects a very large JSON body before quota or provider', async () => {
+  const body = { ...sample, transcript: 'A'.repeat(70000) };
+  const { res, calls } = await request({ body });
+  assert.equal(res.statusCode, 413);
+  assert.deepEqual(calls, []);
 });
 test('adult Preview: provider failure does not retry or leak user input', async () => {
   const failure = Object.assign(new Error(sample.transcript), { code: 'GROQ_INVALID_REVIEW' });
