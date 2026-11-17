@@ -17,6 +17,8 @@ on:
       - 'tests/aiReviewRoute.test.js'
       - 'tests/pptxReviewText.test.js'
       - 'tests/localAiReviewLibrary.test.js'
+      - 'tests/groqSyntheticPilot.test.js'
+      - 'scripts/groqSyntheticPilot.mjs'
       - 'tests/aiReviewResults.test.js'
       - 'tests/aiReviewAcceptance.test.js'
       - 'tests/googleIdentityRelease.test.js'
@@ -65,6 +67,8 @@ jobs:
         run: bun test tests/practiceBrief.test.js
       - name: Test local account history and guest cleanup
         run: bun test tests/localPracticeHistory.test.js
+      - name: Test safe Groq synthetic-only pilot (offline)
+        run: node --test tests/groqSyntheticPilot.test.js
       - name: Test guest slide-text cleanup
         run: bun test tests/localReviewSlideLibrary.test.js
       - name: Test guest video cleanup
