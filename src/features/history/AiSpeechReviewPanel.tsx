@@ -99,8 +99,8 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
   const studentGroqMode = provider === 'groq' && studentGroqReady && !groqTeacher;
   const groqAvailable = studentGroqReady || (groqTeacher && groqReady);
   const groqPayload = () => ({
-    sessionId, topic, speakingGoal: speakingGoal || '', transcript,
-    slides: slides?.slides || [],
+    sessionId, topic, ...(studentGroqMode ? { topicDescription: topicDescription || '' } : {}),
+    speakingGoal: speakingGoal || '', transcript, slides: slides?.slides || [],
   });
   const currentGroqSnapshot = JSON.stringify(groqPayload());
   const groqAllowedInput = transcript.length >= 20 && transcript.length <= 24000 &&
