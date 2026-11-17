@@ -9,11 +9,11 @@ function validReview() {
     summary: 'Bài nói có hai giải pháp cụ thể và tự thừa nhận chưa có số liệu.',
     limitations: 'Chỉ đọc chữ ASR và slide; chưa xác minh tính đúng của các khẳng định.',
     criteria: [
-      { criterion: 'R1', comment: 'Bám đúng đề tài.', quote: 'giảm rác nhựa ở trường học', suggestion: 'Nêu rõ đối tượng áp dụng.' },
-      { criterion: 'R2', comment: 'Có mở và kết.', quote: 'Em xin cảm ơn.', suggestion: 'Thêm câu chuyển ý rõ ràng.' },
-      { criterion: 'R3', comment: 'Chưa có số liệu.', quote: 'Chúng ta chưa có số liệu thử nghiệm', suggestion: 'Kiểm chứng bằng một khảo sát.' },
-      { criterion: 'R4', comment: 'Có chữ slide hỗ trợ.', quote: 'Thùng phân loại rác trong lớp học', suggestion: 'Giải thích cách triển khai thùng phân loại.' },
-      { criterion: 'R5', comment: 'Nêu giải pháp.', quote: 'Em đề xuất mang bình nước cá nhân', suggestion: 'Tóm tắt hai giải pháp ở cuối.' },
+      { criterion: 'R1', comment: 'Bám đúng đề tài.', evidenceId: 'R1_A', suggestion: 'Nêu rõ đối tượng áp dụng.' },
+      { criterion: 'R2', comment: 'Có mở và kết.', evidenceId: 'R2_B', suggestion: 'Thêm câu chuyển ý rõ ràng.' },
+      { criterion: 'R3', comment: 'Chưa có số liệu.', evidenceId: 'R3_A', suggestion: 'Kiểm chứng bằng một khảo sát.' },
+      { criterion: 'R4', comment: 'Có chữ slide hỗ trợ.', evidenceId: 'R4_B', suggestion: 'Giải thích cách triển khai thùng phân loại.' },
+      { criterion: 'R5', comment: 'Nêu giải pháp.', evidenceId: 'R5_A', suggestion: 'Tóm tắt hai giải pháp ở cuối.' },
     ],
   };
 }
@@ -43,11 +43,13 @@ test('strict JSON request has no arbitrary user text, no student identity, and n
   assert.equal(JSON.stringify(req).includes('ownerSub'), false);
 });
 
-test('valid mock response is accepted only if all source quotes are exact', () => {
-  assert.deepEqual(validateReview(validReview()), validReview());
+test('model selects a criterion-specific evidence ID and server inserts exact source text', () => {
+  const normalized = validateReview(validReview());
+  assert.equal(normalized.criteria[0].quote, 'giảm rác nhựa ở trường học');
+  assert.equal(normalized.criteria[3].quote, 'Thùng phân loại rác trong lớp học');
   const bad = validReview();
-  bad.criteria[0].quote = 'Nghiên cứu cho thấy hiệu quả tăng 100%';
-  assert.throws(() => validateReview(bad), /Dẫn chứng R1/);
+  bad.criteria[0].evidenceId = 'R4_A';
+  assert.throws(() => validateReview(bad), /Dẫn chứng được chọn không thuộc nguồn của tiêu chí R1/);
 });
 
 test('rejects duplicate criteria, fabricated grades and wrong source', () => {
@@ -73,12 +75,29 @@ test('live pilot only sends built-in dummy text and checks returned quotes', asy
       const req = JSON.parse(options.body);
       assert.equal(req.messages[1].content.includes(SAMPLE.transcript), true);
       assert.equal(req.messages[1].content.includes(SAMPLE.slides[1]), true);
+      assert.equal(req.response_format.json_schema.schema.properties.criteria.items.properties.evidenceId.type, 'string');
+      assert.equal(req.messages[1].content.includes('R4_B'), true);
       return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(validReview()) } }] }) };
     },
   });
   assert.equal(calls, 1);
   assert.equal(result.mode, 'live');
   assert.deepEqual(result.review, validReview());
+});
+
+
+test('malformed provider JSON is rejected with a safe diagnostic code', async () => {
+  await assert.rejects(runPilot({
+    live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
+    fetcher: async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{bad json' } }] }) }),
+  }), error => error.code === 'GROQ_INVALID_RESPONSE');
+});
+
+test('upstream HTTP failures preserve status category without exposing response body', async () => {
+  await assert.rejects(runPilot({
+    live: true, apiKey: 'DUMMY_TEST_TOKEN_NOT_A_SECRET',
+    fetcher: async () => ({ ok: false, status: 503, text: async () => 'private provider details' }),
+  }), error => error.code === 'GROQ_UPSTREAM_HTTP' && error.status === 503 && !error.message.includes('private'));
 });
 
 test('429 stops without retries or fallback to paid model', async () => {
