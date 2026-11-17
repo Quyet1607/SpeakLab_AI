@@ -40,6 +40,7 @@ on:
       - 'tests/groqQualityAcceptance.test.js'
       - 'tests/groqFailureAndQuotaAcceptance.test.js'
       - 'tests/groqPreviewDashboardEntry.test.js'
+      - 'tests/groqPreviewAuthorizationStep2712.test.js'
       - 'tests/groqPilotQuota.test.js'
       - 'server/groqPilotQuota.js'
       - 'scripts/groqSyntheticPilot.mjs'
@@ -98,6 +99,8 @@ jobs:
         run: node --test tests/groqFailureAndQuotaAcceptance.test.js
       - name: Test teacher-only Groq Preview dashboard entry
         run: node --test tests/groqPreviewDashboardEntry.test.js
+      - name: Test Groq Preview authorization matrix (2.7.2)
+        run: node --test tests/groqPreviewAuthorizationStep2712.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
