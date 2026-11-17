@@ -86,6 +86,35 @@ test('generic engine: works without slide content, still validates 2 strengths a
   assert.equal(result.review.source, 'transcript');
 });
 
+test('generic engine: validates all 18 and 40 distinct slides, never just the first three', async () => {
+  for (const count of [18, 40]) {
+    const slides = Array.from({ length: count }, (_, i) => ({
+      number: i + 1, text: 'Biện pháp đi lại bền vững và phù hợp với nơi ở – nội dung ' + (i + 1),
+    }));
+    const spy = mockedFetcher(() => mockResponse(slides));
+    const result = await runGenericGroqReview({
+      input: { ...input, slides }, apiKey: 'TEST_KEY', fetcher: spy.fetch,
+    });
+    assert.equal(spy.calls, 1, 'Only one call for ' + count + ' slides');
+    assert.equal(result.review.slideReviewStats.target, count);
+    assert.equal(result.review.slideReviewStats.accepted, count);
+    assert.equal(result.review.slideComparisons.length, count);
+    assert.equal(result.review.slideComparisons.at(-1).slideNumber, count);
+    assert.equal(result.review.slideComparisons.at(-1).slideQuote, slides.at(-1).text);
+  }
+});
+
+test('generic engine: missing a late slide in a 40-slide result fails closed', async () => {
+  const slides = Array.from({ length: 40 }, (_, i) => ({
+    number: i + 1, text: 'Nội dung về giao thông và môi trường số ' + (i + 1),
+  }));
+  const spy = mockedFetcher(() => mockResponse(slides.slice(0, 39)));
+  await assert.rejects(runGenericGroqReview({
+    input: { ...input, slides }, apiKey: 'TEST_KEY', fetcher: spy.fetch,
+  }), { code: 'GROQ_INCOMPLETE_SLIDE_REVIEW' });
+  assert.equal(spy.calls, 1);
+});
+
 test('generic engine: no consent or invalid input fails before any provider call', async () => {
   const spy = mockedFetcher(() => mockResponse());
   for (const body of [
