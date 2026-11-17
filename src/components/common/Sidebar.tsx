@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Presentation,
   History,
-  FileBarChart,
   Settings,
   Sparkles,
   Layers,
@@ -51,12 +50,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Lịch sử luyện tập',
       icon: History,
       badge: `${sessionCount} buổi`,
-    },
-    {
-      id: 'report' as ActivePage,
-      label: 'Báo cáo đánh giá',
-      icon: FileBarChart,
-      badge: 'Demo',
     },
     {
       id: 'settings' as ActivePage,
