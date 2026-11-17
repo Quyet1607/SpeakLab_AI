@@ -106,47 +106,7 @@ export interface PracticeSession {
   participantCount: number;
   createdAt: string;
   status: 'completed' | 'in_progress' | 'draft';
-  score?: number;
-  reportId?: string;
   presentationSource?: PresentationSource;
-}
-
-export interface EvaluationTimelineEvent {
-  timeInSeconds: number;
-  timeFormatted: string;
-  type: 'positive' | 'warning' | 'question' | 'slide_change';
-  title: string;
-  description: string;
-  slideNumber?: number;
-}
-
-export interface EvaluationReport {
-  id: string;
-  sessionId: string;
-  sessionTitle: string;
-  modeTitle: string;
-  dateFormatted: string;
-  durationFormatted: string;
-  overallScore: number; // 0 - 10
-  metrics: {
-    speechPaceWpm: number;        // Words per minute (target 110-140)
-    fillerWordsCount: number;     // e.g. "à, ừm, thì là"
-    eyeContactPercentage: number; // Eye contact ratio
-    clarityScore: number;         // 0 - 10
-    structureScore: number;       // 0 - 10
-    defenseScore: number;         // 0 - 10
-  };
-  speechPaceTrend: { time: string; wpm: number; status: 'good' | 'fast' | 'slow' }[];
-  fillerWordBreakdown: { word: string; count: number }[];
-  timelineEvents: EvaluationTimelineEvent[];
-  strengths: string[];
-  improvements: string[];
-  juryFeedback: {
-    judgeName: string;
-    judgeTitle: string;
-    comment: string;
-    score: number;
-  }[];
 }
 
 export interface UserProfile {
@@ -182,5 +142,4 @@ export type ActivePage =
   | 'practice_setup'
   | 'meeting_room'
   | 'history'
-  | 'report'
   | 'settings';
