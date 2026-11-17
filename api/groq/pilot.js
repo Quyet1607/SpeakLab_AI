@@ -71,14 +71,26 @@ export function createPilotHandler({
         note: 'Đây là dữ liệu giả lập, chưa phải báo cáo học sinh.',
       });
     } catch (error) {
-      const message = typeof error?.message === 'string' ? error.message : '';
-      if (message.includes('429')) return res.status(429).json({ error: 'Groq đã đạt giới hạn miễn phí. Không tự gọi lại.' });
-      if (message.includes('Dẫn chứng') || message.includes('Tiêu chí') ||
-          message.includes('điểm số') || message.includes('cấu trúc') ||
-          message.includes('Tóm tắt') || message.includes('giới hạn đánh giá')) {
-        return res.status(502).json({ error: 'Groq trả nhận xét chưa đạt kiểm chứng Rubric/dẫn chứng. Không hiển thị nhận xét chưa xác minh.' });
+      if (error?.code === 'GROQ_RATE_LIMIT' || /429/u.test(String(error?.message || ''))) {
+        return res.status(429).json({ error: 'Groq Free Tier đã chạm giới hạn. Không tự gọi lại hoặc chuyển sang API trả phí.' });
       }
-      return res.status(502).json({ error: 'Thử nghiệm Groq chưa thành công. Có thể do mô hình, giới hạn hoặc phản hồi không hợp lệ; kiểm tra trạng thái Groq.' });
+      if (error?.code === 'GROQ_TIMEOUT') {
+        return res.status(504).json({ error: 'Groq không phản hồi trong 30 giây. Lượt thử đã kết thúc; không tự động gửi lại.' });
+      }
+      if (error?.code === 'GROQ_INVALID_REVIEW') {
+        return res.status(502).json({
+          error: 'Groq đã phản hồi nhưng kết quả không vượt qua kiểm chứng Rubric/dẫn chứng. Hệ thống đã loại bỏ kết quả.',
+          detail: error.message,
+          code: 'INVALID_REVIEW',
+        });
+      }
+      if (error?.code === 'GROQ_INVALID_RESPONSE') {
+        return res.status(502).json({ error: 'Groq không trả về cấu trúc JSON hợp lệ. Không hiển thị nhận xét chưa kiểm chứng.', code: 'INVALID_RESPONSE' });
+      }
+      if (error?.code === 'GROQ_UPSTREAM_HTTP') {
+        return res.status(502).json({ error: 'Groq API trả về lỗi HTTP ' + error.status + '. Kiểm tra trạng thái dịch vụ và giới hạn Free Tier.', code: 'UPSTREAM_HTTP' });
+      }
+      return res.status(502).json({ error: 'Không kết nối được Groq API. Lượt thử đã kết thúc; không tự động gửi lại.', code: 'GROQ_NETWORK' });
     } finally {
       running.delete(userId);
     }
