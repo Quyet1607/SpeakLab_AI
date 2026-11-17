@@ -21,14 +21,43 @@ export const SAMPLE = Object.freeze({
 });
 
 const IDS = ['R1', 'R2', 'R3', 'R4', 'R5'];
+// The model selects an evidence ID; the server inserts the exact source text.
+// This prevents punctuation, casing, or paraphrasing from breaking verification.
+const EVIDENCE = Object.freeze({
+  R1: Object.freeze({
+    R1_A: 'giảm rác nhựa ở trường học',
+    R1_B: 'mang bình nước cá nhân thay cho chai nhựa dùng một lần',
+  }),
+  R2: Object.freeze({
+    R2_A: 'Hôm nay em nói về giảm rác nhựa ở trường học.',
+    R2_B: 'Em xin cảm ơn.',
+  }),
+  R3: Object.freeze({
+    R3_A: 'Chúng ta chưa có số liệu thử nghiệm để kết luận hiệu quả của hai giải pháp.',
+  }),
+  R4: Object.freeze({
+    R4_A: 'Giảm rác nhựa: Mang bình nước cá nhân',
+    R4_B: 'Thùng phân loại rác trong lớp học',
+  }),
+  R5: Object.freeze({
+    R5_A: 'Em đề xuất mang bình nước cá nhân thay cho chai nhựa dùng một lần.',
+    R5_B: 'Mỗi lớp có thể đặt thùng phân loại rác.',
+  }),
+});
+function pilotError(code, message, status) {
+  const error = new Error(message);
+  error.code = code;
+  if (status !== undefined) error.status = status;
+  return error;
+}
 const feedback = {
   type: 'object',
   additionalProperties: false,
-  required: ['criterion', 'comment', 'quote', 'suggestion'],
+  required: ['criterion', 'comment', 'evidenceId', 'suggestion'],
   properties: {
     criterion: { type: 'string', enum: IDS },
     comment: { type: 'string' },
-    quote: { type: 'string' },
+    evidenceId: { type: 'string', enum: Object.values(EVIDENCE).flatMap(group => Object.keys(group)) },
     suggestion: { type: 'string' },
   },
 };
@@ -54,9 +83,11 @@ export function makeRequest() {
           'TXT: ' + SAMPLE.transcript,
           'Slide 1: ' + SAMPLE.slides[0],
           'Slide 2: ' + SAMPLE.slides[1],
-          'Trả về đúng 5 mục R1–R5, mỗi mục một nhận xét ngắn, một dẫn chứng nguyên văn, và một gợi ý cụ thể.',
-          'R1 nội dung, R2 cấu trúc, R3 lập luận, R5 mục tiêu: trích dẫn chữ từ TXT.',
-          'R4 đối chiếu PowerPoint: trích dẫn chữ từ slide. Không khẳng định slide đã được trình chiếu.',
+          'Trả về đúng 5 mục R1–R5, mỗi mục một nhận xét ngắn, một evidenceId và một gợi ý cụ thể.',
+          'Chỉ được chọn evidenceId trong danh sách dưới đây; không tự viết hoặc diễn đạt lại dẫn chứng.',
+          'Danh sách evidenceId hợp lệ: ' + IDS.map(id => id + ': ' + Object.keys(EVIDENCE[id]).map(key => key + ' = "' + EVIDENCE[id][key] + '"').join('; ')).join(' | '),
+          'R1 nội dung, R2 cấu trúc, R3 lập luận, R5 mục tiêu: chỉ chọn evidenceId thuộc TXT tương ứng.',
+          'R4 đối chiếu PowerPoint: chỉ chọn evidenceId thuộc slide. Không khẳng định slide đã được trình chiếu.',
           'Không tự tạo điểm tổng. Không gán sự thật chưa được kiểm chứng. Tất cả trường bắt buộc có nội dung.',
         ].join('\n'),
       },
@@ -82,43 +113,47 @@ export function makeRequest() {
 }
 
 export function validateReview(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Phản hồi không phải JSON object.');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw pilotError('GROQ_INVALID_REVIEW', 'Phản hồi không phải JSON object.');
   if (typeof value.summary !== 'string' || value.summary.trim().length < 10 || value.summary.length > 700) {
-    throw new Error('Tóm tắt không hợp lệ.');
+    throw pilotError('GROQ_INVALID_REVIEW', 'Tóm tắt không hợp lệ.');
   }
   if (typeof value.limitations !== 'string' || value.limitations.trim().length < 10 || value.limitations.length > 700) {
-    throw new Error('Thiếu giới hạn đánh giá.');
+    throw pilotError('GROQ_INVALID_REVIEW', 'Thiếu giới hạn đánh giá.');
   }
-  if (!Array.isArray(value.criteria) || value.criteria.length !== 5) throw new Error('Cần đúng 5 tiêu chí.');
+  if (!Array.isArray(value.criteria) || value.criteria.length !== 5) throw pilotError('GROQ_INVALID_REVIEW', 'Cần đúng 5 tiêu chí.');
   const seen = new Set();
-  for (const item of value.criteria) {
-    if (!item || !IDS.includes(item.criterion) || seen.has(item.criterion)) throw new Error('Tiêu chí không hợp lệ hoặc bị lặp.');
+  const criteria = value.criteria.map(item => {
+    if (!item || !IDS.includes(item.criterion) || seen.has(item.criterion)) {
+      throw pilotError('GROQ_INVALID_REVIEW', 'Tiêu chí không hợp lệ hoặc bị lặp.');
+    }
     seen.add(item.criterion);
-    for (const key of ['comment', 'quote', 'suggestion']) {
+    for (const key of ['comment', 'suggestion']) {
       if (typeof item[key] !== 'string' || item[key].trim().length < 5 || item[key].length > 550) {
-        throw new Error('Thiếu thông tin ở tiêu chí ' + item.criterion + '.');
+        throw pilotError('GROQ_INVALID_REVIEW', 'Thiếu thông tin ở tiêu chí ' + item.criterion + '.');
       }
     }
-    const source = item.criterion === 'R4' ? SAMPLE.slides : [SAMPLE.transcript];
-    if (!source.some(text => text.includes(item.quote.trim()))) {
-      throw new Error('Dẫn chứng ' + item.criterion + ' không có trong nguồn tương ứng.');
+    const quote = EVIDENCE[item.criterion]?.[item.evidenceId];
+    if (!quote) {
+      throw pilotError('GROQ_INVALID_REVIEW', 'Dẫn chứng được chọn không thuộc nguồn của tiêu chí ' + item.criterion + '.');
     }
-  }
-  const allText = JSON.stringify(value);
+    // Keep the UI contract unchanged while deriving every displayed quote from trusted source text.
+    return { ...item, quote };
+  });
+  const normalized = { ...value, criteria };
+  const allText = JSON.stringify(normalized);
   if (/(?:overall[_ ]?score|điểm\s*(?:số|tổng)|\b\d+(?:[.,]\d+)?\s*\/\s*10\b)/iu.test(allText)) {
-    throw new Error('Phản hồi xuất hiện điểm số dù chưa được phép.');
+    throw pilotError('GROQ_INVALID_REVIEW', 'Phản hồi xuất hiện điểm số dù chưa được phép.');
   }
-  return value;
+  return normalized;
 }
 
 export async function runPilot({ live = false, apiKey = process.env.GROQ_API_KEY, fetcher = fetch } = {}) {
   if (!live) return { mode: 'offline', model: MODEL, hasSyntheticInput: true };
-  if (!apiKey || !apiKey.trim()) throw new Error('Thiếu GROQ_API_KEY. Không có yêu cầu API nào được gửi.');
+  if (!apiKey || !apiKey.trim()) throw pilotError('GROQ_CONFIG', 'Thiếu GROQ_API_KEY. Không có yêu cầu API nào được gửi.');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
-  let result;
   try {
-    result = await fetcher('https://api.groq.com/openai/v1/chat/completions', {
+    const result = await fetcher('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         Authorization: 'Bearer ' + apiKey,
@@ -128,17 +163,36 @@ export async function runPilot({ live = false, apiKey = process.env.GROQ_API_KEY
       signal: controller.signal,
     });
     if (!result.ok) {
-      if (result.status === 429) throw new Error('Đã chạm giới hạn Groq Free Tier (429). Không tự thử lại hoặc đổi API có phí.');
-      throw new Error('Groq không xử lý yêu cầu (HTTP ' + result.status + '). Không hiển thị phản hồi có thể chứa thông tin nhạy cảm.');
+      if (result.status === 429) {
+        throw pilotError('GROQ_RATE_LIMIT', 'Đã chạm giới hạn Groq Free Tier (429). Không tự thử lại hoặc đổi API có phí.');
+      }
+      throw pilotError('GROQ_UPSTREAM_HTTP', 'Groq API trả về HTTP ' + result.status + '.', result.status);
     }
-    const payload = await result.json();
+    let payload;
+    try {
+      payload = await result.json();
+    } catch {
+      throw pilotError('GROQ_INVALID_RESPONSE', 'Groq trả về dữ liệu không phải JSON hợp lệ.');
+    }
     const raw = payload?.choices?.[0]?.message?.content;
-    if (typeof raw !== 'string' || raw.length > 12000) throw new Error('Groq trả phản hồi trống hoặc quá dài.');
-    const review = validateReview(JSON.parse(raw));
+    if (typeof raw !== 'string' || raw.length > 12000) {
+      throw pilotError('GROQ_INVALID_RESPONSE', 'Groq trả phản hồi trống hoặc quá dài.');
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw pilotError('GROQ_INVALID_RESPONSE', 'Groq không trả về JSON đánh giá hợp lệ.');
+    }
+    const review = validateReview(parsed);
     return { mode: 'live', model: MODEL, review };
   } catch (error) {
-    if (error?.name === 'AbortError') throw new Error('Hết thời gian thử API sau 30 giây.');
-    throw error;
+    if (error?.name === 'AbortError') {
+      throw pilotError('GROQ_TIMEOUT', 'Hết thời gian chờ phản hồi Groq sau 30 giây.');
+    }
+    if (error?.code) throw error;
+    // Do not expose raw provider/network errors, which may contain request details.
+    throw pilotError('GROQ_NETWORK', 'Không thể kết nối ổn định tới Groq API.');
   } finally {
     clearTimeout(timeout);
   }
