@@ -38,7 +38,8 @@ export function makeRequest() {
     model: MODEL,
     stream: false,
     temperature: 0.1,
-    max_completion_tokens: 1200,
+    reasoning_effort: 'low',
+    max_completion_tokens: 2048,
     messages: [
       {
         role: 'system',
@@ -132,7 +133,7 @@ export async function runPilot({ live = false, apiKey = process.env.GROQ_API_KEY
     }
     const payload = await result.json();
     const raw = payload?.choices?.[0]?.message?.content;
-    if (typeof raw !== 'string' || raw.length > 10000) throw new Error('Groq trả phản hồi trống hoặc quá dài.');
+    if (typeof raw !== 'string' || raw.length > 12000) throw new Error('Groq trả phản hồi trống hoặc quá dài.');
     const review = validateReview(JSON.parse(raw));
     return { mode: 'live', model: MODEL, review };
   } catch (error) {
