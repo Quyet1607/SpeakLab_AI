@@ -138,12 +138,12 @@ export function makeRequest() {
   };
 }
 
-function safeModelText(value, label, min = 5, max = 550) {
+function safeModelText(value, label, min = 5, max = 550, checkClaims = true) {
   if (typeof value !== 'string' || value.trim().length < min || value.length > max) {
     throw pilotError('GROQ_INVALID_REVIEW', label + ' không hợp lệ.');
   }
   const text = value.trim();
-  if (UNSUPPORTED_SCORE.test(text) || UNSUPPORTED_MODALITY.some(pattern => pattern.test(text))) {
+  if (checkClaims && (UNSUPPORTED_SCORE.test(text) || UNSUPPORTED_MODALITY.some(pattern => pattern.test(text)))) {
     throw pilotError('GROQ_INVALID_REVIEW', label + ' chứa nhận xét vượt quá dữ liệu văn bản hoặc tự tạo điểm số.');
   }
   return text;
@@ -179,8 +179,11 @@ export function validateReview(value) {
     if (!item || !IDS.includes(item.criterion) || byCriterion.has(item.criterion)) {
       throw pilotError('GROQ_INVALID_REVIEW', 'Tiêu chí không hợp lệ hoặc bị lặp.');
     }
-    const comment = safeModelText(item.comment, 'Nhận xét ' + item.criterion);
-    const suggestion = safeModelText(item.suggestion, 'Gợi ý ' + item.criterion);
+    // R2 and R4 model prose is deliberately discarded and replaced below;
+    // validate its shape only so unsupported visual claims can never reach UI.
+    const checkClaims = item.criterion !== 'R2' && item.criterion !== 'R4';
+    const comment = safeModelText(item.comment, 'Nhận xét ' + item.criterion, 5, 550, checkClaims);
+    const suggestion = safeModelText(item.suggestion, 'Gợi ý ' + item.criterion, 5, 550, checkClaims);
     if (!Array.isArray(item.evidenceIds) || item.evidenceIds.length < 1 ||
         item.evidenceIds.length > 4 || new Set(item.evidenceIds).size !== item.evidenceIds.length) {
       throw pilotError('GROQ_INVALID_REVIEW', 'Danh sách dẫn chứng không hợp lệ ở tiêu chí ' + item.criterion + '.');
