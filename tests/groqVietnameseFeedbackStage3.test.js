@@ -81,3 +81,37 @@ test('stage 3: malformed evidence and unsupported score remain rejected', () => 
   voice.limitations = 'Em có giọng điệu tự tin dù mới nghe bản ghi.';
   assert.throws(() => validateSyntheticCaseReview(voice, sample), { code: 'GROQ_INVALID_REVIEW' });
 });
+
+test('stage 3: even plausible but generic model prose is replaced by audited per-topic wording', () => {
+  for (const sample of SYNTHETIC_COMPARISON_CASES) {
+    const response = mockResponse();
+    for (const criterion of response.criteria) {
+      criterion.comment = 'Đây là một đoạn bình luận chung chung, không liên quan đến nội dung bài nói.';
+      criterion.suggestion = 'Cần cố gắng hơn và cải thiện nội dung bài nói ở lần sau.';
+    }
+    const result = validateSyntheticCaseReview(response, sample);
+    for (const item of result.criteria) {
+      assert.doesNotMatch(item.comment, /chung chung|bình luận/u);
+      assert.doesNotMatch(item.suggestion, /cố gắng hơn|lần sau/u);
+      assert.doesNotMatch(item.quote, TOKENS);
+    }
+  }
+});
+
+test('stage 3: summary and limitations containing internal tokens are rejected before display', () => {
+  const sample = SYNTHETIC_COMPARISON_CASES[0];
+  for (const field of ['summary', 'limitations']) {
+    const response = mockResponse();
+    response[field] = 'Nhận xét có mã SOLUTION_1 lộ ra trong nội dung cho giáo viên.';
+    assert.throws(() => validateSyntheticCaseReview(response, sample), { code: 'GROQ_INVALID_REVIEW' });
+  }
+});
+
+test('stage 3: preserving evidence IDs does not let the model inject arbitrary quotes', () => {
+  const sample = SYNTHETIC_COMPARISON_CASES[2];
+  const response = mockResponse();
+  response.criteria[0].quote = 'Một câu chưa từng xuất hiện trong bản ghi.';
+  const normalized = validateSyntheticCaseReview(response, sample);
+  assert.ok(!JSON.stringify(normalized).includes(response.criteria[0].quote));
+  assert.ok(normalized.criteria[0].quote.includes(evidenceForSample(sample).SOLUTION_1));
+});
