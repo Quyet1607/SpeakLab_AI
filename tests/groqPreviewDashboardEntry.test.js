@@ -7,16 +7,11 @@ const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 const dashboard = readFileSync(new URL('../src/pages/DashboardPage.tsx', import.meta.url), 'utf8');
 const review = readFileSync(new URL('../src/features/history/AiSpeechReviewPanel.tsx', import.meta.url), 'utf8');
 
-test('2.7.1: pilot entry only renders after teacher session and authenticated readiness', () => {
-  assert.match(app, /accountSession\.status !== 'signed_in' \|\| accountSession\.identity\?\.role !== 'teacher'/);
-  assert.match(app, /fetch\('\/api\/groq\/pilot'/);
-  assert.match(app, /response\.ok && data\?\.ready === true/);
-  assert.match(app, /data\?\.syntheticOnly === true && data\?\.branch === 'feature\/groq-synthetic-pilot'/);
-  assert.match(app, /setGroqPilotReady\(false\)/);
-  assert.match(app, /groqPilotReady=\{groqPilotReady\}/);
-  assert.match(dashboard, /\{groqPilotReady && \(/);
-  assert.match(dashboard, /href="\/groq-pilot\.html"/);
-  assert.match(dashboard, /Thử Groq AI \(dữ liệu giả lập\)/);
+test('single review workflow: synthetic Groq dashboard entry and standalone readiness fetch removed', () => {
+  assert.doesNotMatch(app, /groqPilotReady|fetch\\('\\/api\\/groq\\/pilot'/u);
+  assert.doesNotMatch(dashboard, /groqPilotReady|href="\\/groq-pilot\\.html"|Thử Groq AI \\(dữ liệu giả lập\\)/u);
+  assert.match(review, /'\\/api\\/ai\\/groq-review'/u);
+  assert.match(review, /'\\/api\\/ai\\/review'/u);
 });
 
 test('2.7.1: no student upload, review provider replacement or Gemini consent change', () => {
