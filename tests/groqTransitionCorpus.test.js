@@ -33,7 +33,7 @@ test('transition stage 2: corpus is only accessible through server allowlisted I
     assert.ok(!request.messages[1].content.includes(sample.transcript));
   }
   const pilot = readFileSync(new URL('../api/groq/pilot.js', import.meta.url), 'utf8');
-  assert.match(pilot, /Object\.keys\(request\)\.length !== 2/);
+  assert.match(pilot, /Object\.keys\(request\)\.length !== \(requestedCase \? 3 : 2\)/);
   assert.match(pilot, /request\.syntheticOnly !== true \|\| request\.confirmOneCall !== true/);
   assert.match(pilot, /getSyntheticCase\(request\.caseId\)/u);
   assert.match(pilot, /Object\.hasOwn\(request, 'caseId'\) && !requestedCase/u);
