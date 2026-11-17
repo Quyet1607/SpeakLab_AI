@@ -30,6 +30,7 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'tests/localPracticeHistory.test.js'
+      - 'tests/removeDemoEvaluationReport.test.js'
       - 'tests/localReviewSlideLibrary.test.js'
       - 'tests/localVideoLibrary.test.js'
       - 'tests/practiceBrief.test.js'
@@ -63,6 +64,8 @@ jobs:
         run: bun test tests/localTranscriptLibrary.test.js
       - name: Test Phase 7.1 learner topic setup
         run: bun test tests/practiceBrief.test.js
+      - name: Guard removed demo evaluation page and navigation
+        run: node --test tests/removeDemoEvaluationReport.test.js
       - name: Test local account history and guest cleanup
         run: bun test tests/localPracticeHistory.test.js
       - name: Test guest slide-text cleanup
