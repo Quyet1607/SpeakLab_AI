@@ -9,7 +9,6 @@ import {
   VirtualParticipant,
   PresentationDeck,
   PracticeSession,
-  EvaluationReport,
   PracticeModeType
 } from '../types';
 
@@ -432,8 +431,6 @@ export const mockPracticeSessions: PracticeSession[] = [
     participantCount: 6,
     createdAt: '10:15 - 10/11/2026',
     status: 'completed',
-    score: 8.8,
-    reportId: 'rep_01',
   },
   {
     id: 'ses_02',
@@ -446,8 +443,6 @@ export const mockPracticeSessions: PracticeSession[] = [
     participantCount: 6,
     createdAt: '15:30 - 08/11/2026',
     status: 'completed',
-    score: 7.9,
-    reportId: 'rep_02',
   },
   {
     id: 'ses_03',
@@ -460,8 +455,6 @@ export const mockPracticeSessions: PracticeSession[] = [
     participantCount: 6,
     createdAt: '09:00 - 05/11/2026',
     status: 'completed',
-    score: 8.4,
-    reportId: 'rep_03',
   },
   {
     id: 'ses_04',
@@ -474,8 +467,6 @@ export const mockPracticeSessions: PracticeSession[] = [
     participantCount: 3,
     createdAt: '14:20 - 01/11/2026',
     status: 'completed',
-    score: 8.0,
-    reportId: 'rep_04',
   },
   {
     id: 'ses_05',
@@ -488,8 +479,6 @@ export const mockPracticeSessions: PracticeSession[] = [
     participantCount: 6,
     createdAt: '16:00 - 28/10/2026',
     status: 'completed',
-    score: 8.2,
-    reportId: 'rep_05',
   },
   {
     id: 'ses_06',
@@ -502,8 +491,6 @@ export const mockPracticeSessions: PracticeSession[] = [
     participantCount: 3,
     createdAt: '08:45 - 24/10/2026',
     status: 'completed',
-    score: 8.5,
-    reportId: 'rep_06',
   },
 ];
 
@@ -521,111 +508,7 @@ export const mockCurrentUser: UserProfile = {
     totalSessions: mockPracticeSessions.length, // 6
     totalPracticeMinutes: 72,                   // 1.2 giờ
     avgMinutesPerSession: 12,                   // 12 phút / buổi
-    totalReports: mockPracticeSessions.filter((s) => !!s.reportId).length, // 6
-    improvementPercentage: 32,                 // +32% (Chỉ số minh họa)
+    totalReports: 0, // No evaluated reports
+    improvementPercentage: 0, // No measured improvement yet
   },
-};
-
-export const mockDefaultReport: EvaluationReport = {
-  id: 'rep_01',
-  sessionId: 'ses_01',
-  sessionTitle: 'Bảo vệ Đề tài: Phân loại Rác Thông minh bằng AI',
-  modeTitle: 'Luyện bảo vệ trước ban giám khảo',
-  dateFormatted: '10/11/2026 · 10:15',
-  durationFormatted: '12 phút 25 giây',
-  overallScore: 8.8,
-  metrics: {
-    speechPaceWpm: 128,         // Optimal is 120-140 WPM
-    fillerWordsCount: 7,        // e.g., "à", "ừm"
-    eyeContactPercentage: 84,   // 84%
-    clarityScore: 9.0,
-    structureScore: 8.7,
-    defenseScore: 8.5,
-  },
-  speechPaceTrend: [
-    { time: '02:00', wpm: 120, status: 'good' },
-    { time: '04:00', wpm: 148, status: 'fast' },
-    { time: '06:00', wpm: 125, status: 'good' },
-    { time: '08:00', wpm: 118, status: 'good' },
-    { time: '10:00', wpm: 135, status: 'good' },
-    { time: '12:00', wpm: 122, status: 'good' },
-  ],
-  fillerWordBreakdown: [
-    { word: 'à / à thì', count: 3 },
-    { word: 'ừm', count: 2 },
-    { word: 'như vậy là', count: 2 },
-  ],
-  timelineEvents: [
-    {
-      timeInSeconds: 75,
-      timeFormatted: '01:15',
-      type: 'positive',
-      title: 'Mở đầu ấn tượng & rõ ràng',
-      description: 'Giọng nói tự tin, giới thiệu mục tiêu dự án mạch lạc, tạo được chú ý cho hội đồng.',
-      slideNumber: 1,
-    },
-    {
-      timeInSeconds: 230,
-      timeFormatted: '03:50',
-      type: 'warning',
-      title: 'Tốc độ nói tăng nhanh (148 từ/phút)',
-      description: 'Khi trình bày số liệu khảo sát, bạn nói hơi vội và xuất hiện 2 từ đệm "ừm". Nên dừng 1-2 giây sau khi đưa ra số liệu.',
-      slideNumber: 2,
-    },
-    {
-      timeInSeconds: 410,
-      timeFormatted: '06:50',
-      type: 'positive',
-      title: 'Giải thích kỹ thuật sống động',
-      description: 'Mô tả nguyên lý camera thị giác máy tính rõ ràng, dùng ví dụ trực quan dễ hiểu.',
-      slideNumber: 3,
-    },
-    {
-      timeInSeconds: 580,
-      timeFormatted: '09:40',
-      type: 'question',
-      title: 'Giám khảo đặt câu hỏi phản biện',
-      description: 'TS. Trần Hoàng Minh hỏi về khả năng chống nước và độ bền cơ học khi đặt ngoài trời.',
-      slideNumber: 4,
-    },
-    {
-      timeInSeconds: 670,
-      timeFormatted: '11:10',
-      type: 'positive',
-      title: 'Phản hồi bình tĩnh & có số liệu',
-      description: 'Trích dẫn thử nghiệm 4 tuần tại căng-tin để bảo vệ tính khả thi rất thuyết phục.',
-      slideNumber: 5,
-    },
-  ],
-  strengths: [
-    'Phong thái tự tin, duy trì hướng nhìn vào hội đồng đạt 84% thời lượng.',
-    'Bố cục slide cân đối, chuyển tiếp giữa các ý tự nhiên và logic.',
-    'Xử lý câu hỏi phản biện của giám khảo điềm tĩnh, bám sát số liệu thực tế.',
-    'Tốc độ nói trung bình 128 từ/phút - thuộc khoảng lý tưởng cho bài thuyết trình học thuật.',
-  ],
-  improvements: [
-    'Chú ý kiểm soát nhịp thở ở phút thứ 3-4 khi bắt đầu trình bày bảng số liệu khảo sát.',
-    'Cần hạn chế thói quen nói "à thì" khi suy nghĩ trước câu trả lời phản biện.',
-    'Có thể tăng cường ngôn ngữ cơ thể (cử chỉ tay mở) khi nhấn mạnh thông điệp then chốt ở slide kết luận.',
-  ],
-  juryFeedback: [
-    {
-      judgeName: 'TS. Trần Hoàng Minh',
-      judgeTitle: 'Trưởng ban Giám khảo · ĐH Khoa học Tự nhiên',
-      comment: 'Đề tài có tính ứng dụng thực tế rất cao. Em nắm chắc phần cứng và số liệu thử nghiệm. Khả năng bảo vệ trước câu hỏi chất vấn vượt mong đợi so với lứa tuổi THPT.',
-      score: 9.0,
-    },
-    {
-      judgeName: 'ThS. Lê Thu Hà',
-      judgeTitle: 'Giám khảo Kỹ năng Tranh biện & Thuyết trình',
-      comment: 'Giọng nói truyền cảm, âm lượng tốt. Nếu em biết chèn các khoảng lặng có chủ đích sau mỗi kết luận quan trọng, bài nói sẽ càng cuốn hút hơn nữa.',
-      score: 8.8,
-    },
-    {
-      judgeName: 'ThS. Nguyễn Quốc Bảo',
-      judgeTitle: 'Giám khảo Đổi mới Sáng tạo',
-      comment: 'Slide trình bày thẩm mỹ và không bị nhồi nhét chữ. Phần trả lời về thuật toán MobileNetV3 tương đối chắc chắn.',
-      score: 8.5,
-    },
-  ],
 };
