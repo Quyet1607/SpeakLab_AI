@@ -23,12 +23,14 @@ import { DemoNotice } from '../components/ui/DemoNotice';
 
 interface DashboardPageProps {
   currentUser: UserProfile;
+  groqPilotReady?: boolean;
   recentSessions: PracticeSession[];
   onNavigate: (page: ActivePage) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   currentUser,
+  groqPilotReady = false,
   recentSessions,
   onNavigate,
 }) => {
@@ -76,6 +78,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         {/* Decorative backdrop illustration element in Sage Green */}
         <div className="absolute -right-8 -bottom-10 w-72 h-72 rounded-full bg-[#EEF4F0]/60 pointer-events-none -z-0 blur-2xl" />
       </div>
+
+      {groqPilotReady && (
+        <section aria-label="Thử nghiệm Groq AI cho giáo viên" className="rounded-xl border border-[#BDD3C0] bg-white p-4 md:p-5">
+          <h3 className="text-sm font-bold text-[#304C38]">Thử Groq AI · Preview dành cho giáo viên</h3>
+          <p className="mt-1 text-xs leading-relaxed text-[#687B6D]">
+            Chỉ dùng bài thuyết trình giả lập cố định. Không gửi video, TXT, PowerPoint
+            hay dữ liệu học sinh; đây không phải chức năng đánh giá bài thật.
+          </p>
+          <a href="/groq-pilot.html"
+            className="mt-3 inline-flex items-center rounded-lg bg-[#446B50] px-4 py-2 text-xs font-semibold text-white hover:bg-[#355B40]">
+            Thử Groq AI (dữ liệu giả lập)
+          </a>
+        </section>
+      )}
 
       {/* Statistics Cards Grid */}
       <div className="grid grid-cols-2 gap-3 md:gap-4">
