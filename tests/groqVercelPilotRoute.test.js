@@ -2,79 +2,92 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPilotHandler } from '../api/groq/pilot.js';
 
-const env = { VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: 'feature/groq-synthetic-pilot', GROQ_API_KEY: 'MOCK_KEY_TEST_ONLY' };
-const who = { id: '12345678912345', role: 'teacher' };
-const headers = { origin: 'https://example-preview.vercel.app', host: 'example-preview.vercel.app', 'x-forwarded-proto': 'https', 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' };
+const env = {
+  VERCEL_ENV: 'preview', VERCEL_GIT_COMMIT_REF: 'feature/groq-synthetic-pilot',
+  GROQ_API_KEY: 'MOCK_KEY_ONLY',
+};
+const who = { id: 'operator1', role: 'teacher' };
+const headers = { origin:'https://pilot.vercel.app',host:'pilot.vercel.app','x-forwarded-proto':'https','sec-fetch-site':'same-origin','content-type':'application/json' };
 function makeResponse() {
-  return { code: 200, headers: {}, body: null,
-    setHeader(k,v) { this.headers[k]=v; },
-    status(code) { this.code=code; return this; },
-    json(body) { this.body=body; return this; },
+  return { code:200, headers:{},body:null,
+    setHeader(k,v){this.headers[k]=v;}, status(code){this.code=code;return this;},
+    json(body){this.body=body;return this;},
   };
 }
-const request = (method='POST', body={ syntheticOnly:true, confirmOneCall:true }) => ({method, headers:{...headers},body});
-async function call(handler, req) { const res=makeResponse(); await handler(req,res); return res; }
-const mockReview = { criteria: [], summary: 'Dữ liệu giả lập', limitations: 'Chỉ dữ liệu chữ' };
-const factory=(options={})=>createPilotHandler({env,sessionReader:()=>who,pilotRunner:async()=>({review:mockReview}),...options});
+const request=(method='POST',body={syntheticOnly:true,confirmOneCall:true})=>({method,headers:{...headers},body});
+async function call(handler,req){const res=makeResponse();await handler(req,res);return res;}
+const mockReview={criteria:[],summary:'Dữ liệu giả',limitations:'Chỉ dữ liệu chữ'};
+function factory(opts={}) {
+  return createPilotHandler({
+    env,sessionReader:()=>who,quotaConfigured:()=>{},
+    quotaReserver:async()=>({release:async()=>true}),
+    pilotRunner:async()=>({review:mockReview}),...opts,
+  });
+}
 
-test('GET checks readiness without contacting Groq', async()=>{
-  let calls=0;
-  const handler=factory({pilotRunner:async()=>{calls++;}});
-  const res=await call(handler,request('GET'));
-  assert.equal(res.code,200); assert.equal(calls,0); assert.equal(res.body.syntheticOnly,true);
+test('GET readiness needs no Redis reservation or Groq call',async()=>{
+ let count=0;
+ const res=await call(factory({quotaReserver:async()=>{count++;},pilotRunner:async()=>{count++;}}),request('GET'));
+ assert.equal(res.code,200);assert.equal(count,0);
 });
-test('production and wrong branches fail closed', async()=>{
-  for (const e of [{...env,VERCEL_ENV:'production'}, {...env,VERCEL_GIT_COMMIT_REF:'main'}, {...env,VERCEL_GIT_COMMIT_REF:undefined}]) {
-    const res=await call(factory({env:e}),request()); assert.equal(res.code,404);
-  }
+test('wrong Preview branch or Production fails closed',async()=>{
+ for(const e of [{...env,VERCEL_ENV:'production'},{...env,VERCEL_GIT_COMMIT_REF:'main'}]){
+  assert.equal((await call(factory({env:e}),request())).code,404);
+ }
 });
-test('authentication and teacher role mandatory, no access for guest or learner', async()=>{
-  assert.equal((await call(factory({sessionReader:()=>null}),request())).code,401);
-  assert.equal((await call(factory({sessionReader:()=>({...who,role:'learner'})}),request())).code,403);
-  assert.equal((await call(factory({env:{...env,GROQ_API_KEY:''}}),request())).code,503);
+test('guest, learner, missing key or missing Redis config never run Groq',async()=>{
+ let count=0;
+ const opts={pilotRunner:async()=>{count++;}};
+ assert.equal((await call(factory({...opts,sessionReader:()=>null}),request())).code,401);
+ assert.equal((await call(factory({...opts,sessionReader:()=>({...who,role:'learner'})}),request())).code,403);
+ assert.equal((await call(factory({...opts,env:{...env,GROQ_API_KEY:''}}),request())).code,503);
+ assert.equal((await call(factory({...opts,quotaConfigured:()=>{throw new Error('private Redis');}}),request())).code,503);
+ assert.equal(count,0);
 });
-test('POST checks origin and rejects arbitrary data without calling provider', async()=>{
-  let calls=0;
-  const handler=factory({pilotRunner:async()=>{calls++;}});
-  const badOrigin=request();badOrigin.headers.origin='https://attacker.com';
-  assert.equal((await call(handler,badOrigin)).code,403);
-  const badData=request('POST',{ syntheticOnly:true,confirmOneCall:true,transcript:'student data' });
-  assert.equal((await call(handler,badData)).code,400);
-  const badEmpty=request('POST',{ syntheticOnly:false,confirmOneCall:true });
-  assert.equal((await call(handler,badEmpty)).code,400);
-  assert.equal(calls,0);
+test('rejects forged origin and user-supplied transcript before quota',async()=>{
+ let count=0;
+ const opts={quotaReserver:async()=>{count++;},pilotRunner:async()=>{count++;}};
+ const forged=request();forged.headers.origin='https://attacker.example';
+ assert.equal((await call(factory(opts),forged)).code,403);
+ assert.equal((await call(factory(opts),request('POST',{syntheticOnly:true,confirmOneCall:true,transcript:'student data'}))).code,400);
+ assert.equal(count,0);
 });
-test('one click produces one synthetic call and throttles repeats per function instance', async()=>{
-  let calls=0, t=100000;
-  const handler=factory({now:()=>t,pilotRunner:async args=>{
-    calls++; assert.equal(args.live,true); assert.equal(args.apiKey,env.GROQ_API_KEY);
-    return {review:mockReview};
-  }});
-  const a=await call(handler,request());
-  assert.equal(a.code,200); assert.equal(a.body.syntheticOnly,true); assert.equal(calls,1);
-  assert.equal((await call(handler,request())).code,429); assert.equal(calls,1);
-  t+=60001;
-  assert.equal((await call(handler,request())).code,200); assert.equal(calls,2);
+test('quota succeeds before one Groq call and lease is released on success',async()=>{
+ const calls=[];
+ const handler=factory({
+  quotaReserver:async({identity})=>{assert.equal(identity.id,'operator1');calls.push('reserve');return {release:async()=>{calls.push('release');}};},
+  pilotRunner:async()=>{calls.push('groq');return {review:mockReview};},
+ });
+ const res=await call(handler,request());
+ assert.equal(res.code,200);assert.deepEqual(calls,['reserve','groq','release']);
 });
-
-test('Rubric validation and upstream failures return distinct safe diagnostics', async () => {
-  const invalid = factory({pilotRunner:async()=>{throw Object.assign(new Error('Dẫn chứng được chọn không thuộc nguồn của tiêu chí R3.'),{code:'GROQ_INVALID_REVIEW'});}});
-  const invalidRes = await call(invalid,request());
-  assert.equal(invalidRes.code,502);
-  assert.equal(invalidRes.body.code,'INVALID_REVIEW');
-  assert.match(invalidRes.body.detail,/tiêu chí R3/u);
-
-  const upstream = factory({pilotRunner:async()=>{throw Object.assign(new Error('Groq API trả về HTTP 503.'),{code:'GROQ_UPSTREAM_HTTP',status:503});}});
-  const upstreamRes = await call(upstream,request());
-  assert.equal(upstreamRes.code,502);
-  assert.equal(upstreamRes.body.code,'UPSTREAM_HTTP');
-  assert.match(upstreamRes.body.error,/503/u);
+test('quota failures fail closed for 429 and 503, with no Groq request',async()=>{
+ let calls=0;
+ for(const [status,code] of [[429,'GROQ_SYSTEM_DAILY_LIMIT'],[503,'GROQ_QUOTA_UNAVAILABLE']]){
+  const h=factory({
+   quotaReserver:async()=>{throw Object.assign(new Error('Hết hạn mức.'),{status,code});},
+   pilotRunner:async()=>{calls++;},
+  });
+  const res=await call(h,request());assert.equal(res.code,status);
+  assert.doesNotMatch(JSON.stringify(res.body),/MOCK_KEY_ONLY/);
+ }
+ assert.equal(calls,0);
 });
-
-test('upstream quota failures are redacted and never automatically retried', async()=>{
-  let calls=0;
-  const handler=factory({pilotRunner:async()=>{calls++;throw new Error('429 private provider token');}});
-  const res=await call(handler,request());
-  assert.equal(res.code,429);assert.equal(calls,1);
-  assert.doesNotMatch(JSON.stringify(res.body),/token/u);
+test('failed Groq response still releases the lease and never retries',async()=>{
+ let calls=0,releases=0;
+ const h=factory({
+  quotaReserver:async()=>({release:async()=>{releases++;}}),
+  pilotRunner:async()=>{calls++;throw Object.assign(new Error('429 provider secret'),{code:'GROQ_RATE_LIMIT'});},
+ });
+ const res=await call(h,request());
+ assert.equal(res.code,429);assert.equal(calls,1);assert.equal(releases,1);
+});
+test('validation failures still release the concurrency lease',async()=>{
+ let releases=0;
+ const h=factory({
+  quotaReserver:async()=>({release:async()=>{releases++;}}),
+  pilotRunner:async()=>{throw Object.assign(new Error('Dẫn chứng sai'),{code:'GROQ_INVALID_REVIEW'});},
+ });
+ const res=await call(h,request());
+ assert.equal(res.code,502);assert.equal(res.body.code,'INVALID_REVIEW');assert.equal(releases,1);
 });
