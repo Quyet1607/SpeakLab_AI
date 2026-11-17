@@ -4,6 +4,7 @@
  */
 import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js';
 import { MODEL, runPilot } from '../../scripts/groqSyntheticPilot.mjs';
+import { getSyntheticCase, runSyntheticCase } from '../../server/groqSyntheticCases.js';
 import { ensureGroqPilotQuotaConfigured, reserveGroqPilotQuota } from '../../server/groqPilotQuota.js';
 
 const BRANCH = 'feature/groq-synthetic-pilot';
@@ -22,7 +23,7 @@ const secure = res => {
 
 export function createPilotHandler({
   env = process.env, sessionReader = readSession, sameOrigin = isSameOriginRequest,
-  pilotRunner = runPilot, quotaConfigured = ensureGroqPilotQuotaConfigured,
+  pilotRunner = runPilot, sampleRunner = runSyntheticCase, quotaConfigured = ensureGroqPilotQuotaConfigured,
   quotaReserver = reserveGroqPilotQuota,
 } = {}) {
   return async function pilotHandler(req, res) {
@@ -55,8 +56,11 @@ export function createPilotHandler({
     let request;
     try { request = typeof req.body === 'string' ? JSON.parse(req.body) : req.body; }
     catch { return res.status(400).json({ error: 'JSON không hợp lệ.' }); }
+    const requestedCase = request && typeof request === 'object' && !Array.isArray(request) &&
+      Object.hasOwn(request, 'caseId') ? getSyntheticCase(request.caseId) : null;
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
-        Object.keys(request).length !== 2 ||
+        Object.keys(request).length !== (requestedCase ? 3 : 2) ||
+        (Object.hasOwn(request, 'caseId') && !requestedCase) ||
         request.syntheticOnly !== true || request.confirmOneCall !== true) {
       return res.status(400).json({ error: 'Chỉ cho phép dữ liệu thử đã viết sẵn; không nhận dữ liệu người dùng.' });
     }
@@ -70,9 +74,12 @@ export function createPilotHandler({
       return res.status(503).json({ error: 'Không xác nhận được hạn mức Redis. Groq chưa được gọi.', code: 'QUOTA_UNAVAILABLE' });
     }
     try {
-      const result = await pilotRunner({ live: true, apiKey: env.GROQ_API_KEY });
+      const result = requestedCase
+        ? await sampleRunner({ id: requestedCase.id, apiKey: env.GROQ_API_KEY })
+        : await pilotRunner({ live: true, apiKey: env.GROQ_API_KEY });
       return res.status(200).json({
         model: MODEL, syntheticOnly: true, review: result.review,
+        ...(requestedCase ? { sample: result.sample } : {}),
         note: 'Đây là dữ liệu giả lập, chưa phải báo cáo học sinh.',
       });
     } catch (error) {
