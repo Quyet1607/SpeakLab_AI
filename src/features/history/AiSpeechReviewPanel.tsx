@@ -29,6 +29,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
   const [savedReport, setSavedReport] = useState<LocalAiReviewReport | null>(() => getLocalAiReview(sessionId, ownerSub));
   const [consent, setConsent] = useState(false);
   const [groqReady, setGroqReady] = useState(false);
+  const [studentGroqReady, setStudentGroqReady] = useState(false);
   const [groqTeacher, setGroqTeacher] = useState(false);
   const [provider, setProvider] = useState<'gemini' | 'groq'>('gemini');
   const [adultConfirmed, setAdultConfirmed] = useState(false);
@@ -70,6 +71,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     if (!signedIn) {
       setGroqTeacher(false);
       setGroqReady(false);
+      setStudentGroqReady(false);
       setProvider('gemini');
       return;
     }
@@ -84,6 +86,18 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     return () => { cancelled = true; };
   }, [signedIn, ownerSub]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!signedIn) { setStudentGroqReady(false); return; }
+    void fetch('/api/ai/groq-review', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async response => ({ ok: response.ok, data: await response.json() as { ready?: boolean } }))
+      .then(({ ok, data }) => { if (!cancelled) setStudentGroqReady(ok && data.ready === true); })
+      .catch(() => { if (!cancelled) setStudentGroqReady(false); });
+    return () => { cancelled = true; };
+  }, [signedIn, ownerSub]);
+
+  const studentGroqMode = provider === 'groq' && studentGroqReady && !groqTeacher;
+  const groqAvailable = studentGroqReady || (groqTeacher && groqReady);
   const groqPayload = () => ({
     sessionId, topic, speakingGoal: speakingGoal || '', transcript,
     slides: slides?.slides || [],
@@ -144,7 +158,8 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
 
   const requestReview = async () => {
     if (busy || !consent || !signedIn) return;
-    if (provider === 'groq' && (!groqReady || !groqTeacher || !groqAllowedInput || !groqConfirmed)) return;
+    if (provider === 'groq' && (!groqAvailable || !groqAllowedInput ||
+      (!studentGroqMode && !groqConfirmed))) return;
     if (transcript.length < 20 || transcript.length > 24000) {
       setError('Bản ghi cần từ 20 đến 24.000 ký tự để phân tích; không được tự cắt bỏ nội dung.');
       return;
@@ -156,13 +171,18 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     setError(null);
     try {
       const groqMode = provider === 'groq';
-      const response = await fetch(groqMode ? '/api/groq/adult-preview' : '/api/ai/review', {
+      const response = await fetch(groqMode
+        ? (studentGroqMode ? '/api/ai/groq-review' : '/api/groq/adult-preview')
+        : '/api/ai/review', {
         method: 'POST',
         credentials: 'same-origin',
         cache: 'no-store',
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(groqMode ? {
+        body: JSON.stringify(studentGroqMode ? {
+          consent: true, sessionId, topic, topicDescription: topicDescription || '',
+          speakingGoal: speakingGoal || '', transcript, slides: slides?.slides || [],
+        } : groqMode ? {
           ...groqPayload(), adultSelfAuthored: true,
           confirmExternalTransfer: true, confirmOneCall: true,
         } : {
@@ -179,7 +199,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       }
       if (!controller.signal.aborted) {
         setReview(data.review);
-        if (ownerSub && !groqMode) {
+        if (ownerSub && (!groqMode || studentGroqMode)) {
           try {
             const saved = saveLocalAiReview({
               sessionId,
@@ -194,7 +214,9 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
               review: data.review,
             });
             setSavedReport(saved);
-            setNotice('Đã lưu nhận xét trên trình duyệt. Còn ' + (data.remainingToday ?? '?') + ' lượt trong hạn mức nội bộ hôm nay.');
+            setNotice(studentGroqMode
+              ? 'Đã lưu nhận xét Groq trên trình duyệt. Không tự gửi lại khi lỗi.'
+              : 'Đã lưu nhận xét trên trình duyệt. Còn ' + (data.remainingToday ?? '?') + ' lượt trong hạn mức nội bộ hôm nay.');
           } catch (saveError) {
             setNotice('AI đã trả kết quả nhưng trình duyệt chưa lưu được nhận xét. ' +
               (saveError instanceof Error ? saveError.message : 'Hãy kiểm tra dung lượng lưu trữ.'));
@@ -250,24 +272,28 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
           className="text-xs underline text-[#873631] disabled:opacity-50">Bỏ nội dung slide</button>}
       </div>
 
-      {groqTeacher && <div className="rounded-lg border border-[#BDD3C0] bg-white p-3 text-xs space-y-2">
-        <p className="font-semibold">Nhà cung cấp AI (chỉ giáo viên trên Preview)</p>
+      {(groqTeacher || studentGroqReady) && <div className="rounded-lg border border-[#BDD3C0] bg-white p-3 text-xs space-y-2">
+        <p className="font-semibold">Nhà cung cấp AI</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" aria-pressed={provider === 'gemini'} disabled={busy}
             onClick={() => chooseProvider('gemini')}
             className={'rounded-lg border px-3 py-2 ' + (provider === 'gemini' ? 'bg-[#446B50] text-white' : 'bg-white')}>Gemini hiện tại</button>
           <button type="button" aria-pressed={provider === 'groq'} disabled={busy}
             onClick={() => chooseProvider('groq')}
-            className={'rounded-lg border px-3 py-2 ' + (provider === 'groq' ? 'bg-[#446B50] text-white' : 'bg-white')}>Groq · Bài người lớn tự viết</button>
+            className={'rounded-lg border px-3 py-2 ' + (provider === 'groq' ? 'bg-[#446B50] text-white' : 'bg-white')}>{studentGroqReady && !groqTeacher ? 'Groq · Nhận xét bài thuyết trình' : 'Groq · Bài người lớn tự viết'}</button>
         </div>
         {provider === 'groq' && <p role="status" className="text-[#873631]">
-          {groqReady ? 'Groq đã được bật riêng cho giáo viên. Chỉ dùng bài do chính người lớn tự viết, không chứa dữ liệu cá nhân hoặc học sinh.' :
-            'Groq chưa được quản trị viên bật trên Preview; bạn vẫn có thể xem nội dung dự kiến gửi. Gemini không bị thay đổi.'}
+          {studentGroqMode
+            ? 'Groq đã được máy chủ xác minh quyền xử lý dữ liệu cho phiên học sinh này. Chỉ gửi văn bản sau khi tự kiểm tra nội dung.'
+            : groqReady ? 'Groq đã được bật riêng cho giáo viên. Chỉ dùng bài do chính người lớn tự viết, không chứa dữ liệu cá nhân hoặc học sinh.' :
+            'Groq chưa được quản trị viên bật trên Preview; Gemini không bị thay đổi.'}
         </p>}
       </div>}
       {provider === 'groq' ? <div className="rounded-lg border border-[#BDD3C0] bg-white p-3 text-xs space-y-3">
         <p className="font-semibold">Xác nhận dữ liệu gửi tới Groq</p>
-        <p>Chỉ dành cho bài do chính người lớn tự viết và được dùng hợp lệ. Không chọn buổi luyện của học sinh, thông tin định danh hoặc nội dung nhạy cảm. Giới hạn 24.000 ký tự bản ghi và tối đa 40 slide chữ (tổng 16.000 ký tự); không gửi video, âm thanh hay PPTX gốc. Bài dài có thể vượt khả năng Groq Free Tier, khi đó hệ thống báo lỗi thay vì tự cắt nội dung.</p>
+        <p>{studentGroqMode
+          ? 'Chỉ gửi khi máy chủ có hồ sơ phê duyệt hợp lệ cho đúng người học, nhà cung cấp Groq và mục đích nhận xét. Rà soát để không có dữ liệu định danh hoặc nhạy cảm trong bản ghi; không gửi video, âm thanh hay PPTX gốc.'
+          : 'Chỉ dành cho bài do chính người lớn tự viết và được dùng hợp lệ. Không chọn buổi luyện của học sinh, thông tin định danh hoặc nội dung nhạy cảm.'} Giới hạn 24.000 ký tự bản ghi và 40 slide chữ (tổng 16.000 ký tự). Bài dài có thể vượt giới hạn Groq Free Tier; hệ thống không tự cắt nội dung.</p>
         {!groqAllowedInput && <p role="alert" className="text-[#873631]">Bản ghi hoặc slide vượt giới hạn dữ liệu Groq (24.000 ký tự bản ghi, 40 slide hoặc tổng 16.000 ký tự slide). Không tự cắt bớt nội dung.</p>}
         <button type="button" disabled={!groqAllowedInput || busy}
           onClick={() => { setPreviewAccepted(currentGroqSnapshot); setConsent(false); setAdultConfirmed(false); }}
@@ -276,14 +302,16 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         </button>
         {previewAccepted === currentGroqSnapshot && <div className="space-y-2">
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[#F3F7F4] p-2">{JSON.stringify(groqPayload(), null, 2)}</pre>
-          <label className="flex items-start gap-2 cursor-pointer">
+          {!studentGroqMode && <label className="flex items-start gap-2 cursor-pointer">
             <input type="checkbox" checked={adultConfirmed} onChange={e => { setAdultConfirmed(e.target.checked); setConsent(false); }} className="mt-0.5" />
             <span>Tôi xác nhận đây là bài do chính người lớn tự viết; tôi có quyền gửi, đã rà soát không có dữ liệu học sinh hoặc thông tin cá nhân và hiểu rằng Groq là nhà cung cấp bên ngoài.</span>
-          </label>
+          </label>}
           <label className="flex items-start gap-2 cursor-pointer">
-            <input type="checkbox" checked={consent} disabled={!adultConfirmed}
+            <input type="checkbox" checked={consent} disabled={!studentGroqMode && !adultConfirmed}
               onChange={e => setConsent(e.target.checked)} className="mt-0.5" />
-            <span>Tôi đồng ý gửi đúng nội dung đã xem tới Groq một lần. Không tự động gửi lại và không lưu kết quả thử vào Lịch sử.</span>
+            <span>{studentGroqMode
+              ? 'Tôi đã xem nội dung và đồng ý gửi bản ghi, đề tài và chữ slide tới Groq để nhận xét. Hệ thống vẫn phải xác minh hồ sơ đồng thuận phía máy chủ trước mỗi lần gửi.'
+              : 'Tôi đồng ý gửi đúng nội dung đã xem tới Groq một lần. Không tự động gửi lại và không lưu kết quả thử vào Lịch sử.'}</span>
           </label>
         </div>}
       </div> : <label className="flex items-start gap-2 text-xs cursor-pointer">
@@ -305,11 +333,14 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       </div>}
       <button type="button" onClick={() => void requestReview()}
         disabled={!signedIn || !consent || busy || reading || transcript.length < 20 || transcript.length > 24000 ||
-          (provider === 'groq' && (!groqReady || !groqTeacher || !groqAllowedInput || !groqConfirmed))}
+          (provider === 'groq' && (!groqAvailable || !groqAllowedInput ||
+            (!studentGroqMode && !groqConfirmed) || previewAccepted !== currentGroqSnapshot))}
         className="bg-[#446B50] text-white px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-45">
         {busy ? 'Đang phân tích…' : provider === 'groq' ? 'Nhận xét bằng Groq (một lần)' : savedReport ? 'Phân tích lại bằng AI' : 'Phân tích bài thuyết trình bằng AI'}
       </button>
-      <p className="text-[11px] text-[#687B6D]">{provider === 'groq' ? 'Groq chỉ dành cho giáo viên trên Preview, cần bật riêng phía máy chủ và xác nhận nội dung. Không tự gửi lại hoặc chuyển sang API có phí.' : 'Chỉ hoạt động trên Preview với Gemini Free Tier không bật thanh toán, có kiểm tra quota. Không tự chuyển sang API có phí.'}</p>
+      <p className="text-[11px] text-[#687B6D]">{provider === 'groq' ? (studentGroqMode
+        ? 'Groq chỉ hoạt động nếu máy chủ xác minh hồ sơ đồng thuận đúng phiên học sinh; không tự gửi lại hoặc chuyển sang API trả phí.'
+        : 'Groq cho giáo viên trên Preview cần bật riêng phía máy chủ; không tự gửi lại hoặc chuyển sang API có phí.') : 'Chỉ hoạt động trên Preview với Gemini Free Tier không bật thanh toán, có kiểm tra quota. Không tự chuyển sang API có phí.'}</p>
       {notice && <p role="status" className="text-xs text-[#395C42]">{notice}</p>}
       {error && <p role="alert" className="text-xs rounded-lg bg-[#FDEFEF] border border-[#E2BABA] p-2 text-[#873631]">{error}</p>}
 
