@@ -43,6 +43,7 @@ on:
       - 'tests/groqPreviewAuthorizationStep2712.test.js'
       - 'tests/groqTransitionCorpus.test.js'
       - 'tests/groqMultiSamplePilot.test.js'
+      - 'tests/groqVietnameseFeedbackStage3.test.js'
       - 'server/groqSyntheticCases.js'
       - 'tests/fixtures/groqSyntheticComparisonCases.js'
       - 'tests/groqPilotQuota.test.js'
@@ -109,6 +110,8 @@ jobs:
         run: node --test tests/groqTransitionCorpus.test.js
       - name: Test multi-sample Groq Preview pilot (offline, mocked)
         run: node --test tests/groqMultiSamplePilot.test.js
+      - name: Test Groq Vietnamese learner-facing feedback (stage 3)
+        run: node --test tests/groqVietnameseFeedbackStage3.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
