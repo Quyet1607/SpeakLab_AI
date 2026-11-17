@@ -13,7 +13,7 @@ test('integrated Groq: original History review panel offers Groq next to Gemini,
   assert.match(ui, /studentGroqMode \? '\/api\/ai\/groq-review' : '\/api\/groq\/adult-preview'/u);
   assert.match(ui, /<AiReviewResults key=\{sessionId\} review=\{review\}/u);
   assert.match(ui, /setReview\(data\.review\)/u);
-  assert.match(ui, /ownerSub && !groqMode/u);
+  assert.match(ui, /ownerSub && \(!groqMode \|\| studentGroqMode\)/u);
   assert.match(ui, /!groqAvailable \|\| !groqAllowedInput/u);
   assert.match(ui, /previewAccepted === currentGroqSnapshot/u);
   assert.match(ui, /setPreviewAccepted\(null\)/u);
