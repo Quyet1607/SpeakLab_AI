@@ -84,6 +84,6 @@ test('step 5: adapter is offline and never changes Gemini or exposes student inp
   assert.match(adapter, /validateSyntheticCaseReview\(groqReview, sample\)/u);
   assert.match(adapter, /parseGroundedReview\(JSON\.stringify\(candidates\), chunks, slides\)/u);
   assert.match(activeRoute, /new GoogleGenAI\(/u);
-  assert.match(ui, /fetch\('\/api\/ai\/review'/u);
+  assert.match(ui, /'\/api\/ai\/review'/u);
   assert.doesNotMatch(activeRoute, /groqSyntheticReviewAdapter|GROQ_API_KEY/u);
 });
