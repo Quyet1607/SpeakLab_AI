@@ -13,8 +13,6 @@ const FORBIDDEN = [
 ];
 // Internal evidence tokens belong in evidenceIds only, not in prose shown to learners.
 const INTERNAL_CODES = /\\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\\b/iu;
-const GENERIC_FEEDBACK = /^(?:mở đầu nêu chủ đề|giới thiệu rõ lợi ích|có giới hạn dẫn chứng|thu thập dữ liệu khảo sát|nêu hai biện pháp|làm rõ cách triển khai|bám đúng đề tài|giữ cấu trúc hiện tại)[.!]?$/iu;
-const META_FEEDBACK = /(?:dẫn chứng|trích dẫn).{0,55}(?:không bị trùng|chính xác|được trích dẫn)|(?:giữ nguyên|đảm bảo).{0,40}(?:các? mã|evidenceIds)/iu;
 const SPECIFIC_FEEDBACK = Object.freeze({
   'water-conservation': Object.freeze({
     R1: 'Em đã nêu hai cách tiết kiệm nước: khóa vòi khi đánh răng và tận dụng nước rửa rau để tưới cây phù hợp.',
@@ -41,9 +39,6 @@ const SPECIFIC_FEEDBACK = Object.freeze({
     R5Suggestion: 'Nêu ai phụ trách lịch tưới và các bước ủ lá khô an toàn để người nghe có thể thực hiện.',
   }),
 });
-function learnerProse(text) {
-  return !INTERNAL_CODES.test(text) && !META_FEEDBACK.test(text) && !GENERIC_FEEDBACK.test(text.trim());
-}
 function groundedCriterion(criterion, sample, evidence) {
   const details = SPECIFIC_FEEDBACK[sample.id];
   if (!details) throw invalid();
@@ -150,16 +145,10 @@ export function validateSyntheticCaseReview(response, sample) {
         !Array.isArray(item.evidenceIds) || !item.evidenceIds.length ||
         new Set(item.evidenceIds).size !== item.evidenceIds.length ||
         item.evidenceIds.some(id => !Object.hasOwn(e, id))) throw invalid();
-    // R2/R4 model prose is discarded in favor of checked conservative wording.
+    // The model selects source IDs; all learner-facing prose is reviewed and
+    // reconstructed for these four fixed fictional cases.
     if (typeof item.comment !== 'string' || item.comment.trim().length < 5 ||
         typeof item.suggestion !== 'string' || item.suggestion.trim().length < 5) throw invalid();
-    if (!['R2', 'R4'].includes(item.criterion)) {
-      // Model prose that leaks evidence tags or generic meta-instructions is
-      // replaced later by reviewed sample-specific feedback. Other unsafe
-      // claims are still rejected; there is never a second provider request.
-      if (learnerProse(item.comment)) safeText(item.comment, 5, 550);
-      if (learnerProse(item.suggestion)) safeText(item.suggestion, 5, 550);
-    }
     const required = {
       R1: ['OPEN'], R2: ['OPEN', 'CLOSE'], R3: ['LIMIT'],
       R4: ['SLIDE_1', 'SOLUTION_1', 'SLIDE_2', 'SOLUTION_2'],
@@ -179,22 +168,19 @@ export function validateSyntheticCaseReview(response, sample) {
   const criteria = CRITERIA.map(criterion => {
     const item = byId.get(criterion);
     if (!item) throw invalid();
-    let comment = item.comment.trim();
-    let suggestion = item.suggestion.trim();
-    // Prevent exposing test jargon or generic rubric/meta-feedback to learners.
-    // Preserve verified evidence IDs; switch to reviewed, topic-specific wording.
-    if (['R1', 'R3', 'R5'].includes(criterion) &&
-        (!learnerProse(comment) || !learnerProse(suggestion))) {
-      ({ comment, suggestion } = groundedCriterion(criterion, sample, e));
-    }
-    if (criterion === 'R2') {
-      comment = 'Bản ghi có phần mở đầu và kết thúc. Hai dấu mốc chưa đủ để kết luận toàn bộ mạch lập luận.';
-      suggestion = 'Có thể bổ sung câu chuyển ý rõ ràng giữa các biện pháp.';
-    }
-    if (criterion === 'R4') {
-      comment = 'Chữ trên hai slide tương ứng với các biện pháp được nhắc tới trong bài nói.';
-      suggestion = 'Chỉ đối chiếu văn bản, không đánh giá bố cục, hình ảnh hoặc chất lượng trình chiếu.';
-    }
+    // A fixed fictional input allows independently reviewed prose instead of
+    // surfacing unreliable LLM text or internal rubric codes to the teacher.
+    let { comment, suggestion } = ['R1', 'R3', 'R5'].includes(criterion)
+      ? groundedCriterion(criterion, sample, e)
+      : criterion === 'R2'
+        ? {
+          comment: 'Bản ghi có phần mở đầu và kết thúc. Hai dấu mốc chưa đủ để kết luận toàn bộ mạch lập luận.',
+          suggestion: 'Có thể bổ sung câu chuyển ý rõ ràng giữa các biện pháp.',
+        }
+        : {
+          comment: 'Chữ trên hai slide tương ứng với các biện pháp được nhắc tới trong bài nói.',
+          suggestion: 'Chỉ đối chiếu văn bản, không đánh giá bố cục, hình ảnh hoặc chất lượng trình chiếu.',
+        };
     return { criterion, comment, suggestion, evidenceIds: item.evidenceIds, quote: item.evidenceIds.map(id => e[id]).join(' | ') };
   });
   return { summary, limitations, criteria };
