@@ -8,8 +8,8 @@ const dashboard = readFileSync(new URL('../src/pages/DashboardPage.tsx', import.
 const review = readFileSync(new URL('../src/features/history/AiSpeechReviewPanel.tsx', import.meta.url), 'utf8');
 
 test('single review workflow: synthetic Groq dashboard entry and standalone readiness fetch removed', () => {
-  assert.doesNotMatch(app, /groqPilotReady|fetch\\('\\/api\\/groq\\/pilot'/u);
-  assert.doesNotMatch(dashboard, /groqPilotReady|href="\\/groq-pilot\\.html"|Thử Groq AI \\(dữ liệu giả lập\\)/u);
+  assert.doesNotMatch(app, /groqPilotReady|\\/api\\/groq\\/pilot/u);
+  assert.doesNotMatch(dashboard, /groqPilotReady|groq-pilot\\.html|Thử Groq AI/u);
   assert.match(review, /'\\/api\\/ai\\/groq-review'/u);
   assert.match(review, /'\\/api\\/ai\\/review'/u);
 });
