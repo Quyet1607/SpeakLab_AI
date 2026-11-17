@@ -48,12 +48,12 @@ test('strict JSON request has no arbitrary user text, no student identity, and n
 test('evidence is multi-source for R2, R4 and R5; quotes are inserted from exact server-owned text', () => {
   const normalized = validateReview(validReview());
   assert.equal(normalized.criteria[0].quote, 'giảm rác nhựa ở trường học');
-  assert.match(normalized.criteria[1].quote, /Mở đầu: Hôm nay em nói về giảm rác nhựa ở trường học\\./u);
-  assert.match(normalized.criteria[1].quote, /Kết thúc: Em xin cảm ơn\\./u);
+  assert.match(normalized.criteria[1].quote, /Mở đầu: Hôm nay em nói về giảm rác nhựa ở trường học\./u);
+  assert.match(normalized.criteria[1].quote, /Kết thúc: Em xin cảm ơn\./u);
   assert.match(normalized.criteria[3].quote, /Slide 1: Giảm rác nhựa: Mang bình nước cá nhân/u);
   assert.match(normalized.criteria[3].quote, /Lời nói: Em đề xuất mang bình nước cá nhân/u);
   assert.match(normalized.criteria[3].quote, /Slide 2: Thùng phân loại rác trong lớp học/u);
-  assert.match(normalized.criteria[4].quote, /Giải pháp 2: Mỗi lớp có thể đặt thùng phân loại rác\\./u);
+  assert.match(normalized.criteria[4].quote, /Giải pháp 2: Mỗi lớp có thể đặt thùng phân loại rác\./u);
 });
 
 test('R2 and R4 are rewritten conservatively instead of displaying unsupported model claims', () => {
