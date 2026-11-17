@@ -47,6 +47,8 @@ on:
       - 'tests/groqTransitionContractGate.test.js'
       - 'tests/groqSyntheticReviewAdapterStep5.test.js'
       - 'server/groqSyntheticReviewAdapter.js'
+      - 'server/groqGenericReviewEngine.js'
+      - 'tests/groqGenericReviewEngine.test.js'
       - 'server/groqOfflineContractRehearsal.js'
       - 'server/groqSyntheticCases.js'
       - 'tests/fixtures/groqSyntheticComparisonCases.js'
@@ -120,6 +122,8 @@ jobs:
         run: node --test tests/groqTransitionContractGate.test.js
       - name: Test offline Groq R1-R5 to SpeakLab adapter (stage 5)
         run: node --test tests/groqSyntheticReviewAdapterStep5.test.js
+      - name: Test generic-input Groq review engine without live calls
+        run: node --test tests/groqGenericReviewEngine.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
