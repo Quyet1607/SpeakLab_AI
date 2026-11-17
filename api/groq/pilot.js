@@ -80,7 +80,9 @@ export function createPilotHandler({
       return res.status(200).json({
         model: MODEL, syntheticOnly: true, review: result.review,
         ...(requestedCase ? { sample: result.sample } : {}),
-        note: 'Đây là dữ liệu giả lập, chưa phải báo cáo học sinh.',
+        note: requestedCase
+          ? 'Bài giả lập: nhận xét R1–R5 được chuẩn hóa theo mẫu và dẫn chứng được máy chủ kiểm chứng. Không phải báo cáo học sinh.'
+          : 'Đây là dữ liệu giả lập, chưa phải báo cáo học sinh.',
       });
     } catch (error) {
       if (error?.code === 'GROQ_RATE_LIMIT' || /429/u.test(String(error?.message || ''))) {
