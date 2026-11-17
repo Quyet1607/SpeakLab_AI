@@ -7,6 +7,12 @@ import { MODEL, runPilot } from '../../scripts/groqSyntheticPilot.mjs';
 import { ensureGroqPilotQuotaConfigured, reserveGroqPilotQuota } from '../../server/groqPilotQuota.js';
 
 const BRANCH = 'feature/groq-synthetic-pilot';
+const QUOTA_ERRORS = Object.freeze({
+  GROQ_OPERATOR_DAILY_LIMIT: 'Tài khoản vận hành đã hết lượt thử trong ngày UTC.',
+  GROQ_SYSTEM_DAILY_LIMIT: 'Groq Pilot đã hết hạn mức toàn hệ thống trong ngày UTC.',
+  GROQ_SYSTEM_MINUTE_LIMIT: 'Groq Pilot đã hết hạn mức toàn hệ thống trong phút hiện tại.',
+  GROQ_CONCURRENT_LIMIT: 'Đang có một lượt Groq chạy. Không gửi lượt đồng thời.',
+});
 const secure = res => {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -58,7 +64,9 @@ export function createPilotHandler({
     let reservation;
     try { reservation = await quotaReserver({ identity, env }); }
     catch (error) {
-      if (error?.status === 429) return res.status(429).json({ error: error.message, code: error.code });
+      if (error?.status === 429 && Object.hasOwn(QUOTA_ERRORS, error?.code)) {
+        return res.status(429).json({ error: QUOTA_ERRORS[error.code], code: error.code });
+      }
       return res.status(503).json({ error: 'Không xác nhận được hạn mức Redis. Groq chưa được gọi.', code: 'QUOTA_UNAVAILABLE' });
     }
     try {
@@ -77,14 +85,23 @@ export function createPilotHandler({
       if (error?.code === 'GROQ_INVALID_REVIEW') {
         return res.status(502).json({
           error: 'Groq trả kết quả không vượt qua kiểm chứng Rubric/dẫn chứng. Đã loại bỏ.',
-          detail: error.message, code: 'INVALID_REVIEW',
+          code: 'INVALID_REVIEW',
         });
+      }
+      if (error?.code === 'GROQ_OUTPUT_LIMIT') {
+        return res.status(502).json({ error: 'Groq vượt giới hạn đầu ra. Không tự động gửi lại.', code: 'OUTPUT_LIMIT' });
+      }
+      if (error?.code === 'GROQ_REFUSED') {
+        return res.status(502).json({ error: 'Groq từ chối tạo nhận xét. Không tự động gửi lại.', code: 'PROVIDER_REFUSED' });
+      }
+      if (error?.code === 'GROQ_ACCESS_DENIED' || error?.code === 'GROQ_MODEL_UNAVAILABLE') {
+        return res.status(502).json({ error: 'Cấu hình quyền truy cập hoặc mô hình Groq chưa sẵn sàng.', code: 'PROVIDER_UNAVAILABLE' });
       }
       if (error?.code === 'GROQ_INVALID_RESPONSE') {
         return res.status(502).json({ error: 'Groq không trả JSON hợp lệ.', code: 'INVALID_RESPONSE' });
       }
       if (error?.code === 'GROQ_UPSTREAM_HTTP') {
-        return res.status(502).json({ error: 'Groq API lỗi HTTP ' + error.status + '.', code: 'UPSTREAM_HTTP' });
+        return res.status(502).json({ error: 'Groq API tạm thời không phản hồi hợp lệ.', code: 'UPSTREAM_HTTP' });
       }
       return res.status(502).json({ error: 'Không kết nối được Groq. Không tự động gửi lại.', code: 'GROQ_NETWORK' });
     } finally {
