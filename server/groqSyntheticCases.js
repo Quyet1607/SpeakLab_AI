@@ -13,6 +13,7 @@ const FORBIDDEN = [
 ];
 // Internal evidence tokens belong in evidenceIds only, not in prose shown to learners.
 const INTERNAL_CODES = /\\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\\b/iu;
+const GENERIC_FEEDBACK = /^(?:mở đầu nêu chủ đề|giới thiệu rõ lợi ích|có giới hạn dẫn chứng|thu thập dữ liệu khảo sát|nêu hai biện pháp|làm rõ cách triển khai|bám đúng đề tài|giữ cấu trúc hiện tại)[.!]?$/iu;
 const META_FEEDBACK = /(?:dẫn chứng|trích dẫn).{0,55}(?:không bị trùng|chính xác|được trích dẫn)|(?:giữ nguyên|đảm bảo).{0,40}(?:các? mã|evidenceIds)/iu;
 const SPECIFIC_FEEDBACK = Object.freeze({
   'water-conservation': Object.freeze({
@@ -41,7 +42,7 @@ const SPECIFIC_FEEDBACK = Object.freeze({
   }),
 });
 function learnerProse(text) {
-  return !INTERNAL_CODES.test(text) && !META_FEEDBACK.test(text);
+  return !INTERNAL_CODES.test(text) && !META_FEEDBACK.test(text) && !GENERIC_FEEDBACK.test(text.trim());
 }
 function groundedCriterion(criterion, sample, evidence) {
   const details = SPECIFIC_FEEDBACK[sample.id];
