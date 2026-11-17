@@ -48,7 +48,7 @@ test('step 5: converts all 4 validated fictional Groq R1-R5 reports to the real 
     for (const item of [...r.strengths, ...r.improvements]) {
       assert.ok(item.evidence.includes(sample.topic) || sample.transcript.includes(item.evidence));
     }
-    assert.doesNotMatch(JSON.stringify(r), /\\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\\b/u);
+    assert.doesNotMatch(JSON.stringify(r), /\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\b/u);
   }
 });
 
@@ -80,10 +80,10 @@ test('step 5: adapter is offline and never changes Gemini or exposes student inp
   const adapter = readFileSync(new URL('../server/groqSyntheticReviewAdapter.js', import.meta.url), 'utf8');
   const activeRoute = readFileSync(new URL('../api/ai/review.js', import.meta.url), 'utf8');
   const ui = readFileSync(new URL('../src/features/history/AiSpeechReviewPanel.tsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(adapter, /requestGroqReview\\s*\\(|fetch\\s*\\(|process\\.env|GROQ_API_KEY|api\/groq/u);
-  assert.match(adapter, /validateSyntheticCaseReview\\(groqReview, sample\\)/u);
-  assert.match(adapter, /parseGroundedReview\\(JSON\\.stringify\\(candidates\\), chunks, slides\\)/u);
-  assert.match(activeRoute, /new GoogleGenAI\\(/u);
-  assert.match(ui, /fetch\\('\/api\/ai\/review'/u);
+  assert.doesNotMatch(adapter, /requestGroqReview\s*\(|fetch\s*\(|process\.env|GROQ_API_KEY|api\/groq/u);
+  assert.match(adapter, /validateSyntheticCaseReview\(groqReview, sample\)/u);
+  assert.match(adapter, /parseGroundedReview\(JSON\.stringify\(candidates\), chunks, slides\)/u);
+  assert.match(activeRoute, /new GoogleGenAI\(/u);
+  assert.match(ui, /fetch\('\/api\/ai\/review'/u);
   assert.doesNotMatch(activeRoute, /groqSyntheticReviewAdapter|GROQ_API_KEY/u);
 });
