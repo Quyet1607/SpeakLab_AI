@@ -141,7 +141,8 @@ test('step 2: Groq adapter still makes one mocked call and returns source-ground
   });
   assert.equal(count, 1);
   assert.equal(result.sample.id, sample.id);
-  assert.match(result.review.criteria[3].quote, /SLIDE_1:/u);
+  assert.ok(result.review.criteria[3].quote.includes(sample.slides[0]));
+  assert.doesNotMatch(result.review.criteria[3].quote, /\\bSLIDE_[12]:/u);
 });
 
 test('step 2: frontend only submits caseId and retains single-use interaction', () => {
