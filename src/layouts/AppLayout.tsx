@@ -51,11 +51,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           title: 'Lịch sử luyện tập',
           subtitle: 'Danh sách các buổi thuyết trình và kết quả đã lưu',
         };
-      case 'report':
-        return {
-          title: 'Báo cáo đánh giá chi tiết',
-          subtitle: 'Phân tích nhịp độ nói, từ đệm và nhận xét từ hội đồng',
-        };
       case 'settings':
         return {
           title: 'Cài đặt hệ thống',
