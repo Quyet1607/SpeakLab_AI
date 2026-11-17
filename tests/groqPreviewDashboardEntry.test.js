@@ -8,10 +8,10 @@ const dashboard = readFileSync(new URL('../src/pages/DashboardPage.tsx', import.
 const review = readFileSync(new URL('../src/features/history/AiSpeechReviewPanel.tsx', import.meta.url), 'utf8');
 
 test('single review workflow: synthetic Groq dashboard entry and standalone readiness fetch removed', () => {
-  assert.doesNotMatch(app, /groqPilotReady|\\/api\\/groq\\/pilot/u);
-  assert.doesNotMatch(dashboard, /groqPilotReady|groq-pilot\\.html|Thử Groq AI/u);
-  assert.match(review, /'\\/api\\/ai\\/groq-review'/u);
-  assert.match(review, /'\\/api\\/ai\\/review'/u);
+  assert.ok(!app.includes('groqPilotReady') && !app.includes('/api/groq/pilot'));
+  assert.ok(!dashboard.includes('groqPilotReady') && !dashboard.includes('groq-pilot.html') && !dashboard.includes('Thử Groq AI'));
+  assert.ok(review.includes('/api/ai/groq-review'));
+  assert.ok(review.includes('/api/ai/review'));
 });
 
 test('2.7.1: no student upload, review provider replacement or Gemini consent change', () => {
