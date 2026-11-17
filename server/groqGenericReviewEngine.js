@@ -1,8 +1,9 @@
 /**
- * Generic Groq review engine — not connected to an HTTP route.
+ * Generic Groq review engine for gated adult-only Preview route.
  * Unlike the synthetic R1-R5 pilot, this accepts an arbitrary validated
  * presentation and produces the actual SpeakLab UI review contract.
- * Security/consent/age/privacy must be enforced by a future gated route.
+ * Security/consent/age/privacy are enforced by the caller; this module must
+ * never be exposed as an unauthenticated route.
  */
 import {
   validateReviewRequest, makeEvidenceChunks, buildReviewPrompt,
@@ -57,10 +58,12 @@ export async function runGenericGroqReview({
   }
   const evidence = makeEvidenceChunks(checked.transcript);
   const prompt = buildReviewPrompt(checked, evidence);
-  // For a deck with many slides, one call may hit the free output limit.
-  // Reject incomplete evidence; do not silently truncate the user's deck.
+  // Reserve sufficient completion space for *every* text-bearing slide,
+  // not merely the first few. A long deck may still exceed the model's
+  // context/output/Free Tier limits: one request, then fail closed; never
+  // silently trim slides or retry at additional cost.
   const maxOutputTokens = checked.slides.length
-    ? Math.min(14000, Math.max(3500, 1400 + checked.slides.length * 330))
+    ? Math.min(24000, Math.max(3500, 2200 + checked.slides.length * 500))
     : 2800;
   const result = await requestGroqReview({
     apiKey, prompt, schema: GROQ_GENERIC_REVIEW_SCHEMA,
