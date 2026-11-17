@@ -8,7 +8,6 @@ import {
   Sparkles,
   PlayCircle,
   Clock,
-  Award,
   FileCheck,
   TrendingUp,
   ArrowRight,
@@ -17,7 +16,6 @@ import {
   Camera,
   Layers,
   ChevronRight,
-  CheckCircle2
 } from 'lucide-react';
 import { UserProfile, PracticeSession, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
@@ -27,14 +25,12 @@ interface DashboardPageProps {
   currentUser: UserProfile;
   recentSessions: PracticeSession[];
   onNavigate: (page: ActivePage) => void;
-  onSelectSessionForReport: (sessionId: string) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   currentUser,
   recentSessions,
   onNavigate,
-  onSelectSessionForReport,
 }) => {
   return (
     <div className="space-y-6">
@@ -82,7 +78,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* Statistics Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         {/* Stat 1 */}
         <div className="bg-white rounded-xl border border-[#E4E9E3] p-4 md:p-5 shadow-xs">
           <div className="flex items-center justify-between">
@@ -122,44 +118,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </p>
         </div>
 
-        {/* Stat 3 */}
-        <div className="bg-white rounded-xl border border-[#E4E9E3] p-4 md:p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#768078]">Báo cáo đánh giá</span>
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] flex items-center justify-center text-[#3D5C46]">
-              <FileCheck className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-baseline gap-1.5">
-            <span className="text-2xl md:text-3xl font-bold text-[#3D4740] tabular-nums">
-              {currentUser.stats.totalReports}
-            </span>
-            <span className="text-xs text-[#768078]">bản phân tích</span>
-          </div>
-          <p className="text-[11px] text-[#5A7D65] mt-1 flex items-center gap-1 font-medium">
-            <CheckCircle2 className="w-3 h-3 shrink-0" />
-            <span>Chưa có báo cáo đánh giá tự động từ dữ liệu thực</span>
-          </p>
-        </div>
-
-        {/* Stat 4 */}
-        <div className="bg-white rounded-xl border border-[#E4E9E3] p-4 md:p-5 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#768078]">Mức độ tiến bộ</span>
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] flex items-center justify-center text-[#3D5C46]">
-              <Award className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-baseline gap-1.5">
-            <span className="text-2xl md:text-3xl font-bold text-[#3D5C46] tabular-nums">
-              —
-            </span>
-            <span className="text-xs text-[#768078]">chưa đo lường</span>
-          </div>
-          <p className="text-[11px] text-[#768078] mt-1">
-            Chỉ hiển thị khi có phương pháp đánh giá thực tế
-          </p>
-        </div>
       </div>
 
       {/* Main Grid: Recent Sessions & Quick Guide */}
@@ -215,31 +173,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3 self-end sm:self-auto">
-                    {session.score && (
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-[#3D5C46] tabular-nums">
-                          {session.score.toFixed(1)}/10
-                        </span>
-                        <p className="text-[10px] text-[#768078]">Điểm demo (Minh họa)</p>
-                      </div>
-                    )}
-
-                    {session.reportId ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          onSelectSessionForReport(session.id);
-                          onNavigate('report');
-                        }}
-                      >
-                        Xem báo cáo
-                      </Button>
-                    ) : (
-                      <Button variant="secondary" size="sm" onClick={() => onNavigate('history')}>
-                        Xem lịch sử
-                      </Button>
-                    )}
+                    <Button variant="secondary" size="sm" onClick={() => onNavigate('history')}>
+                      Xem lịch sử
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -302,10 +238,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold text-[#3D4740]">
-                    Nhận báo cáo phân tích
+                    Xem lại buổi luyện
                   </h4>
                   <p className="text-[11px] text-[#768078] mt-0.5 leading-relaxed">
-                    Xem lại biểu đồ nhịp độ nói, các điểm cần cải thiện và góp ý từ hội đồng.
+                    Xem video, bản ghi lời nói và thông tin buổi luyện đã lưu trên thiết bị.
                   </p>
                 </div>
               </div>

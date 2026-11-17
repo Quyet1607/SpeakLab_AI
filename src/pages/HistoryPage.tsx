@@ -11,11 +11,8 @@ import {
   Calendar,
   Clock,
   Presentation,
-  Award,
   ChevronRight,
   RotateCcw,
-  FileCheck,
-  CheckCircle2,
   Video,
   FileText,
   Trash2,
@@ -38,7 +35,6 @@ interface HistoryPageProps {
   sessions: PracticeSession[];
   notice?: string | null;
   onNavigate: (page: ActivePage) => void;
-  onSelectSessionForReport: (sessionId: string) => void;
   onReplaySession: (session: PracticeSession) => void;
   onTranscriptDeleted?: () => void;
 }
@@ -47,7 +43,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   sessions,
   notice,
   onNavigate,
-  onSelectSessionForReport,
   onReplaySession,
   onTranscriptDeleted,
 }) => {
@@ -500,14 +495,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
               {/* Score & Actions */}
               <div className="flex items-center gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-[#E4E9E3] self-end md:self-auto">
-                {session.score && (
-                  <div className="text-right pr-2">
-                    <span className="text-base font-bold text-[#3D5C46] tabular-nums">
-                      {session.score.toFixed(1)}/10
-                    </span>
-                    <p className="text-[10px] text-[#768078]">Điểm demo (Minh họa)</p>
-                  </div>
-                )}
 
                 <Button
                   variant="outline"
@@ -519,21 +506,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                   Luyện lại
                 </Button>
 
-                {session.reportId ? (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={<FileCheck className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      onSelectSessionForReport(session.id);
-                      onNavigate('report');
-                    }}
-                  >
-                    Xem báo cáo
-                  </Button>
-                ) : (
-                  <span className="text-[11px] text-[#768078]">Chưa có báo cáo AI thực tế</span>
-                )}
+
               </div>
             </div>
           ))

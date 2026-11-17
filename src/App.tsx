@@ -17,7 +17,6 @@ import {
   mockPresentationDecks,
 } from './data/mockData';
 import { sessionService } from './services/sessionService';
-import { reportService } from './services/reportService';
 import { AppLayout } from './layouts/AppLayout';
 import { refreshSession, subscribeSession, type SessionState } from './services/accountSession';
 import { listCompletedPracticeSessions, saveCompletedPracticeSession } from './services/localPracticeHistory';
@@ -29,7 +28,6 @@ import { DashboardPage } from './pages/DashboardPage';
 import { PracticeSetupPage } from './pages/PracticeSetupPage';
 import { MeetingRoomPage } from './pages/MeetingRoomPage';
 import { HistoryPage } from './pages/HistoryPage';
-import { ReportPage } from './pages/ReportPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
@@ -95,7 +93,6 @@ export default function App() {
   const [participants, setParticipants] = useState<VirtualParticipant[]>(() =>
     sessionService.getParticipantsForSession(6, 'defense')
   );
-  const [selectedReportId, setSelectedReportId] = useState<string>('rep_01');
 
   // Handle starting a new simulated practice session
   const handleStartSession = (config: PracticeSetupConfig) => {
@@ -172,17 +169,6 @@ export default function App() {
     setActivePage('practice_setup');
   };
 
-  // Select a session to view report
-  const handleSelectSessionForReport = (sessionId: string) => {
-    const session = sessionService.getSessionById(sessionId);
-    if (session && session.reportId) {
-      setSelectedReportId(session.reportId);
-    } else {
-      setSelectedReportId('rep_01');
-    }
-  };
-
-  const currentReport = reportService.getReportById(selectedReportId);
 
   if (accountSession.status === 'loading') {
     return <main className="min-h-screen flex items-center justify-center text-[#324C3B]" role="status">Đang kiểm tra phiên đăng nhập…</main>;
@@ -200,7 +186,6 @@ export default function App() {
           currentUser={userProfile}
           recentSessions={sessions}
           onNavigate={(page) => setActivePage(page)}
-          onSelectSessionForReport={handleSelectSessionForReport}
         />
       )}
 
@@ -232,20 +217,11 @@ export default function App() {
           sessions={sessions}
           notice={historyNotice}
           onNavigate={(page) => setActivePage(page)}
-          onSelectSessionForReport={handleSelectSessionForReport}
           onReplaySession={handleReplaySession}
           onTranscriptDeleted={() => {
             const owner = accountSession.status === 'signed_in' ? accountSession.identity?.id || 'guest' : 'guest';
             setSessions(listCompletedPracticeSessions(owner));
           }}
-        />
-      )}
-
-      {activePage === 'report' && (
-        <ReportPage
-          report={currentReport}
-          onNavigate={(page) => setActivePage(page)}
-          onPracticeAgain={() => setActivePage('practice_setup')}
         />
       )}
 

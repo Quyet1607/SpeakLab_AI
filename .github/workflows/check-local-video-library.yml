@@ -17,8 +17,6 @@ on:
       - 'tests/aiReviewRoute.test.js'
       - 'tests/pptxReviewText.test.js'
       - 'tests/localAiReviewLibrary.test.js'
-      - 'tests/groqSyntheticPilot.test.js'
-      - 'scripts/groqSyntheticPilot.mjs'
       - 'tests/aiReviewResults.test.js'
       - 'tests/aiReviewAcceptance.test.js'
       - 'tests/googleIdentityRelease.test.js'
@@ -32,6 +30,7 @@ on:
       - 'bun.lock'
       - 'package.json'
       - 'tests/localPracticeHistory.test.js'
+      - 'tests/removeDemoEvaluationReport.test.js'
       - 'tests/localReviewSlideLibrary.test.js'
       - 'tests/localVideoLibrary.test.js'
       - 'tests/practiceBrief.test.js'
@@ -65,10 +64,10 @@ jobs:
         run: bun test tests/localTranscriptLibrary.test.js
       - name: Test Phase 7.1 learner topic setup
         run: bun test tests/practiceBrief.test.js
+      - name: Guard removed demo evaluation page and navigation
+        run: node --test tests/removeDemoEvaluationReport.test.js
       - name: Test local account history and guest cleanup
         run: bun test tests/localPracticeHistory.test.js
-      - name: Test safe Groq synthetic-only pilot (offline)
-        run: node --test tests/groqSyntheticPilot.test.js
       - name: Test guest slide-text cleanup
         run: bun test tests/localReviewSlideLibrary.test.js
       - name: Test guest video cleanup
