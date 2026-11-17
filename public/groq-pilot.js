@@ -28,6 +28,7 @@ async function checkReady() {
 
 button.addEventListener('click', async () => {
   button.disabled = true;
+  button.textContent = 'Đã dùng lượt thử này';
   result.hidden = true;
   reviewRoot.replaceChildren();
   changeStatus('Đang gửi một yêu cầu dùng dữ liệu giả lập tới Groq…');
@@ -39,9 +40,10 @@ button.addEventListener('click', async () => {
       cache: 'no-store',
       body: JSON.stringify({ syntheticOnly: true, confirmOneCall: true }),
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({ error: 'Máy chủ trả về phản hồi không đọc được.' }));
     if (!response.ok) {
-      changeStatus(data.error || 'Thử nghiệm chưa thành công.');
+      const detail = data.detail ? ' ' + data.detail : '';
+      changeStatus((data.error || 'Thử nghiệm chưa thành công.') + detail + ' Lượt thử này đã kết thúc; hệ thống không tự động gửi lại.');
       return;
     }
     changeStatus('Đã nhận kết quả Groq qua Vercel Preview. Không có dữ liệu học sinh được gửi.');
@@ -59,7 +61,7 @@ button.addEventListener('click', async () => {
     line(reviewRoot, 'p', 'Giới hạn đánh giá: ' + (data.review?.limitations || 'Không rõ'));
     line(reviewRoot, 'p', data.note || 'Dữ liệu giả lập.');
   } catch {
-    changeStatus('Lỗi kết nối đến API thử nghiệm. Không tự động gửi lại.');
+    changeStatus('Không xác định được kết quả kết nối. Để tránh phát sinh yêu cầu Groq trùng, lượt thử này không được tự động gửi lại.');
   }
 });
 
