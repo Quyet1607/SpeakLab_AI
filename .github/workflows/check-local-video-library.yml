@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feature/recording-3-2
+      - feature/groq-synthetic-pilot
       - main
     paths:
       - 'src/**'
@@ -34,6 +35,7 @@ on:
       - 'tests/localPracticeHistory.test.js'
       - 'tests/groqSyntheticPilot.test.js'
       - 'tests/groqVercelPilotRoute.test.js'
+      - 'tests/groqStudentDataBoundary.test.js'
       - 'tests/groqPilotQuota.test.js'
       - 'server/groqPilotQuota.js'
       - 'scripts/groqSyntheticPilot.mjs'
@@ -82,6 +84,8 @@ jobs:
         run: node --test tests/groqSyntheticPilot.test.js
       - name: Test Vercel Groq pilot route security (mocked, no API key)
         run: node --test tests/groqVercelPilotRoute.test.js
+      - name: Test Groq student-data boundary (mocked, no API key)
+        run: node --test tests/groqStudentDataBoundary.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
