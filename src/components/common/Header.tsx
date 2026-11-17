@@ -83,15 +83,9 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl border border-[#E4E9E3] shadow-lg p-3 z-50 animate-in fade-in zoom-in-95">
               <div className="flex items-center justify-between pb-2 border-b border-[#E4E9E3]">
                 <span className="text-xs font-semibold text-[#3D4740]">Thông báo hệ thống</span>
-                <span className="text-[10px] text-[#768078]">2 mới</span>
+                <span className="text-[10px] text-[#768078]">1 mục</span>
               </div>
               <div className="space-y-2 mt-2">
-                <div className="p-2 rounded-lg bg-[#F7F9F6] border border-[#E4E9E3]/70 text-xs">
-                  <p className="font-medium text-[#3D4740]">Báo cáo đánh giá đã sẵn sàng</p>
-                  <p className="text-[11px] text-[#768078] mt-0.5">
-                    Buổi luyện "Bảo vệ Đề tài AI Phân loại Rác" đã hoàn tất bản chấm demo.
-                  </p>
-                </div>
                 <div className="p-2 rounded-lg bg-white border border-[#E4E9E3] text-xs">
                   <p className="font-medium text-[#3D4740]">Chào mừng đến SpeakLab AI</p>
                   <p className="text-[11px] text-[#768078] mt-0.5">
