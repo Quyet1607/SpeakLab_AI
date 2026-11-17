@@ -26,7 +26,7 @@ test('transition stage 1: comparison corpus has diverse, stable fictional sample
   }
 });
 
-test('transition stage 1: corpus does not alter the one authorized live synthetic pilot', () => {
+test('transition stage 2: corpus is only accessible through server allowlisted IDs', () => {
   const request = makeRequest();
   assert.ok(request.messages[1].content.includes(SAMPLE.transcript));
   for (const sample of SYNTHETIC_COMPARISON_CASES) {
@@ -35,7 +35,9 @@ test('transition stage 1: corpus does not alter the one authorized live syntheti
   const pilot = readFileSync(new URL('../api/groq/pilot.js', import.meta.url), 'utf8');
   assert.match(pilot, /Object\.keys\(request\)\.length !== 2/);
   assert.match(pilot, /request\.syntheticOnly !== true \|\| request\.confirmOneCall !== true/);
-  assert.doesNotMatch(pilot, /groqSyntheticComparisonCases|caseId|transcript:/u);
+  assert.match(pilot, /getSyntheticCase\(request\.caseId\)/u);
+  assert.match(pilot, /Object\.hasOwn\(request, 'caseId'\) && !requestedCase/u);
+  assert.doesNotMatch(pilot, /request\.transcript|request\.slides|request\.email/u);
 });
 
 test('transition stage 1: exercises explicitly prohibit undocumented scoring and modality claims', () => {
