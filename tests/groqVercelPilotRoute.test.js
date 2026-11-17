@@ -56,6 +56,21 @@ test('one click produces one synthetic call and throttles repeats per function i
   t+=60001;
   assert.equal((await call(handler,request())).code,200); assert.equal(calls,2);
 });
+
+test('Rubric validation and upstream failures return distinct safe diagnostics', async () => {
+  const invalid = factory({pilotRunner:async()=>{throw Object.assign(new Error('Dẫn chứng được chọn không thuộc nguồn của tiêu chí R3.'),{code:'GROQ_INVALID_REVIEW'});}});
+  const invalidRes = await call(invalid,request());
+  assert.equal(invalidRes.code,502);
+  assert.equal(invalidRes.body.code,'INVALID_REVIEW');
+  assert.match(invalidRes.body.detail,/tiêu chí R3/u);
+
+  const upstream = factory({pilotRunner:async()=>{throw Object.assign(new Error('Groq API trả về HTTP 503.'),{code:'GROQ_UPSTREAM_HTTP',status:503});}});
+  const upstreamRes = await call(upstream,request());
+  assert.equal(upstreamRes.code,502);
+  assert.equal(upstreamRes.body.code,'UPSTREAM_HTTP');
+  assert.match(upstreamRes.body.error,/503/u);
+});
+
 test('upstream quota failures are redacted and never automatically retried', async()=>{
   let calls=0;
   const handler=factory({pilotRunner:async()=>{calls++;throw new Error('429 private provider token');}});
