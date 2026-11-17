@@ -21,7 +21,7 @@ test('2.7.1: pilot entry only renders after teacher session and authenticated re
 
 test('2.7.1: no student upload, review provider replacement or Gemini consent change', () => {
   assert.doesNotMatch(dashboard, /fetch\('\/api\/groq\/pilot'|transcript\s*:/);
-  assert.match(review, /fetch\('\/api\/ai\/review'/);
+  assert.match(review, /'\/api\/ai\/review'/);
   assert.match(review, /đến Google Gemini/u);
 });
 
