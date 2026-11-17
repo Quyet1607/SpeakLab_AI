@@ -32,10 +32,19 @@
     <div class="panel">
       <div class="eyebrow">SpeakLab AI · Preview · Kiểm thử độc lập</div>
       <h1>Thử Groq Free Tier bằng bài thuyết trình giả lập</h1>
-      <p>Phép thử dành riêng cho <strong>chủ vận hành</strong>. Hệ thống gửi duy nhất bài nói giả về giảm rác nhựa cùng 2 đoạn chữ PowerPoint giả, không lấy video, TXT hoặc dữ liệu từ Lịch sử học sinh.</p>
+      <p>Phép thử dành riêng cho <strong>chủ vận hành</strong>. Hệ thống chỉ gửi bài nói và hai đoạn chữ PowerPoint giả lập đã viết sẵn trên máy chủ. Không lấy dữ liệu từ video, TXT, PPTX hay Lịch sử của người học.</p>
       <p class="important"><strong>An toàn:</strong> Cần đăng nhập Google trên chính tên miền Preview bằng tài khoản giáo viên được cấu hình. Một lần nhấn nút tạo tối đa một yêu cầu Groq. Không tự động chạy lại, không chuyển sang API trả phí, không hiển thị điểm số.</p>
       <p>Trước khi chạy, hãy kiểm tra tài khoản Groq của bạn vẫn ở <strong>Free Tier</strong>. <a href="/">Về SpeakLab Preview để đăng nhập Google</a>.</p>
       <div id="status" class="status" role="status">Đang kiểm tra quyền chạy thử…</div>
+      <label for="sample"><strong>Chọn bài thuyết trình giả lập</strong></label>
+      <select id="sample" disabled style="display:block; width:100%; padding:12px; border:1px solid #cbdacb; border-radius:9px; margin:10px 0 16px; font:inherit">
+        <option value="">Giảm rác nhựa (mẫu thử ban đầu)</option>
+        <option value="water-conservation">Tiết kiệm nước</option>
+        <option value="reading-habit">Thói quen đọc sách</option>
+        <option value="online-safety">An toàn trực tuyến</option>
+        <option value="school-garden">Chăm sóc vườn cây</option>
+      </select>
+      <p style="font-size:12px">Danh sách mẫu cố định; không cho nhập nội dung hoặc tải tệp. Mỗi lượt nhấn gọi tối đa một lần, dù chọn mẫu nào.</p>
       <button id="run" type="button" disabled>Chạy thử Groq với dữ liệu giả lập (1 lượt)</button>
       <section id="result" class="result" aria-live="polite" hidden>
         <h2>Kết quả thử nghiệm</h2>
