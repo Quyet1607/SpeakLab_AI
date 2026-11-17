@@ -36,6 +36,7 @@ on:
       - 'tests/groqSyntheticPilot.test.js'
       - 'tests/groqVercelPilotRoute.test.js'
       - 'tests/groqStudentDataBoundary.test.js'
+      - 'tests/groqPreviewReadiness.test.js'
       - 'tests/groqPilotQuota.test.js'
       - 'server/groqPilotQuota.js'
       - 'scripts/groqSyntheticPilot.mjs'
@@ -86,6 +87,8 @@ jobs:
         run: node --test tests/groqVercelPilotRoute.test.js
       - name: Test Groq student-data boundary (mocked, no API key)
         run: node --test tests/groqStudentDataBoundary.test.js
+      - name: Test Groq Preview configuration readiness (offline, no network)
+        run: node --test tests/groqPreviewReadiness.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
