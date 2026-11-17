@@ -153,8 +153,11 @@ export function validateSyntheticCaseReview(response, sample) {
     if (typeof item.comment !== 'string' || item.comment.trim().length < 5 ||
         typeof item.suggestion !== 'string' || item.suggestion.trim().length < 5) throw invalid();
     if (!['R2', 'R4'].includes(item.criterion)) {
-      safeText(item.comment, 5, 550);
-      safeText(item.suggestion, 5, 550);
+      // Model prose that leaks evidence tags or generic meta-instructions is
+      // replaced later by reviewed sample-specific feedback. Other unsafe
+      // claims are still rejected; there is never a second provider request.
+      if (learnerProse(item.comment)) safeText(item.comment, 5, 550);
+      if (learnerProse(item.suggestion)) safeText(item.suggestion, 5, 550);
     }
     const required = {
       R1: ['OPEN'], R2: ['OPEN', 'CLOSE'], R3: ['LIMIT'],
