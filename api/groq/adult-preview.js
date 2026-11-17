@@ -6,9 +6,15 @@
 import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js';
 import { reserveGroqPilotQuota, ensureGroqPilotQuotaConfigured } from '../../server/groqPilotQuota.js';
 import { runGenericGroqReview } from '../../server/groqGenericReviewEngine.js';
-import { validateReviewRequest } from '../../server/freeSpeechReview.js';
+import {
+  validateReviewRequest, MAX_TRANSCRIPT_CHARS, MAX_SLIDES,
+  MAX_SLIDE_CHARS, MAX_SLIDE_TOTAL,
+} from '../../server/freeSpeechReview.js';
 
 const BRANCH = 'feature/groq-synthetic-pilot';
+// Full existing SpeakLab text contract. Limits apply *before* any quota reservation.
+const MAX_REQUEST_CHARS = 65000;
+const MAX_REQUEST_BYTES = 100000;
 const QUOTA_CODES = new Set([
   'GROQ_OPERATOR_DAILY_LIMIT', 'GROQ_SYSTEM_DAILY_LIMIT',
   'GROQ_SYSTEM_MINUTE_LIMIT', 'GROQ_CONCURRENT_LIMIT',
@@ -39,9 +45,11 @@ function validAdultInput(body) {
       speakingGoal: body.speakingGoal, transcript: body.transcript, slides: body.slides,
     });
   } catch { return null; }
-  if (input.slides.length > 3 || input.transcript.length > 3500 ||
-      input.topic.length > 100 || input.speakingGoal.length > 250 ||
-      input.slides.some(s => s.text.length > 700)) return null;
+  if (input.transcript.length > MAX_TRANSCRIPT_CHARS ||
+      input.slides.length > MAX_SLIDES || input.topic.length > 120 ||
+      input.speakingGoal.length > 400 ||
+      input.slides.some(s => s.text.length > MAX_SLIDE_CHARS) ||
+      input.slides.reduce((sum, slide) => sum + slide.text.length, 0) > MAX_SLIDE_TOTAL) return null;
   const text = [input.topic, input.speakingGoal, input.transcript, ...input.slides.map(s => s.text)].join('\n');
   if (BLOCKED_CONTENT.some(pattern => pattern.test(text))) return null;
   // Conservative boundary, not a guarantee of de-identification. The
@@ -74,7 +82,8 @@ export function createAdultPreviewHandler({
     if (req.method === 'GET') {
       return res.status(200).json({
         ready: enabled && Boolean(env.GROQ_API_KEY?.trim()),
-        enabled, maxTranscriptChars: 3500, maxSlides: 3,
+        enabled, maxTranscriptChars: MAX_TRANSCRIPT_CHARS, maxSlides: MAX_SLIDES,
+        maxSlideChars: MAX_SLIDE_CHARS, maxSlideTotal: MAX_SLIDE_TOTAL,
         note: 'Chỉ bài do người lớn tự viết, không có thông tin cá nhân. Không được dùng dữ liệu học sinh.',
       });
     }
@@ -89,7 +98,9 @@ export function createAdultPreviewHandler({
     let body;
     try {
       const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      if (!raw || raw.length > 6800 || Number(req.headers['content-length'] || 0) > 9000) {
+      if (!raw || raw.length > MAX_REQUEST_CHARS ||
+          Buffer.byteLength(raw, 'utf8') > MAX_REQUEST_BYTES ||
+          Number(req.headers['content-length'] || 0) > MAX_REQUEST_BYTES) {
         return res.status(413).json({ error: 'Bài nói vượt giới hạn thử nghiệm.' });
       }
       body = JSON.parse(raw);
@@ -98,7 +109,7 @@ export function createAdultPreviewHandler({
     }
     const input = validAdultInput(body);
     if (!input) return res.status(400).json({
-      error: 'Chỉ nhận bài người lớn tự viết, không chứa thông tin định danh; tối đa 3 slide và 3.500 ký tự bản ghi.',
+      error: 'Chỉ nhận bài người lớn tự viết, không chứa thông tin định danh; tối đa 40 slide chữ và 24.000 ký tự bản ghi.',
       code: 'ADULT_INPUT_REJECTED',
     });
     if (!env.GROQ_API_KEY?.trim()) return res.status(503).json({ error: 'Groq chưa được cấu hình trên Preview.' });
