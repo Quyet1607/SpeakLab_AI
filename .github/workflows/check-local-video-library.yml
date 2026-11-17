@@ -49,6 +49,7 @@ on:
       - 'server/groqSyntheticReviewAdapter.js'
       - 'server/groqGenericReviewEngine.js'
       - 'tests/groqGenericReviewEngine.test.js'
+      - 'tests/groqAdultPreviewRoute.test.js'
       - 'server/groqOfflineContractRehearsal.js'
       - 'server/groqSyntheticCases.js'
       - 'tests/fixtures/groqSyntheticComparisonCases.js'
@@ -124,6 +125,8 @@ jobs:
         run: node --test tests/groqSyntheticReviewAdapterStep5.test.js
       - name: Test generic-input Groq review engine without live calls
         run: node --test tests/groqGenericReviewEngine.test.js
+      - name: Test adult-only Groq Preview route with mock and privacy gates
+        run: node --test tests/groqAdultPreviewRoute.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
