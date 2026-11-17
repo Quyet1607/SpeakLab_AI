@@ -1,0 +1,121 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runGenericGroqReview, GROQ_GENERIC_REVIEW_SCHEMA } from '../server/groqGenericReviewEngine.js';
+
+const input = {
+  consent: true, sessionId: 'ses_adult_12345',
+  topic: 'Đánh giá phương án di chuyển bền vững',
+  topicDescription: 'Một bài phát biểu tự viết cho người trưởng thành',
+  speakingGoal: 'So sánh hai biện pháp và giải thích giới hạn',
+  transcript: 'Hôm nay tôi trình bày về việc giảm khí thải khi đi lại. ' +
+    'Phương án thứ nhất là đi xe đạp ở quãng đường ngắn, có thể tiết kiệm nhiên liệu. ' +
+    'Phương án thứ hai là đi xe buýt khi có tuyến phù hợp, từ đó giảm số chuyến xe cá nhân. ' +
+    'Tuy nhiên tôi chưa thu thập số liệu để so sánh mức giảm phát thải giữa hai cách. ' +
+    'Xin cảm ơn mọi người đã lắng nghe.',
+  slides: [
+    { number: 1, text: 'Đi xe đạp trên quãng đường ngắn' },
+    { number: 2, text: 'Đi xe buýt khi có tuyến phù hợp' },
+  ],
+};
+const bad = (response) => ({
+  choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(response) } }],
+});
+const mockResponse = (slides = input.slides) => ({
+  summary: 'Bài thuyết trình nêu hai giải pháp giảm khí thải, đồng thời thừa nhận thiếu số liệu so sánh.',
+  strengths: [
+    { point: 'Bài nói xác định rõ chủ đề giảm khí thải trong phần mở đầu.', evidenceId: 'E1' },
+    { point: 'Bài trình bày hai phương án di chuyển dễ hình dung trong thực tế.', evidenceId: 'E1' },
+  ],
+  improvements: [
+    { point: 'Bản ghi chưa có số liệu để so sánh hiệu quả phát thải.', evidenceId: 'E1',
+      action: 'Thêm số liệu khảo sát hoặc nêu rõ cách thu thập để kiểm tra từng phương án.' },
+    { point: 'Phần kết chưa nhắc lại điều kiện áp dụng của từng phương án.', evidenceId: 'E1',
+      action: 'Tóm tắt trường hợp nên đi xe đạp và khi nào có thể chọn xe buýt.' },
+  ],
+  slideComparisons: slides.map(slide => ({
+    slideNumber: slide.number, status: 'possible_difference',
+    point: 'Có văn bản về phương án đi lại cần đối chiếu với bản ghi lời nói.',
+    slideQuote: slide.text, spokenQuote: 'Hôm nay tôi trình bày về việc giảm khí thải khi đi lại.',
+    evidenceId: 'E1',
+    covered: 'Bản ghi giới thiệu về hai biện pháp hạn chế khí thải khi di chuyển.',
+    missing: 'Chưa có đồng bộ thời điểm nói với việc chuyển sang slide.',
+    action: 'Đối chiếu kỹ đoạn diễn giải với phần chữ hiển thị trên slide.',
+  })),
+  limitations: ['Không có dữ liệu đo đạc thực tế để xác nhận lợi ích môi trường.'],
+});
+function mockedFetcher(fn) {
+  let calls = 0;
+  return {
+    get calls() { return calls; },
+    fetch: async (url, options) => {
+      calls++;
+      assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
+      assert.match(options.headers.Authorization, /^Bearer TEST_KEY/u);
+      const payload = JSON.parse(options.body);
+      assert.ok(payload.messages[1].content.includes(input.transcript));
+      assert.equal(payload.response_format.type, 'json_schema');
+      const data = fn();
+      return { ok: true, json: async () => bad(data) };
+    },
+  };
+}
+
+test('generic engine: validates non-fixed adult-authored transcript with exactly one mocked provider request', async () => {
+  const spy = mockedFetcher(() => mockResponse());
+  const response = await runGenericGroqReview({ input, apiKey: 'TEST_KEY', fetcher: spy.fetch });
+  assert.equal(spy.calls, 1);
+  assert.equal(response.model, 'openai/gpt-oss-20b');
+  assert.equal(response.review.model, 'openai/gpt-oss-20b');
+  assert.equal(response.review.strengths.length, 2);
+  assert.equal(response.review.improvements.length, 2);
+  assert.equal(response.review.slideComparisons.length, 2);
+  assert.equal(response.review.slideReviewStats.accepted, 2);
+  assert.equal(response.review.slideOverview.length, 2);
+  assert.equal(response.review.slideComparisons[1].slideQuote, input.slides[1].text);
+  assert.equal(GROQ_GENERIC_REVIEW_SCHEMA.properties.slideComparisons.items.properties.slideNumber.type, 'integer');
+});
+
+test('generic engine: works without slide content, still validates 2 strengths and 2 improvements', async () => {
+  const spy = mockedFetcher(() => mockResponse([]));
+  const result = await runGenericGroqReview({
+    input: { ...input, slides: [] }, apiKey: 'TEST_KEY', fetcher: spy.fetch,
+  });
+  assert.equal(spy.calls, 1);
+  assert.equal(result.review.slideComparisons.length, 0);
+  assert.equal(result.review.source, 'transcript');
+});
+
+test('generic engine: no consent or invalid input fails before any provider call', async () => {
+  const spy = mockedFetcher(() => mockResponse());
+  for (const body of [
+    { ...input, consent: false }, { ...input, transcript: 'Quá ngắn' },
+    { ...input, slides: [{ number: 1, text: 'X' }, { number: 1, text: 'Y' }] },
+  ]) {
+    await assert.rejects(runGenericGroqReview({ input: body, apiKey: 'TEST_KEY', fetcher: spy.fetch }),
+      { code: 'GROQ_INVALID_REQUEST' });
+  }
+  assert.equal(spy.calls, 0);
+});
+
+test('generic engine: invalid quote and incomplete slides fail closed without retries', async () => {
+  for (const response of [
+    { ...mockResponse(), slideComparisons: mockResponse().slideComparisons.slice(0, 1) },
+    { ...mockResponse(), strengths: mockResponse().strengths.slice(0, 1) },
+    { ...mockResponse(), slideComparisons: mockResponse().slideComparisons.map((x,i) =>
+      i ? { ...x, slideQuote: 'Tự bịa trích dẫn không có trên slide' } : x) },
+  ]) {
+    const spy = mockedFetcher(() => response);
+    await assert.rejects(runGenericGroqReview({ input, apiKey: 'TEST_KEY', fetcher: spy.fetch }),
+      /cấu trúc hoặc dẫn chứng/iu);
+    assert.equal(spy.calls, 1);
+  }
+});
+
+test('generic engine: not connected to active learner Gemini route or any callable Preview endpoint', () => {
+  const engine = readFileSync(new URL('../server/groqGenericReviewEngine.js', import.meta.url), 'utf8');
+  const gemini = readFileSync(new URL('../api/ai/review.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(engine, /readSession\(|reserveGroqPilotQuota\(|export default function handler/u);
+  assert.match(gemini, /new GoogleGenAI\(/u);
+  assert.doesNotMatch(gemini, /groqGenericReviewEngine|GROQ_API_KEY/u);
+});
