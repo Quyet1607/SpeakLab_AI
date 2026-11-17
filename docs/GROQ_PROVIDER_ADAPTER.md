@@ -2,7 +2,8 @@
 
 **Nhánh:** feature/groq-synthetic-pilot  
 **Bước 2.1:** Tạo adapter dùng chung và kiểm thử offline.  
-**Bước 2.2:** Kết nối adapter với Synthetic Pilot bằng dữ liệu giả lập cố định.
+**Bước 2.2:** Kết nối adapter với Synthetic Pilot bằng dữ liệu giả lập cố định.  
+**Bước 2.3:** Siết kiểm chứng dẫn chứng và giới hạn kết luận của R2/R4.
 
 ## Thiết kế
 
@@ -15,13 +16,17 @@
 - Không tự retry, không fallback provider, có timeout và thông báo lỗi đã làm sạch.
 - Adapter chỉ trả về chuỗi JSON và model; kiểm chứng nghiệp vụ vẫn nằm ở tầng gọi.
 
-## Sử dụng trong Synthetic Pilot
+## Synthetic Pilot và kiểm chứng nguồn
 
-- scripts/groqSyntheticPilot.mjs gọi requestGroqReview thay vì gọi fetch trực tiếp.
-- Prompt/schema vẫn xuất phát từ makeRequest() với transcript và hai slide giả lập cố định.
-- Sau khi adapter trả về, validateReview kiểm tra đủ 5 tiêu chí R1–R5, evidence ID đúng nguồn và không có điểm số giả.
-- api/groq/pilot.js giữ nguyên; trang Preview vẫn chỉ chạy một bài giả lập cố định với xác thực teacher.
-- api/ai/review.js không thay đổi; Gemini vẫn được sử dụng trong luồng đánh giá hiện hành.
+- scripts/groqSyntheticPilot.mjs gọi requestGroqReview; không gọi endpoint Groq trực tiếp.
+- Prompt/schema chỉ chứa bài nói và hai slide giả lập cố định.
+- Mô hình chỉ chọn evidenceIds; máy chủ tự chèn trích dẫn nguyên văn từ nguồn cố định.
+- R2 bắt buộc có cả câu mở đầu và câu kết thúc. Máy chủ chỉ nhận xét hai dấu mốc này xuất hiện, không kết luận toàn bộ cấu trúc hoặc mạch lập luận.
+- R4 bắt buộc ghép từng đoạn chữ slide với câu nói tương ứng. Nhận xét và gợi ý R4 do máy chủ tạo từ các cặp đã xác minh; không dùng kết luận AI về hình ảnh, bố cục, thiết kế hay việc trình chiếu.
+- R5 bắt buộc có dẫn chứng cho cả hai giải pháp.
+- Các nhận xét tự tạo về giọng nói, phát âm, ánh mắt, cử chỉ, hình ảnh hoặc điểm số bị loại.
+- api/groq/pilot.js vẫn giới hạn ở Preview, đúng nhánh, phiên Google role teacher và một lượt gọi.
+- api/ai/review.js không thay đổi; Gemini vẫn là provider trong luồng đánh giá hiện hành.
 
 ## Kiểm thử
 
