@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Presentation,
   History,
-  FileBarChart,
   Settings,
 } from 'lucide-react';
 import { ActivePage } from '../../types';
@@ -23,7 +22,6 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activePage, onNavigate }) 
     { id: 'dashboard' as ActivePage, label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'practice_setup' as ActivePage, label: 'Luyện tập', icon: Presentation },
     { id: 'history' as ActivePage, label: 'Lịch sử', icon: History },
-    { id: 'report' as ActivePage, label: 'Báo cáo', icon: FileBarChart },
     { id: 'settings' as ActivePage, label: 'Cài đặt', icon: Settings },
   ];
 
