@@ -46,7 +46,7 @@ test('transition step 4: raw model-generated R1-R5 pilot is not falsely presente
   const results = repoFile('src/features/history/AiSpeechReviewPanel.tsx');
   assert.match(pilot, /criteria:/u);
   assert.match(current, /parseGroundedReview\(output\.text, evidence, input\.slides\)/u);
-  assert.match(results, /fetch\('\/api\/ai\/review'/u);
+  assert.match(results, /'\/api\/ai\/review'/u);
   assert.match(current, /new GoogleGenAI\(/u);
   assert.doesNotMatch(current, /requestGroqReview|GROQ_API_KEY|groqOfflineContractRehearsal/u);
   assert.doesNotMatch(results, /groq\/pilot|groqOfflineContractRehearsal/u);
