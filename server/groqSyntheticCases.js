@@ -11,6 +11,56 @@ const FORBIDDEN = [
   /(?:bố cục|màu sắc|thiết kế|hình ảnh|slide đẹp|trình chiếu).{0,60}(?:tốt|đẹp|rõ|chuyên nghiệp|hiệu quả)/iu,
   /(?:điểm số|điểm tổng|\b\d+(?:[.,]\d+)?\s*\/\s*10\b)/iu,
 ];
+// Internal evidence tokens belong in evidenceIds only, not in prose shown to learners.
+const INTERNAL_CODES = /\\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\\b/iu;
+const META_FEEDBACK = /(?:dẫn chứng|trích dẫn).{0,55}(?:không bị trùng|chính xác|được trích dẫn)|(?:giữ nguyên|đảm bảo).{0,40}(?:các? mã|evidenceIds)/iu;
+const SPECIFIC_FEEDBACK = Object.freeze({
+  'water-conservation': Object.freeze({
+    R1: 'Em đã nêu hai cách tiết kiệm nước: khóa vòi khi đánh răng và tận dụng nước rửa rau để tưới cây phù hợp.',
+    R1Suggestion: 'Hãy giải thích khi nào có thể dùng nước rửa rau để tưới cây và lưu ý tránh nước có chất tẩy rửa.',
+    R3Suggestion: 'Có thể đo lượng nước sử dụng trước và sau khi thực hiện để kiểm tra mức tiết kiệm, chưa kết luận khi chưa có số liệu.',
+    R5Suggestion: 'Nêu rõ cách thực hiện từng biện pháp và cách theo dõi kết quả trong một tuần.',
+  }),
+  'reading-habit': Object.freeze({
+    R1: 'Em đã trình bày hai cách rèn thói quen đọc sách: đọc mười lăm phút mỗi tối và ghi câu hỏi sau khi đọc.',
+    R1Suggestion: 'Hãy cho ví dụ một câu hỏi em sẽ ghi lại sau khi đọc một đoạn sách.',
+    R3Suggestion: 'Có thể thử ghi lại thời gian đọc và khả năng trả lời câu hỏi trước khi kết luận cách này có ích cho đọc hiểu.',
+    R5Suggestion: 'Giải thích cách duy trì việc đọc mỗi tối và cách kiểm tra các câu hỏi đã ghi.',
+  }),
+  'online-safety': Object.freeze({
+    R1: 'Em nêu hai cách bảo vệ tài khoản: dùng mật khẩu dài và không chia sẻ, đồng thời bật xác thực hai bước khi được hỗ trợ.',
+    R1Suggestion: 'Hãy minh họa tình huống một tài khoản được bảo vệ bằng xác thực hai bước và nhắc người nghe không chia sẻ mã xác minh.',
+    R3Suggestion: 'Có thể tìm tài liệu hướng dẫn bảo mật đáng tin cậy để giải thích lợi ích, không tự đưa ra tỷ lệ giảm rủi ro.',
+    R5Suggestion: 'Nêu rõ cách thực hiện từng biện pháp và giải thích vì sao cả mật khẩu lẫn bước xác minh bổ sung đều cần thiết.',
+  }),
+  'school-garden': Object.freeze({
+    R1: 'Em đề xuất phân công lịch tưới và thu gom lá khô để ủ phân chăm sóc vườn cây chung.',
+    R1Suggestion: 'Hãy đưa ví dụ lịch phân công tưới cây và cách thu gom lá khô phù hợp.',
+    R3Suggestion: 'Có thể theo dõi sự phát triển của cây theo tuần trước khi đánh giá hiệu quả của hai biện pháp.',
+    R5Suggestion: 'Nêu ai phụ trách lịch tưới và các bước ủ lá khô an toàn để người nghe có thể thực hiện.',
+  }),
+});
+function learnerProse(text) {
+  return !INTERNAL_CODES.test(text) && !META_FEEDBACK.test(text);
+}
+function groundedCriterion(criterion, sample, evidence) {
+  const details = SPECIFIC_FEEDBACK[sample.id];
+  if (!details) throw invalid();
+  if (criterion === 'R1') return {
+    comment: details.R1,
+    suggestion: details.R1Suggestion,
+  };
+  if (criterion === 'R3') return {
+    comment: 'Bài nói thừa nhận chưa có bằng chứng để kết luận hiệu quả: ' + evidence.LIMIT,
+    suggestion: details.R3Suggestion,
+  };
+  if (criterion === 'R5') return {
+    comment: 'Bài nói đã đề cập đủ hai biện pháp: ' + evidence.SOLUTION_1 + ' ' + evidence.SOLUTION_2,
+    suggestion: details.R5Suggestion,
+  };
+  throw invalid();
+}
+
 const outputSchema = {
   type: 'object', additionalProperties: false,
   required: ['summary', 'criteria', 'limitations'],
@@ -37,7 +87,7 @@ function invalid() {
 }
 function safeText(input, min = 5, max = 700) {
   if (typeof input !== 'string' || input.trim().length < min || input.length > max ||
-      FORBIDDEN.some(rule => rule.test(input))) throw invalid();
+      FORBIDDEN.some(rule => rule.test(input)) || INTERNAL_CODES.test(input)) throw invalid();
   return input.trim();
 }
 export function syntheticCaseList() {
@@ -81,6 +131,8 @@ export function makeSyntheticCaseRequest(sample) {
       'R5: chọn SOLUTION_1 và SOLUTION_2; chỉ mô tả các biện pháp được nhắc đến.',
       'Không mô tả chất giọng, ánh mắt, cử chỉ, cách trình chiếu, điểm số hoặc dữ liệu thực nghiệm chưa có.',
       'Trả summary, criteria gồm criterion/comment/evidenceIds/suggestion, limitations theo JSON schema.',
+      'Các mã OPEN, CLOSE, LIMIT, SOLUTION_1, SOLUTION_2, SLIDE_1, SLIDE_2 CHỈ được ghi ở evidenceIds; không bao giờ viết mã này trong summary, comment, suggestion hay limitations.',
+      'Lời nhận xét dành cho người học phải nói trực tiếp về hai biện pháp trong bài. Không hướng dẫn kiểm tra mã dẫn chứng, không đưa gợi ý chung chung về trích dẫn; hãy gợi ý bước cải thiện cụ thể phù hợp với đề tài.',
     ].join('\n'),
     schema: outputSchema,
   };
@@ -125,6 +177,12 @@ export function validateSyntheticCaseReview(response, sample) {
     if (!item) throw invalid();
     let comment = item.comment.trim();
     let suggestion = item.suggestion.trim();
+    // Prevent exposing test jargon or generic rubric/meta-feedback to learners.
+    // Preserve verified evidence IDs; switch to reviewed, topic-specific wording.
+    if (['R1', 'R3', 'R5'].includes(criterion) &&
+        (!learnerProse(comment) || !learnerProse(suggestion))) {
+      ({ comment, suggestion } = groundedCriterion(criterion, sample, e));
+    }
     if (criterion === 'R2') {
       comment = 'Bản ghi có phần mở đầu và kết thúc. Hai dấu mốc chưa đủ để kết luận toàn bộ mạch lập luận.';
       suggestion = 'Có thể bổ sung câu chuyển ý rõ ràng giữa các biện pháp.';
@@ -133,7 +191,7 @@ export function validateSyntheticCaseReview(response, sample) {
       comment = 'Chữ trên hai slide tương ứng với các biện pháp được nhắc tới trong bài nói.';
       suggestion = 'Chỉ đối chiếu văn bản, không đánh giá bố cục, hình ảnh hoặc chất lượng trình chiếu.';
     }
-    return { criterion, comment, suggestion, evidenceIds: item.evidenceIds, quote: item.evidenceIds.map(id => id + ': ' + e[id]).join(' | ') };
+    return { criterion, comment, suggestion, evidenceIds: item.evidenceIds, quote: item.evidenceIds.map(id => e[id]).join(' | ') };
   });
   return { summary, limitations, criteria };
 }
