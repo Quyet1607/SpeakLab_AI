@@ -12,7 +12,7 @@ const FORBIDDEN = [
   /(?:điểm số|điểm tổng|\b\d+(?:[.,]\d+)?\s*\/\s*10\b)/iu,
 ];
 // Internal evidence tokens belong in evidenceIds only, not in prose shown to learners.
-const INTERNAL_CODES = /\\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\\b/iu;
+const INTERNAL_CODES = /\b(?:OPEN|CLOSE|LIMIT|SOLUTION_[12]|SLIDE_[12])\b/iu;
 const SPECIFIC_FEEDBACK = Object.freeze({
   'water-conservation': Object.freeze({
     R1: 'Em đã nêu hai cách tiết kiệm nước: khóa vòi khi đánh răng và tận dụng nước rửa rau để tưới cây phù hợp.',
