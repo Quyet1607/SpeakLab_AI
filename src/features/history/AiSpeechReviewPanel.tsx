@@ -89,9 +89,11 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
     slides: slides?.slides || [],
   });
   const currentGroqSnapshot = JSON.stringify(groqPayload());
-  const groqAllowedInput = transcript.length >= 20 && transcript.length <= 3500 &&
-    topic.length <= 100 && (speakingGoal || '').length <= 250 &&
-    (slides?.slides.length || 0) <= 3 && (slides?.slides || []).every(slide => slide.text.length <= 700);
+  const groqAllowedInput = transcript.length >= 20 && transcript.length <= 24000 &&
+    topic.length <= 120 && (speakingGoal || '').length <= 400 &&
+    (slides?.slides.length || 0) <= 40 &&
+    (slides?.slides || []).every(slide => slide.text.length <= 900) &&
+    (slides?.slides || []).reduce((sum, slide) => sum + slide.text.length, 0) <= 16000;
   const groqConfirmed = previewAccepted === currentGroqSnapshot && adultConfirmed;
   const chooseProvider = (next: 'gemini' | 'groq') => {
     if (busy) return;
@@ -265,8 +267,8 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       </div>}
       {provider === 'groq' ? <div className="rounded-lg border border-[#BDD3C0] bg-white p-3 text-xs space-y-3">
         <p className="font-semibold">Xác nhận dữ liệu gửi tới Groq</p>
-        <p>Chỉ dành cho bài của người lớn tự viết. Không dùng bản ghi học sinh, thông tin định danh hoặc nội dung nhạy cảm. Giới hạn 3.500 ký tự và 3 slide chữ; không gửi video, âm thanh hay PPTX gốc.</p>
-        {!groqAllowedInput && <p role="alert" className="text-[#873631]">Bản ghi hoặc slide vượt giới hạn Groq dành cho người lớn. Không tự cắt bớt nội dung.</p>}
+        <p>Chỉ dành cho bài do chính người lớn tự viết và được dùng hợp lệ. Không chọn buổi luyện của học sinh, thông tin định danh hoặc nội dung nhạy cảm. Giới hạn 24.000 ký tự bản ghi và tối đa 40 slide chữ (tổng 16.000 ký tự); không gửi video, âm thanh hay PPTX gốc. Bài dài có thể vượt khả năng Groq Free Tier, khi đó hệ thống báo lỗi thay vì tự cắt nội dung.</p>
+        {!groqAllowedInput && <p role="alert" className="text-[#873631]">Bản ghi hoặc slide vượt giới hạn dữ liệu Groq (24.000 ký tự bản ghi, 40 slide hoặc tổng 16.000 ký tự slide). Không tự cắt bớt nội dung.</p>}
         <button type="button" disabled={!groqAllowedInput || busy}
           onClick={() => { setPreviewAccepted(currentGroqSnapshot); setConsent(false); setAdultConfirmed(false); }}
           className="border border-[#BDD3C0] rounded-lg px-3 py-1.5 font-semibold">
