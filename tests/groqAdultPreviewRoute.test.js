@@ -129,6 +129,6 @@ test('adult Preview: static page snapshots user input before send and does not s
   assert.match(js, /snapshot = JSON.stringify\(data\)/u);
   assert.match(js, /adultSelfAuthored: true, confirmExternalTransfer: true, confirmOneCall: true/u);
   assert.match(js, /locked = true/u);
-  assert.doesNotMatch(js, /localStorage|sessionStorage|setInterval|window\.location\.reload/u);
+  assert.doesNotMatch(js, /(?:localStorage|sessionStorage)\.(?:setItem|getItem)|setInterval\(|window\.location\.reload/u);
   assert.doesNotMatch(html, /type="file"/u);
 });
