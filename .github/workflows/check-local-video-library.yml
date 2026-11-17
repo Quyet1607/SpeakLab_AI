@@ -13,6 +13,8 @@ on:
       - 'src/**'
       - 'api/ai/**'
       - 'server/freeSpeechReview.js'
+      - 'server/groqReviewProvider.js'
+      - 'tests/groqReviewProvider.test.js'
       - 'tests/freeSpeechReview.test.js'
       - 'tests/aiReviewRoute.test.js'
       - 'tests/pptxReviewText.test.js'
@@ -78,6 +80,8 @@ jobs:
         run: node --test tests/groqSyntheticPilot.test.js
       - name: Test Vercel Groq pilot route security (mocked, no API key)
         run: node --test tests/groqVercelPilotRoute.test.js
+      - name: Test Groq provider adapter with mocked API (no API key)
+        run: node --test tests/groqReviewProvider.test.js
       - name: Test guest slide-text cleanup
         run: bun test tests/localReviewSlideLibrary.test.js
       - name: Test guest video cleanup
