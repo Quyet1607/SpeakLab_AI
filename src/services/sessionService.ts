@@ -44,14 +44,14 @@ class SessionService {
     const totalSeconds = this.sessions.reduce((acc, s) => acc + s.durationSeconds, 0);
     const totalMinutes = Math.round(totalSeconds / 60);
     const avgMinutesPerSession = totalSessions > 0 ? Math.round(totalMinutes / totalSessions) : 0;
-    const totalReports = this.sessions.filter((s) => !!s.reportId).length;
+    const totalReports = 0; // Reports are not produced by the current practice flow.
 
     return {
       totalSessions,
       totalPracticeMinutes: totalMinutes,
       avgMinutesPerSession,
       totalReports,
-      improvementPercentage: 32, // Chỉ số minh họa
+      improvementPercentage: 0, // No measured improvement
     };
   }
 
@@ -110,8 +110,6 @@ class SessionService {
       participantCount: params.participantCount,
       createdAt: 'Vừa xong',
       status: 'in_progress',
-      score: undefined,
-      reportId: undefined, // No pretend AI evaluation for real practice
       presentationSource: params.presentationSource,
     };
 
