@@ -38,6 +38,7 @@ on:
       - 'tests/groqStudentDataBoundary.test.js'
       - 'tests/groqPreviewReadiness.test.js'
       - 'tests/groqQualityAcceptance.test.js'
+      - 'tests/groqFailureAndQuotaAcceptance.test.js'
       - 'tests/groqPilotQuota.test.js'
       - 'server/groqPilotQuota.js'
       - 'scripts/groqSyntheticPilot.mjs'
@@ -92,6 +93,8 @@ jobs:
         run: node --test tests/groqPreviewReadiness.test.js
       - name: Test Groq synthetic quality acceptance (offline)
         run: node --test tests/groqQualityAcceptance.test.js
+      - name: Test Groq failure and quota acceptance (offline)
+        run: node --test tests/groqFailureAndQuotaAcceptance.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
