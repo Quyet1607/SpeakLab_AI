@@ -62,9 +62,10 @@ export async function runGenericGroqReview({
   // not merely the first few. A long deck may still exceed the model's
   // context/output/Free Tier limits: one request, then fail closed; never
   // silently trim slides or retry at additional cost.
-  const maxOutputTokens = checked.slides.length
-    ? Math.min(24000, Math.max(3500, 2200 + checked.slides.length * 500))
-    : 2800;
+  // Groq Free Tier currently exposes a low per-minute token budget. Keep the
+  // single request deliberately compact so a normal full-deck review can fit
+  // under that budget without silently dropping slides or retrying.
+  const maxOutputTokens = checked.slides.length ? 3500 : 2800;
   const result = await requestGroqReview({
     apiKey, prompt, schema: GROQ_GENERIC_REVIEW_SCHEMA,
     maxOutputTokens, fetcher, timeoutMs,
