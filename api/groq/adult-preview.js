@@ -143,6 +143,8 @@ export function createAdultPreviewHandler({
         GROQ_REVIEW_EVIDENCE: 'Groq dẫn chứng sai mã hoặc không có trong bản ghi ASR.',
         GROQ_REVIEW_LANGUAGE: 'Groq trả nhận xét tiếng Việt chưa đạt kiểm tra dấu.',
         GROQ_REVIEW_UNSUPPORTED: 'Groq suy diễn kỹ năng nói, hình ảnh hoặc chấm điểm ngoài dữ liệu văn bản.',
+        GROQ_QUALITY_SLIDE_COVERAGE: 'Báo cáo Groq chưa đối chiếu đầy đủ slide với dẫn chứng kiểm chứng được; không thay thế chất lượng nhận xét hiện tại.',
+        GROQ_QUALITY_REPETITION: 'Báo cáo Groq lặp nhận xét chung chung giữa nhiều slide, chưa đạt tiêu chuẩn chất lượng.',
         GROQ_INVALID_REVIEW: 'Groq không trả nhận xét có thể xác minh an toàn.',
         GROQ_INCOMPLETE_SLIDE_REVIEW: 'Groq không trả đủ đối chiếu slide đã xác minh.',
         GROQ_OUTPUT_LIMIT: 'Groq hết giới hạn token đầu ra; không tự gửi lần thứ hai.',
