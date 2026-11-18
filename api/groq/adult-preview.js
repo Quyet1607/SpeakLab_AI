@@ -136,8 +136,20 @@ export function createAdultPreviewHandler({
       const code = String(error?.code || '');
       if (code === 'GROQ_RATE_LIMIT') return res.status(429).json({ error: 'Groq Free Tier đã hết lượt; không tự gửi lại.' });
       if (code === 'GROQ_TIMEOUT') return res.status(504).json({ error: 'Hết thời gian chờ; không tự gửi lại.' });
-      if (['GROQ_INVALID_REVIEW','GROQ_INCOMPLETE_SLIDE_REVIEW','GROQ_OUTPUT_LIMIT','GROQ_INVALID_RESPONSE'].includes(code)) {
-        return res.status(502).json({ error: 'Groq không trả đủ nhận xét có dẫn chứng hợp lệ; không hiển thị phần chưa kiểm chứng.', code: 'INVALID_REVIEW' });
+      // Stable, content-free diagnostics; never expose provider body, prompt,
+      // transcript, API key, or raw parser exception to the browser.
+      const diagnostics = {
+        GROQ_REVIEW_STRUCTURE: 'Groq trả nhận xét chính thiếu mục bắt buộc hoặc sai cấu trúc.',
+        GROQ_REVIEW_EVIDENCE: 'Groq dẫn chứng sai mã hoặc không có trong bản ghi ASR.',
+        GROQ_REVIEW_LANGUAGE: 'Groq trả nhận xét tiếng Việt chưa đạt kiểm tra dấu.',
+        GROQ_REVIEW_UNSUPPORTED: 'Groq suy diễn kỹ năng nói, hình ảnh hoặc chấm điểm ngoài dữ liệu văn bản.',
+        GROQ_INVALID_REVIEW: 'Groq không trả nhận xét có thể xác minh an toàn.',
+        GROQ_INCOMPLETE_SLIDE_REVIEW: 'Groq không trả đủ đối chiếu slide đã xác minh.',
+        GROQ_OUTPUT_LIMIT: 'Groq hết giới hạn token đầu ra; không tự gửi lần thứ hai.',
+        GROQ_INVALID_RESPONSE: 'Groq trả JSON không hợp lệ hoặc trống.',
+      };
+      if (Object.hasOwn(diagnostics, code)) {
+        return res.status(502).json({ error: diagnostics[code], code });
       }
       return res.status(502).json({ error: 'Không hoàn tất được yêu cầu tới Groq. Không tự động gửi lại.' });
     } finally {
