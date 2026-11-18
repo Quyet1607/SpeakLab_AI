@@ -317,11 +317,12 @@ export function parseGroundedReview(raw, evidence, slides) {
   };
 }
 
-export function ensureFreePreview(env = process.env) {
-  if (env.VERCEL_ENV !== 'preview' ||
+export function ensureFreeTierEnabled(env = process.env) {
+  const supportedEnvironment = ['preview', 'production'].includes(env.VERCEL_ENV);
+  if (!supportedEnvironment ||
     env.SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED !== 'true' ||
     typeof env.GEMINI_API_KEY !== 'string' || !env.GEMINI_API_KEY.trim()) {
-    throw Object.assign(new Error('AI miễn phí chưa được cấu hình trên Preview.'), { status: 503, safePublic: true });
+    throw Object.assign(new Error('AI miễn phí chưa được cấu hình trên Preview hoặc Production.'), { status: 503, safePublic: true });
   }
 }
 
