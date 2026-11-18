@@ -111,22 +111,30 @@ export async function runGenericGroqReview({
     throw rejected(classifyGroundingFailure(error));
   }
   if (review.strengths.length !== 2 || review.improvements.length !== 2) throw rejected('GROQ_REVIEW_STRUCTURE');
-  // Preserve the true number of verified comparisons. The shared validator
-  // independently rejects unsupported quotes, leaving a lexical overview for
-  // every slide. Do not relabel rejected items as "accepted" or assert that
-  // no corresponding speech exists without evidence.
-  const partial = checked.slides.length > 0 &&
-    review.slideReviewStats?.accepted !== checked.slides.length;
-  const shortfall = partial
-    ? ['Một số slide chưa có đối chiếu AI được kiểm chứng; phần tổng quan chỉ là đối chiếu từ khóa, không phải kết luận đã trình chiếu.']
-    : [];
+  // Release-quality gate: never replace a comprehensive Gemini report with
+  // a partial Groq report. Validating JSON is not sufficient for quality.
+  // Full verified slide coverage and varied slide-specific observations are
+  // minimum necessary checks; they do not guarantee equal pedagogical quality.
+  if (checked.slides.length) {
+    if (review.slideReviewStats?.accepted !== checked.slides.length) {
+      throw rejected('GROQ_QUALITY_SLIDE_COVERAGE');
+    }
+    if (checked.slides.length >= 4) {
+      const signature = item => [item.point, item.covered, item.missing, item.action]
+        .map(value => String(value || '').trim().toLocaleLowerCase('vi-VN'))
+        .join('|');
+      const unique = new Set(review.slideComparisons.map(signature));
+      if (unique.size < Math.ceil(review.slideComparisons.length * 0.75)) {
+        throw rejected('GROQ_QUALITY_REPETITION');
+      }
+    }
+  }
   return {
     review: {
       ...review,
       model: GROQ_REVIEW_MODEL,
       limitations: [
         ...review.limitations,
-        ...shortfall,
         'Kết quả từ Groq, chỉ phân tích văn bản, không đánh giá giọng nói hay hình ảnh.',
       ].slice(0, 5),
     },
