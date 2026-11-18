@@ -30,6 +30,9 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
   const [consent, setConsent] = useState(false);
   const [groqReady, setGroqReady] = useState(false);
   const [studentGroqReady, setStudentGroqReady] = useState(false);
+  const [learnerConsentStatus, setLearnerConsentStatus] = useState<'not_requested' | 'pending_verification' | 'withdrawn' | 'record_on_file' | null>(null);
+  const [learnerConsentRequestsEnabled, setLearnerConsentRequestsEnabled] = useState(false);
+  const [consentActionBusy, setConsentActionBusy] = useState(false);
   const [groqTeacher, setGroqTeacher] = useState(false);
   const [provider, setProvider] = useState<'gemini' | 'groq'>('gemini');
   const [adultConfirmed, setAdultConfirmed] = useState(false);
@@ -95,6 +98,57 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       .catch(() => { if (!cancelled) setStudentGroqReady(false); });
     return () => { cancelled = true; };
   }, [signedIn, ownerSub]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!signedIn || groqTeacher) {
+      setLearnerConsentStatus(null);
+      setLearnerConsentRequestsEnabled(false);
+      return;
+    }
+    void fetch('/api/ai/groq-consent', { credentials: 'same-origin', cache: 'no-store' })
+      .then(async response => ({ ok: response.ok, data: await response.json() as {
+        status?: 'not_requested' | 'pending_verification' | 'withdrawn' | 'record_on_file';
+        requestsEnabled?: boolean;
+      } }))
+      .then(({ ok, data }) => {
+        if (!cancelled) {
+          setLearnerConsentStatus(ok ? (data.status || null) : null);
+          setLearnerConsentRequestsEnabled(ok && data.requestsEnabled === true);
+        }
+      })
+      .catch(() => { if (!cancelled) setLearnerConsentStatus(null); });
+    return () => { cancelled = true; };
+  }, [signedIn, ownerSub, groqTeacher]);
+
+  const changeLearnerConsent = async (action: 'request' | 'withdraw') => {
+    if (!signedIn || consentActionBusy || busy) return;
+    if (action === 'withdraw' &&
+        !window.confirm('Thu hồi quyền gửi bài thuyết trình đến Groq? Lần gửi tiếp theo sẽ bị chặn; yêu cầu xóa dữ liệu đã gửi trước đó cần xử lý riêng.')) return;
+    setConsentActionBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch('/api/ai/groq-consent', {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+      });
+      const data = await response.json() as {
+        status?: 'pending_verification' | 'withdrawn'; error?: string;
+      };
+      if (!response.ok || !data.status) throw new Error(data.error || 'Không cập nhật được yêu cầu.');
+      setLearnerConsentStatus(data.status);
+      setStudentGroqReady(false);
+      setProvider('gemini');
+      setConsent(false);
+      setPreviewAccepted(null);
+      setNotice(action === 'withdraw'
+        ? 'Đã thu hồi quyền sử dụng Groq cho các lượt gửi tiếp theo. Gemini vẫn hoạt động.'
+        : 'Đã gửi yêu cầu xét duyệt. Đây chưa phải quyền sử dụng Groq; cần người phụ trách kiểm chứng độc lập.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Không cập nhật được yêu cầu.');
+    } finally { setConsentActionBusy(false); }
+  };
 
   const studentGroqMode = provider === 'groq' && studentGroqReady && !groqTeacher;
   const groqAvailable = studentGroqReady || (groqTeacher && groqReady);
@@ -271,6 +325,29 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         {!!slides && <button type="button" disabled={busy} onClick={clearPptx}
           className="text-xs underline text-[#873631] disabled:opacity-50">Bỏ nội dung slide</button>}
       </div>
+
+      {signedIn && !groqTeacher && learnerConsentStatus !== null && <div className="rounded-lg border border-[#BDD3C0] bg-white p-3 text-xs space-y-2"
+        aria-label="Quyền gửi bài thuyết trình đến Groq">
+        <p className="font-semibold">Quyền riêng tư khi nhận xét bằng Groq</p>
+        <p>Groq là nhà cung cấp AI bên ngoài. Nếu được cho phép, hệ thống chỉ gửi đề tài, mục tiêu, bản ghi lời nói và chữ slide; không gửi video, âm thanh hoặc tệp PowerPoint gốc. Bạn vẫn có thể luyện tập và dùng Gemini nếu không đồng ý.</p>
+        <p role="status">Trạng thái: {studentGroqReady ? 'Đã được máy chủ xác minh' :
+          learnerConsentStatus === 'pending_verification' ? 'Đang chờ xác minh của người phụ trách và người đại diện khi cần' :
+          learnerConsentStatus === 'withdrawn' ? 'Đã thu hồi' :
+          learnerConsentStatus === 'record_on_file' ? 'Có hồ sơ nhưng chưa được cấp quyền' : 'Chưa gửi yêu cầu'}</p>
+        <p>Yêu cầu xét duyệt không tự cấp quyền, không xác minh danh tính phụ huynh và không gửi nội dung bài nói tới Groq.</p>
+        {learnerConsentRequestsEnabled && learnerConsentStatus === 'not_requested' &&
+          <button type="button" disabled={consentActionBusy || busy}
+            onClick={() => void changeLearnerConsent('request')}
+            className="rounded-lg border border-[#BDD3C0] px-3 py-1.5 font-semibold disabled:opacity-50">
+            Gửi yêu cầu xét duyệt
+          </button>}
+        {(learnerConsentStatus === 'pending_verification' || learnerConsentStatus === 'record_on_file' || studentGroqReady) &&
+          <button type="button" disabled={consentActionBusy || busy}
+            onClick={() => void changeLearnerConsent('withdraw')}
+            className="rounded-lg border border-[#C98E8E] px-3 py-1.5 font-semibold text-[#873631] disabled:opacity-50">
+            Thu hồi yêu cầu / quyền Groq
+          </button>}
+      </div>}
 
       {(groqTeacher || studentGroqReady) && <div className="rounded-lg border border-[#BDD3C0] bg-white p-3 text-xs space-y-2">
         <p className="font-semibold">Nhà cung cấp AI</p>
