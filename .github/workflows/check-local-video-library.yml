@@ -53,6 +53,7 @@ on:
       - 'tests/groqIntegratedReviewPanel.test.js'
       - 'server/groqLearnerConsentGate.js'
       - 'tests/groqLearnerConsentAndRoute.test.js'
+      - 'tests/groqLearnerConsentLifecycle.test.js'
       - 'server/groqOfflineContractRehearsal.js'
       - 'server/groqSyntheticCases.js'
       - 'tests/fixtures/groqSyntheticComparisonCases.js'
@@ -134,6 +135,8 @@ jobs:
         run: node --test tests/groqIntegratedReviewPanel.test.js
       - name: Test learner Groq review consent, revocation and privacy gate
         run: node --test tests/groqLearnerConsentAndRoute.test.js
+      - name: Test in-app learner consent request and atomic withdrawal
+        run: node --test tests/groqLearnerConsentLifecycle.test.js
       - name: Test distributed Groq Pilot quota with Redis mock
         run: node --test tests/groqPilotQuota.test.js
       - name: Test Groq provider adapter with mocked API (no API key)
