@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readOAuthConfig } from '../server/driveOAuthBootstrap.js';
-import { ensureFreePreview } from '../server/freeSpeechReview.js';
+import { ensureFreeTierEnabled } from '../server/freeSpeechReview.js';
 import { makeSessionCookie } from '../server/sessionCookie.js';
 import driveVideosHandler from '../api/google-drive/videos.js';
 import authConfigHandler from '../api/auth/config.js';
@@ -68,14 +68,14 @@ test('Production refuses Drive OAuth setup even with otherwise valid credentials
   assert.ok(readOAuthConfig({ ...validOAuth, VERCEL_ENV: 'preview' }));
 });
 
-test('Gemini Free Tier review fails closed in Production even when a key exists', () => {
+test('Gemini Free Tier review is allowed in configured Preview and Production', () => {
   const env = {
-    VERCEL_ENV: 'production',
     SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true',
     GEMINI_API_KEY: 'fake-key-for-test-only',
   };
-  assert.throws(() => ensureFreePreview(env), /Preview/u);
-  assert.doesNotThrow(() => ensureFreePreview({ ...env, VERCEL_ENV: 'preview' }));
+  assert.doesNotThrow(() => ensureFreeTierEnabled({ ...env, VERCEL_ENV: 'production' }));
+  assert.doesNotThrow(() => ensureFreeTierEnabled({ ...env, VERCEL_ENV: 'preview' }));
+  assert.throws(() => ensureFreeTierEnabled({ ...env, VERCEL_ENV: 'development' }));
 });
 
 test('Drive read-only feature cannot be enabled in Production by an environment flag alone', async () => {
