@@ -77,10 +77,34 @@ export async function runGenericGroqReview({
     throw rejected();
   }
   if (review.strengths.length !== 2 || review.improvements.length !== 2) throw rejected();
-  // A slide comparison can be omitted only with an explicit incomplete report;
-  // never present partial analysis as if the entire deck were reviewed.
+  // Groq may return a structurally valid report while one or more slide
+  // comparisons fail our grounding checks (for example, an invented quote).
+  // Do not discard the whole review and do not retry. Keep every verified
+  // comparison, and represent each unverified slide explicitly as
+  // "not_found" using only the original slide text. This keeps the report
+  // complete without presenting an unverified AI claim as fact.
   if (checked.slides.length && review.slideReviewStats?.accepted !== checked.slides.length) {
-    throw rejected('GROQ_INCOMPLETE_SLIDE_REVIEW');
+    const verified = new Map((review.slideComparisons || []).map(item => [item.slideNumber, item]));
+    const completed = checked.slides.map(slide => verified.get(slide.number) || ({
+      slideNumber: slide.number,
+      status: 'not_found',
+      point: 'Chưa xác minh được nội dung lời nói tương ứng từ bản ghi ASR.',
+      slideQuote: slide.text.trim().slice(0, 220),
+      spokenQuote: '',
+      evidenceId: '',
+      evidence: '',
+      covered: 'Chưa có dẫn chứng lời nói được xác minh cho slide này.',
+      missing: 'Chưa tìm thấy dẫn chứng nguyên văn tương ứng trong bản ghi ASR.',
+      action: 'Kiểm tra lại bản ghi lời nói và bổ sung phần giải thích tương ứng nếu có.',
+    }));
+    review.slideComparisons = completed;
+    review.slideReviewStats = {
+      ...(review.slideReviewStats || {}),
+      target: checked.slides.length,
+      received: review.slideReviewStats?.received ?? 0,
+      accepted: completed.length,
+      rejected: checked.slides.length - (review.slideReviewStats?.accepted ?? 0),
+    };
   }
   return {
     review: {
