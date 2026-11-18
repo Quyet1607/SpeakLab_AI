@@ -35,12 +35,12 @@ const mockResponse = (slides = input.slides) => ({
   ],
   slideComparisons: slides.map(slide => ({
     slideNumber: slide.number, status: 'possible_difference',
-    point: 'Có văn bản về phương án đi lại cần đối chiếu với bản ghi lời nói.',
+    point: 'Nội dung riêng trên slide số ' + slide.number + ' cần đối chiếu với phần bản ghi lời nói.',
     slideQuote: slide.text, spokenQuote: 'Hôm nay tôi trình bày về việc giảm khí thải khi đi lại.',
     evidenceId: 'E1',
-    covered: 'Bản ghi giới thiệu về hai biện pháp hạn chế khí thải khi di chuyển.',
-    missing: 'Chưa có đồng bộ thời điểm nói với việc chuyển sang slide.',
-    action: 'Đối chiếu kỹ đoạn diễn giải với phần chữ hiển thị trên slide.',
+    covered: 'Bản ghi đề cập các biện pháp giảm khí thải, cần xem thêm ngữ cảnh slide số ' + slide.number + '.',
+    missing: 'Chưa có đồng bộ thời điểm nói với slide số ' + slide.number + ' đang được trình chiếu.',
+    action: 'Đối chiếu riêng nội dung và giải thích ở slide số ' + slide.number + ' với bản ghi ASR.',
   })),
   limitations: ['Không có dữ liệu đo đạc thực tế để xác nhận lợi ích môi trường.'],
 });
@@ -104,21 +104,35 @@ test('generic engine: validates all 18 and 40 distinct slides, never just the fi
   }
 });
 
-test('generic engine: missing late slide retains truthful verified count and full overview', async () => {
+test('quality gate: missing late slide in 40-slide report is rejected before display', async () => {
   const slides = Array.from({ length: 40 }, (_, i) => ({
     number: i + 1, text: 'Nội dung về giao thông và môi trường số ' + (i + 1),
   }));
   const spy = mockedFetcher(() => mockResponse(slides.slice(0, 39)));
-  const result = await runGenericGroqReview({
+  await assert.rejects(runGenericGroqReview({
     input: { ...input, slides }, apiKey: 'TEST_KEY', fetcher: spy.fetch,
-  });
+  }), { code: 'GROQ_QUALITY_SLIDE_COVERAGE' });
   assert.equal(spy.calls, 1);
-  assert.equal(result.review.slideReviewStats.target, 40);
-  assert.equal(result.review.slideReviewStats.accepted, 39);
-  assert.equal(result.review.slideComparisons.length, 39);
-  assert.equal(result.review.slideOverview.length, 40);
-  assert.ok(result.review.limitations.some(line => line.includes('chưa có đối chiếu')));
-  assert.ok(!result.review.slideComparisons.some(item => item.slideNumber === 40));
+});
+
+test('quality gate: repeated generic slide feedback cannot replace Gemini', async () => {
+  const slides = Array.from({ length: 18 }, (_, i) => ({
+    number: i + 1, text: 'Biện pháp di chuyển bền vững số ' + (i + 1),
+  }));
+  const spy = mockedFetcher(() => {
+    const response = mockResponse(slides);
+    response.slideComparisons = response.slideComparisons.map(item => ({
+      ...item, point: 'Nội dung trình bày có thể cải thiện thêm bằng cách bổ sung giải thích.',
+      covered: 'Bản ghi có đề cập chung đến chủ đề bài thuyết trình.',
+      missing: 'Nội dung cần có thêm ví dụ và dẫn chứng để làm rõ.',
+      action: 'Bổ sung dẫn chứng và ví dụ cụ thể hơn cho bài trình bày.',
+    }));
+    return response;
+  });
+  await assert.rejects(runGenericGroqReview({
+    input: { ...input, slides }, apiKey: 'TEST_KEY', fetcher: spy.fetch,
+  }), { code: 'GROQ_QUALITY_REPETITION' });
+  assert.equal(spy.calls, 1);
 });
 
 test('generic engine: prompt includes full source and last slide without the giant Gemini instructions', () => {
@@ -144,27 +158,23 @@ test('generic engine: no consent or invalid input fails before any provider call
   assert.equal(spy.calls, 0);
 });
 
-test('generic engine: malformed core fails closed but invalid slide quotes remain untrusted', async () => {
+test('quality gate: malformed core and invalid or missing slide evidence fail closed', async () => {
   const invalidCore = { ...mockResponse(), strengths: mockResponse().strengths.slice(0, 1) };
   const badSpy = mockedFetcher(() => invalidCore);
   await assert.rejects(runGenericGroqReview({
     input, apiKey: 'TEST_KEY', fetcher: badSpy.fetch,
   }), { code: 'GROQ_REVIEW_STRUCTURE' });
   assert.equal(badSpy.calls, 1);
-
   for (const altered of [
     { ...mockResponse(), slideComparisons: mockResponse().slideComparisons.slice(0, 1) },
     { ...mockResponse(), slideComparisons: mockResponse().slideComparisons.map((item, i) =>
       i ? { ...item, slideQuote: 'Bịa trích dẫn hoàn toàn không tồn tại' } : item) },
   ]) {
     const spy = mockedFetcher(() => altered);
-    const result = await runGenericGroqReview({ input, apiKey: 'TEST_KEY', fetcher: spy.fetch });
+    await assert.rejects(runGenericGroqReview({
+      input, apiKey: 'TEST_KEY', fetcher: spy.fetch,
+    }), { code: 'GROQ_QUALITY_SLIDE_COVERAGE' });
     assert.equal(spy.calls, 1);
-    assert.equal(result.review.slideReviewStats.target, 2);
-    assert.equal(result.review.slideReviewStats.accepted, 1);
-    assert.equal(result.review.slideOverview.length, 2);
-    assert.equal(result.review.slideComparisons.length, 1);
-    assert.ok(!JSON.stringify(result.review).includes('Bịa trích dẫn hoàn toàn không tồn tại'));
   }
 });
 
