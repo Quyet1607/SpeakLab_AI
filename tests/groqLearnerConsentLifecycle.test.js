@@ -45,8 +45,8 @@ test('request: student produces only pending status; never writes verified grant
   assert.ok(mock.calls[1][1].includes('student-consent-request'));
   assert.ok(!JSON.stringify(mock.calls).includes('guardianVerification'));
   assert.ok(!JSON.stringify(mock.calls).includes('transcript'));
-  assert.equal(mock.calls[1][4], 'NX');
-  assert.equal(mock.calls[1][5], 'EX');
+  assert.equal(mock.calls[1][3], 'NX');
+  assert.equal(mock.calls[1][4], 'EX');
 });
 test('request: denied if operator has not enabled consent requests or a grant already exists', async () => {
   const a = mockFetcher();
