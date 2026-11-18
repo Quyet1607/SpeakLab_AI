@@ -58,3 +58,11 @@ Không đủ cấu hình: HTTP 503, không gọi mô hình. Hết quota 5 lần/
 - Giới hạn 5 lượt/tài khoản/ngày vẫn giữ nguyên; **lượt yêu cầu thất bại sau khi qua bộ đếm có thể vẫn bị tính vào hạn mức nội bộ**, do đó tránh thử liên tục.
 - Mã nguồn không tự động xác minh rằng API key thực sự không gắn billing. Chủ dự án phải tự duy trì khóa ở dự án Free Tier không liên kết thanh toán.
 - Không có bản sửa nào được thực hiện ở `main` hoặc Production. Sau khi sửa code, Vercel Preview cần build/redeploy để nhận thay đổi.
+
+## Cập nhật triển khai Production (19/11/2026)
+
+- Đã mở cơ chế Gemini Free Tier cho cả Vercel **Preview và Production**; chỉ cho phép khi `VERCEL_ENV` là `preview` hoặc `production`, `SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED=true` và có `GEMINI_API_KEY`.
+- Production vẫn dùng cố định `gemini-3.5-flash-lite`; không có fallback sang mô hình/API trả phí.
+- Vercel Production phải được cấu hình riêng các biến server-side: `GEMINI_API_KEY`, `SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED`, `SPEAKLAB_RATE_LIMIT_REST_URL`, `SPEAKLAB_RATE_LIMIT_REST_TOKEN`, cùng các biến phiên đăng nhập hiện có.
+- Cờ xác nhận không thể tự chứng minh dự án Google không liên kết billing. Chủ dự án phải tự kiểm tra dự án Google AI Studio thực sự không bật thanh toán và duy trì điều kiện Free Tier.
+- Giới hạn nội bộ vẫn là 5 lượt/tài khoản/ngày UTC; thiếu Redis quota hoặc cấu hình không hợp lệ thì API từ chối an toàn, không gọi Gemini.
