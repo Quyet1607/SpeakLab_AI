@@ -1,9 +1,9 @@
-/** Phase 7.3.1 – authenticated, opt-in, Preview-only text assessment. */
+/** Phase 7.3.1 – authenticated, opt-in, Gemini Free Tier text assessment. */
 import { GoogleGenAI, Type } from '@google/genai';
 import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js';
 import {
   FREE_REVIEW_MODEL, MAX_DETAILED_SLIDES, validateReviewRequest, makeEvidenceChunks,
-  buildReviewPrompt, parseGroundedReview, ensureFreePreview, reserveReviewQuota,
+  buildReviewPrompt, parseGroundedReview, ensureFreeTierEnabled, reserveReviewQuota,
   releaseReviewQuota, classifyReviewProviderError,
 } from '../../server/freeSpeechReview.js';
 
@@ -87,7 +87,7 @@ export default async function handler(req, res) {
   const quotaDate = new Date().toISOString().slice(0, 10);
   try {
     // These are independent, mandatory guards. Never fall back to a paid model.
-    ensureFreePreview();
+    ensureFreeTierEnabled();
     const remainingToday = await reserveReviewQuota(identity.id, process.env, fetch, quotaDate);
     const evidence = makeEvidenceChunks(input.transcript);
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
