@@ -104,6 +104,9 @@ export function buildReviewPrompt(input, chunks) {
     'Đầu vào chỉ gồm bản ghi lời nói do nhận diện tiếng nói tự động (ASR) và có thể có văn bản slide; KHÔNG có âm thanh, video hoặc hình ảnh slide.',
     'Chỉ phân tích nội dung có thể kiểm chứng từ các đoạn [E] và chữ trong slide [S] được cung cấp.',
     'Trả về nhận xét cân bằng: 2 điểm mạnh, 2 điểm cần cải thiện (mỗi mục một hành động luyện tập cụ thể), tập trung vào chủ đề, mục tiêu, bố cục, mạch lạc, lập luận, giải thích, ví dụ, dẫn chứng và kết luận.',
+    'QUY TẮC PHÂN VÙNG NHẬN XÉT: Trong summary, strengths.point, improvements.point, improvements.action và các trường slideComparisons.point/covered/missing/action CHỈ được nói về NỘI DUNG và dẫn chứng thực tế. KHÔNG nhắc tới phát âm, giọng nói, âm lượng, ánh mắt, cử chỉ, điểm số hoặc xếp loại ở những trường này, KỂ CẢ bằng câu phủ định như "không thể đánh giá phát âm".',
+    'Nếu cần giải thích rằng hệ thống không nghe được âm thanh hoặc không nhìn thấy người nói, hãy đặt lời giải thích CHỈ trong mảng limitations, không đưa vào nhận xét tổng quan, điểm mạnh, điểm cần cải thiện hay lời khuyên. Hệ thống sẽ tự bổ sung giới hạn chuẩn, nên có thể để limitations là [].',
+    'Trước khi xuất JSON, kiểm tra độc lập TỪNG trường nhận xét chính để không có bất kỳ đánh giá kỹ năng thể hiện hay chấm điểm nào, rồi kiểm tra bằng chứng E/S; không tự sửa hoặc bịa dẫn chứng.',
     'Ưu tiên độ chính xác hơn lời khen/chê chung chung: mỗi điểm mạnh hoặc hạn chế cần chỉ ra một CHI TIẾT NỘI DUNG thực sự có trong đoạn E liên quan, không chỉ viết "rõ ràng", "tốt", "chưa sâu" hay nhận xét có thể áp dụng cho mọi bài.',
     'Hai điểm mạnh và hai điểm cần cải thiện phải khác nhau về nội dung; tránh diễn đạt lặp ý chỉ để đủ số lượng. Nếu bài ngắn hoặc ít dẫn chứng, hãy thu hẹp nhận xét vào những gì thật sự đọc được, không bịa thêm.',
     'Mỗi cải thiện phải có action cụ thể, khả thi để người học tự luyện: nêu điều nên bổ sung/chỉnh sửa, chỗ cần làm và ví dụ về cách thực hiện gắn với vấn đề đã chỉ ra. Không chỉ bảo "luyện tập thêm", "cố gắng hơn" hoặc "trình bày tốt hơn".',
@@ -350,10 +353,13 @@ export function classifyReviewValidationError(error) {
     return { code: 'GEMINI_INVALID_EVIDENCE',
       error: 'Gemini tham chiếu mã đoạn lời nói không tồn tại. Không hiển thị nhận xét thiếu dẫn chứng.' };
   }
-  if (message === 'AI nhận xét kỹ năng thể hiện vượt quá dữ liệu văn bản hiện có.' ||
-      message === 'AI tự chấm điểm hoặc xếp loại dù chức năng này chỉ nhận xét nội dung.') {
-    return { code: 'GEMINI_UNSUPPORTED_CONTENT',
-      error: 'Gemini đưa ra đánh giá ngoài phạm vi dữ liệu hoặc tự chấm điểm. Không hiển thị kết luận thiếu căn cứ.' };
+  if (message === 'AI nhận xét kỹ năng thể hiện vượt quá dữ liệu văn bản hiện có.') {
+    return { code: 'GEMINI_UNSUPPORTED_DELIVERY',
+      error: 'Gemini nhắc đến kỹ năng thể hiện như phát âm, giọng nói hoặc cử chỉ trong phần nhận xét nội dung. Không hiển thị kết luận thiếu căn cứ.' };
+  }
+  if (message === 'AI tự chấm điểm hoặc xếp loại dù chức năng này chỉ nhận xét nội dung.') {
+    return { code: 'GEMINI_UNSUPPORTED_SCORE',
+      error: 'Gemini tự chấm điểm hoặc xếp loại dù tính năng chỉ nhận xét nội dung. Không hiển thị kết luận thiếu căn cứ.' };
   }
   if (message === 'AI trả về nội dung không hợp lệ.' ||
       message === 'Nội dung nhận xét AI quá ngắn hoặc quá dài.') {
