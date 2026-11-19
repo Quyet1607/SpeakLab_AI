@@ -496,8 +496,8 @@ test('categorizes invalid model output without exposing raw inputs', () => {
     ['AI trả kết quả không đúng định dạng.', 'GEMINI_INVALID_JSON'],
     ['Kết quả AI không đủ cấu trúc để nhận xét.', 'GEMINI_INVALID_STRUCTURE'],
     ['AI dẫn chứng không tồn tại trong bản ghi lời nói.', 'GEMINI_INVALID_EVIDENCE'],
-    ['AI nhận xét kỹ năng thể hiện vượt quá dữ liệu văn bản hiện có.', 'GEMINI_UNSUPPORTED_CONTENT'],
-    ['AI tự chấm điểm hoặc xếp loại dù chức năng này chỉ nhận xét nội dung.', 'GEMINI_UNSUPPORTED_CONTENT'],
+    ['AI nhận xét kỹ năng thể hiện vượt quá dữ liệu văn bản hiện có.', 'GEMINI_UNSUPPORTED_DELIVERY'],
+    ['AI tự chấm điểm hoặc xếp loại dù chức năng này chỉ nhận xét nội dung.', 'GEMINI_UNSUPPORTED_SCORE'],
     ['Nội dung nhận xét AI quá ngắn hoặc quá dài.', 'GEMINI_INVALID_FIELD'],
   ];
   for (const [message, code] of cases) {
@@ -512,4 +512,40 @@ test('categorizes invalid model output without exposing raw inputs', () => {
   const unknown = classifyReviewValidationError(new Error('PRIVATE TRANSCRIPT: do not log this'));
   assert.equal(unknown.code, 'GEMINI_INVALID_FEEDBACK');
   assert.ok(!JSON.stringify(unknown).includes('PRIVATE TRANSCRIPT'));
+});
+
+test('keeps delivery limitations outside all evidence-based review fields', () => {
+  const evidence = makeEvidenceChunks(input.transcript);
+  const prompt = buildReviewPrompt(input, evidence);
+  assert.match(prompt, /QUY TẮC PHÂN VÙNG NHẬN XÉT/u);
+  assert.match(prompt, /KỂ CẢ bằng câu phủ định/u);
+  assert.match(prompt, /CHỈ trong mảng limitations/u);
+
+  const payload = {
+    summary: 'Bài thuyết trình giới thiệu chủ đề bảo vệ dữ liệu cá nhân và các biện pháp sử dụng mật khẩu mạnh.',
+    strengths: [
+      { point: 'Đã nêu chủ đề bảo vệ dữ liệu cá nhân ngay từ phần mở đầu.', evidenceId: 'E1' },
+      { point: 'Đã đưa ra giải pháp sử dụng mật khẩu mạnh để bảo vệ tài khoản.', evidenceId: 'E1' },
+    ],
+    improvements: [
+      { point: 'Nên giải thích cụ thể hơn lý do cần mật khẩu mạnh.', evidenceId: 'E1',
+        action: 'Thêm ví dụ về việc tài khoản bị lộ mật khẩu trong thực tế.' },
+      { point: 'Cần phân tích thêm lợi ích của xác thực nhiều bước.', evidenceId: 'E1',
+        action: 'Nêu ví dụ ngắn về mã xác nhận trong quy trình đăng nhập.' },
+    ],
+    slideComparisons: [],
+    limitations: ['Không thể đánh giá phát âm, giọng nói hoặc cử chỉ vì đầu vào chỉ có văn bản ASR.'],
+  };
+  const allowed = parseGroundedReview(JSON.stringify(payload), evidence, []);
+  assert.equal(allowed.strengths.length, 2);
+  assert.ok(allowed.limitations.some(x => /Không thể đánh giá phát âm/u.test(x)));
+
+  const unsafeSummary = { ...payload,
+    summary: 'Người thuyết trình có giọng điệu tốt khi giới thiệu vấn đề bảo vệ dữ liệu cá nhân.' };
+  assert.throws(() => parseGroundedReview(JSON.stringify(unsafeSummary), evidence, []),
+    /vượt quá dữ liệu văn bản/u);
+  const unsafeScore = { ...payload,
+    summary: 'Bài thuyết trình đạt 8\/10 điểm trong phần trình bày về bảo vệ dữ liệu.' };
+  assert.throws(() => parseGroundedReview(JSON.stringify(unsafeScore), evidence, []),
+    /chấm điểm hoặc xếp loại/u);
 });
