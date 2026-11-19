@@ -3,6 +3,7 @@ import {
   VietnameseBrowserSpeechSession, isVietnameseSpeechRecognitionSupported,
 } from '../../services/vietnameseSpeechRecognition';
 import { reviewInputFingerprint } from '../../services/localAiReviewLibrary';
+import { defenseStorageKey, deleteLocalDefensePractice } from '../../services/localDefenseLibrary';
 
 type CouncilQuestion = {
   id: 'J1' | 'J2' | 'J3'; role: string; question: string; evidenceId: string; slideNumber: number;
@@ -22,8 +23,6 @@ interface Props {
 }
 
 const roles = ['J1', 'J2', 'J3'];
-const storageKey = (owner: string, session: string) =>
-  'speaklab_defense_practice_v1:' + owner + ':' + session;
 const emptyAnswers = () => ['', '', ''];
 
 function loadStored(key: string, fingerprint: string): StoredSession | null {
@@ -37,7 +36,11 @@ function loadStored(key: string, fingerprint: string): StoredSession | null {
       !Array.isArray(parsed.answers) || parsed.answers.length !== 3 ||
       !parsed.answers.every(a => typeof a === 'string' && a.length <= 2500) ||
       typeof parsed.challengeToken !== 'string' || parsed.challengeToken.length > 7500 ||
-      !(parsed.feedback === null || Array.isArray(parsed.feedback) && parsed.feedback.length === 3)) return null;
+      !(parsed.feedback === null || Array.isArray(parsed.feedback) &&
+        parsed.feedback.length === 3 && parsed.feedback.every((f, i) =>
+          f && f.id === roles[i] && typeof f.covered === 'string' &&
+          typeof f.missing === 'string' && typeof f.nextStep === 'string' &&
+          typeof f.answerQuote === 'string'))) return null;
     return parsed;
   } catch { return null; }
 }
@@ -51,7 +54,7 @@ function storeSaved(key: string, record: StoredSession) {
 export const AiDefensePanel: React.FC<Props> = ({
   sessionId, ownerSub, signedIn, topic, topicDescription, speakingGoal, transcript, slides,
 }) => {
-  const key = storageKey(ownerSub, sessionId);
+  const key = defenseStorageKey(ownerSub, sessionId);
   const fingerprint = reviewInputFingerprint({
     topic, topicDescription, speakingGoal, transcript, slides,
   });
@@ -148,6 +151,10 @@ export const AiDefensePanel: React.FC<Props> = ({
             micRef.current = null;
           } else if (status === 'stopped') {
             setSpeakingIndex(null);
+            // The recognition service may stop on silence; release it to allow another attempt.
+            const ended = micRef.current;
+            micRef.current = null;
+            ended?.dispose();
           }
         },
         onSegment: (segment, segmentId) => {
@@ -244,7 +251,7 @@ export const AiDefensePanel: React.FC<Props> = ({
     if (!window.confirm('Xóa riêng phiên phản biện đã lưu trên trình duyệt này? Bản ghi lời nói và nhận xét thuyết trình khác không bị xóa.')) return;
     void stopMic();
     abortRef.current?.abort();
-    try { window.localStorage.removeItem(key); } catch { /* ignore blocked storage */ }
+    deleteLocalDefensePractice(sessionId, ownerSub);
     setSaved(null);
     setAnswers(emptyAnswers());
     setConsent(false);
