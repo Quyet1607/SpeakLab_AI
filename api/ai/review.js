@@ -3,7 +3,8 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js';
 import {
   FREE_REVIEW_MODEL, MAX_DETAILED_SLIDES, validateReviewRequest, makeEvidenceChunks,
-  buildReviewPrompt, parseGroundedReview, ensureFreeReviewConfigured, reserveReviewQuota,
+  buildReviewPrompt, parseGroundedReview, classifyReviewValidationError,
+  ensureFreeReviewConfigured, reserveReviewQuota,
   releaseReviewQuota, classifyReviewProviderError,
 } from '../../server/freeSpeechReview.js';
 
@@ -106,32 +107,31 @@ export default async function handler(req, res) {
         responseSchema: assessment(input.slides.length),
       },
     });
-    if (!output.text?.trim()) {
-      // A valid provider response can still be empty, e.g. MAX_TOKENS/SAFETY.
-      const reason = output.candidates?.[0]?.finishReason;
-      const code = reason === 'MAX_TOKENS' ? 'GEMINI_OUTPUT_LIMIT' :
-        reason === 'SAFETY' ? 'GEMINI_SAFETY_BLOCK' : 'GEMINI_EMPTY_OUTPUT';
+    // A model can return non-empty but truncated JSON with MAX_TOKENS.
+    // Prefer its finish reason over a misleading generic validation error.
+    const finishReason = output.candidates?.[0]?.finishReason;
+    if (finishReason === 'MAX_TOKENS') {
+      console.warn('[SpeakLab AI review] Incomplete model output.', { code: 'GEMINI_OUTPUT_LIMIT' });
       return res.status(502).json({
-        code,
-        error: reason === 'MAX_TOKENS'
-          ? 'Gemini chưa xuất đủ nội dung nhận xét trong giới hạn đầu ra. Vui lòng thử lại.'
-          : 'Gemini chưa trả về bản nhận xét. Hãy thử lại với bản ghi mẫu khác.',
+        code: 'GEMINI_OUTPUT_LIMIT',
+        error: 'Gemini chưa xuất đủ nhận xét trong giới hạn đầu ra. Hãy thử với ít slide hơn; hệ thống không tự gọi AI lần hai.',
+      });
+    }
+    if (finishReason === 'SAFETY' || !output.text?.trim()) {
+      return res.status(502).json({
+        code: finishReason === 'SAFETY' ? 'GEMINI_SAFETY_BLOCK' : 'GEMINI_EMPTY_OUTPUT',
+        error: 'Gemini chưa trả về bản nhận xét. Hãy thử với bản ghi mẫu khác.',
       });
     }
     let review;
     try {
       review = parseGroundedReview(output.text, evidence, input.slides);
     } catch (validationError) {
-      if (validationError?.code === 'GEMINI_MISSING_VIETNAMESE_DIACRITICS') {
-        return res.status(502).json({
-          code: 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
-          error: 'Gemini đã trả nhận xét tiếng Việt không có dấu. Hệ thống không lưu kết quả này để tránh hiển thị văn bản lỗi; không tự gọi AI lần hai.',
-        });
-      }
-      return res.status(502).json({
-        code: 'GEMINI_INVALID_FEEDBACK',
-        error: 'Gemini đã trả lời nhưng nhận xét chưa đủ cấu trúc hoặc dẫn chứng hợp lệ. Không hiển thị đánh giá thiếu căn cứ.',
-      });
+      const diagnostic = classifyReviewValidationError(validationError);
+      // Fixed categorical diagnostics only: never log raw output, quotes,
+      // transcript, prompt, model error message or secrets.
+      console.warn('[SpeakLab AI review] Invalid provider feedback.', { code: diagnostic.code });
+      return res.status(502).json(diagnostic);
     }
     return res.status(200).json({ review, remainingToday });
   } catch (error) {
