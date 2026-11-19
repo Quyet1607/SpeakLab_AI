@@ -1,5 +1,7 @@
 # SpeakLab_AI – Đợt 7.3.1: Nhận xét bài thuyết trình (TXT + PPTX tùy chọn)
 
+> Tài liệu này ghi lại giới hạn Preview của giai đoạn đầu. Xem [PRODUCTION_GEMINI_SETUP.md](./PRODUCTION_GEMINI_SETUP.md) để bật Gemini riêng cho Production; các giới hạn Production của Google Drive không thay đổi.
+
 **Phạm vi:** Chỉ `feature/recording-3-2` của `Quyet1607/SpeakLab_AI`. Không merge `main`, không sửa Production. Chưa làm phản biện, giọng nói giám khảo, chấm điểm hoặc báo cáo vĩnh viễn.
 
 ## Mô tả chức năng
