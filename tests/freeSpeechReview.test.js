@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   FREE_REVIEW_MODEL, MAX_REVIEWS_PER_DAY, validateReviewRequest,
   makeEvidenceChunks, buildReviewPrompt, buildSlideTextOverview, parseGroundedReview,
+  classifyReviewValidationError,
   isMissingVietnameseDiacritics,
   ensureFreeReviewConfigured, reserveReviewQuota, releaseReviewQuota, classifyReviewProviderError,
 } from '../server/freeSpeechReview.js';
@@ -459,4 +460,56 @@ test('classifies provider errors safely without leaking raw provider messages', 
   }
   const modelError = classifyReviewProviderError({ message: 'models/gemini-2.5-flash-lite is not found' });
   assert.equal(modelError.code, 'GEMINI_MODEL_UNAVAILABLE');
+});
+
+test('canonicalizes only known evidence markers without making up sources', () => {
+  const evidence = [{ id: 'E1', text: 'Hôm nay em giới thiệu cách bảo vệ thông tin cá nhân trên môi trường Internet.' }];
+  const payload = {
+    summary: 'Bài nói giới thiệu rõ chủ đề bảo vệ thông tin cá nhân và nêu được mục đích của bài thuyết trình.',
+    strengths: [
+      { point: 'Người trình bày đã nêu chủ đề ngay từ phần mở đầu.', evidenceId: ' e1 ' },
+      { point: 'Bài nói có nhắc đến vấn đề bảo vệ thông tin cá nhân.', evidenceId: '[E1]' },
+    ],
+    improvements: [
+      { point: 'Nên bổ sung ví dụ để làm rõ nội dung đang được giới thiệu.', evidenceId: 'E1',
+        action: 'Thêm một tình huống về cách bảo vệ thông tin khi sử dụng Internet.' },
+      { point: 'Cần diễn giải cụ thể hơn lợi ích của giải pháp.', evidenceId: '[e1]',
+        action: 'Giải thích lợi ích của việc bảo vệ thông tin cá nhân với ví dụ rõ ràng.' },
+    ],
+    slideComparisons: [],
+    limitations: [],
+  };
+  const result = parseGroundedReview(JSON.stringify(payload), evidence, []);
+  assert.deepEqual(result.strengths.map(x => x.evidenceId), ['E1', 'E1']);
+  assert.deepEqual(result.improvements.map(x => x.evidenceId), ['E1', 'E1']);
+  assert.equal(result.strengths[1].evidence, evidence[0].text);
+  for (const invalidId of ['E999', '[E999]', 'E1,E2', 'slide1', '']) {
+    const bad = { ...payload, strengths: [{ ...payload.strengths[0], evidenceId: invalidId },
+      payload.strengths[1]] };
+    assert.throws(() => parseGroundedReview(JSON.stringify(bad), evidence, []),
+      /dẫn chứng không tồn tại/u);
+  }
+});
+
+test('categorizes invalid model output without exposing raw inputs', () => {
+  const cases = [
+    ['AI trả kết quả không đúng định dạng.', 'GEMINI_INVALID_JSON'],
+    ['Kết quả AI không đủ cấu trúc để nhận xét.', 'GEMINI_INVALID_STRUCTURE'],
+    ['AI dẫn chứng không tồn tại trong bản ghi lời nói.', 'GEMINI_INVALID_EVIDENCE'],
+    ['AI nhận xét kỹ năng thể hiện vượt quá dữ liệu văn bản hiện có.', 'GEMINI_UNSUPPORTED_CONTENT'],
+    ['AI tự chấm điểm hoặc xếp loại dù chức năng này chỉ nhận xét nội dung.', 'GEMINI_UNSUPPORTED_CONTENT'],
+    ['Nội dung nhận xét AI quá ngắn hoặc quá dài.', 'GEMINI_INVALID_FIELD'],
+  ];
+  for (const [message, code] of cases) {
+    const classified = classifyReviewValidationError(new Error(message));
+    assert.equal(classified.code, code);
+    assert.ok(!JSON.stringify(classified).includes(message));
+  }
+  const missingAccent = classifyReviewValidationError(Object.assign(new Error('secret example'), {
+    code: 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
+  }));
+  assert.equal(missingAccent.code, 'GEMINI_MISSING_VIETNAMESE_DIACRITICS');
+  const unknown = classifyReviewValidationError(new Error('PRIVATE TRANSCRIPT: do not log this'));
+  assert.equal(unknown.code, 'GEMINI_INVALID_FEEDBACK');
+  assert.ok(!JSON.stringify(unknown).includes('PRIVATE TRANSCRIPT'));
 });
