@@ -27,6 +27,7 @@ import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRec
 import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
 import { deleteLocalAiReview } from '../services/localAiReviewLibrary';
+import { deleteLocalDefensePractice } from '../services/localDefenseLibrary';
 import { listLocalTranscripts, deleteLocalTranscript, transcriptFileName, transcriptToText, type LocalTranscriptRecord } from '../services/localTranscriptLibrary';
 import { subscribeSession, refreshSession, type SessionState } from '../services/accountSession';
 import { AiSpeechReviewPanel } from '../features/history/AiSpeechReviewPanel';
@@ -139,13 +140,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   };
 
   const removeSeparateTranscript = async (item: LocalTranscriptRecord) => {
-    if (!window.confirm('Xóa bản ghi lời nói và nhận xét AI liên quan? Video vẫn được giữ nguyên.')) return;
+    if (!window.confirm('Xóa bản ghi lời nói, nhận xét AI và bài luyện phản biện liên quan? Video vẫn được giữ nguyên.')) return;
     try {
       const checked = await refreshSession();
       const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : 'guest';
       if (!currentOwner || currentOwner !== item.ownerSub) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử.');
       deleteLocalTranscript(item.sessionId, item.ownerSub);
       deleteLocalAiReview(item.sessionId, item.ownerSub);
+      deleteLocalDefensePractice(item.sessionId, item.ownerSub);
       setLocalTranscripts(prev => prev.filter(t => !(t.sessionId === item.sessionId && t.ownerSub === item.ownerSub)));
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi lời nói.');
@@ -170,6 +172,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
       const currentOwner = checked.status === 'signed_in' ? checked.identity?.id || null : 'guest';
       if (!originalOwner || !currentOwner || originalOwner !== currentOwner) throw new Error('Tài khoản đã thay đổi. Hãy mở lại Lịch sử và thử lại.');
       const removed = deleteCompletedPracticeTranscript(session.id, currentOwner);
+      if (removed) deleteLocalDefensePractice(session.id, currentOwner);
       if (removed) onTranscriptDeleted?.();
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : 'Không xóa được bản ghi chữ.');
