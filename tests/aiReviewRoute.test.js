@@ -80,3 +80,33 @@ test('API rejects missing consent and fails closed when free-tier config is abse
     else process.env.GEMINI_API_KEY = oldKey;
   }
 });
+
+test('Production AI endpoint fails closed unless administrator enabled it', async () => {
+  const keys = ['SPEAKLAB_SESSION_SECRET', 'VERCEL_ENV', 'GEMINI_API_KEY',
+    'SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED', 'SPEAKLAB_GEMINI_PRODUCTION_ENABLED'];
+  const old = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  try {
+    Object.assign(process.env, {
+      SPEAKLAB_SESSION_SECRET: secret,
+      VERCEL_ENV: 'production',
+      GEMINI_API_KEY: 'fake-key-for-guard-test',
+      SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true',
+    });
+    delete process.env.SPEAKLAB_GEMINI_PRODUCTION_ENABLED;
+    const res = mockResponse();
+    await handler(mockRequest({
+      sessionId: 'ses_1234567',
+      consent: true,
+      topic: 'An toàn thông tin',
+      transcript: 'Hôm nay em trình bày về quyền riêng tư trên Internet và cách bảo vệ mật khẩu cá nhân.',
+      slides: [],
+    }), res);
+    assert.equal(res.code, 503);
+    assert.equal(res.data?.code, 'SPEAKLAB_AI_PRODUCTION_DISABLED');
+  } finally {
+    for (const [key, value] of Object.entries(old)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
