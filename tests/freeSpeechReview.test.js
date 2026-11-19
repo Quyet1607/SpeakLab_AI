@@ -4,7 +4,7 @@ import {
   FREE_REVIEW_MODEL, MAX_REVIEWS_PER_DAY, validateReviewRequest,
   makeEvidenceChunks, buildReviewPrompt, buildSlideTextOverview, parseGroundedReview,
   isMissingVietnameseDiacritics,
-  ensureFreePreview, reserveReviewQuota, releaseReviewQuota, classifyReviewProviderError,
+  ensureFreeReviewConfigured, reserveReviewQuota, releaseReviewQuota, classifyReviewProviderError,
 } from '../server/freeSpeechReview.js';
 
 const input = {
@@ -17,13 +17,22 @@ const input = {
   slides: [],
 };
 
-test('unpaid Preview is required before any provider call', () => {
+test('Gemini is enabled for Preview and explicitly opted-in Production only', () => {
   assert.equal(FREE_REVIEW_MODEL, 'gemini-3.5-flash-lite');
   assert.equal(MAX_REVIEWS_PER_DAY, 5);
-  assert.throws(() => ensureFreePreview({ VERCEL_ENV: 'production', GEMINI_API_KEY: 'key', SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true' }));
-  assert.throws(() => ensureFreePreview({ VERCEL_ENV: 'preview', GEMINI_API_KEY: 'key' }));
-  assert.throws(() => ensureFreePreview({ VERCEL_ENV: 'preview', SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true' }));
-  assert.doesNotThrow(() => ensureFreePreview({ VERCEL_ENV: 'preview', GEMINI_API_KEY: 'key', SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true' }));
+  const configured = { GEMINI_API_KEY: 'fake-key', SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'true' };
+  assert.throws(() => ensureFreeReviewConfigured(configured));
+  assert.throws(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'development' }));
+  assert.throws(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'production' }),
+    e => e.status === 503 && e.publicCode === 'SPEAKLAB_AI_PRODUCTION_DISABLED');
+  assert.throws(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'production',
+    SPEAKLAB_GEMINI_PRODUCTION_ENABLED: 'false' }));
+  assert.doesNotThrow(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'preview' }));
+  assert.throws(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'preview', GEMINI_API_KEY: '' }));
+  assert.throws(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'preview',
+    SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED: 'false' }));
+  assert.doesNotThrow(() => ensureFreeReviewConfigured({ ...configured, VERCEL_ENV: 'production',
+    SPEAKLAB_GEMINI_PRODUCTION_ENABLED: 'true' }));
 });
 
 test('review request requires explicit consent and a real transcript; pptx optional', () => {
