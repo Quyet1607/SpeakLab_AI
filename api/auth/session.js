@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     return res.status(503).json({
       authenticated: false,
       configured: false,
-      error: 'Thiếu SPEAKLAB_SESSION_SECRET trong cấu hình Preview.',
+      error: 'Thiếu SPEAKLAB_SESSION_SECRET trong cấu hình máy chủ.',
     });
   }
 
