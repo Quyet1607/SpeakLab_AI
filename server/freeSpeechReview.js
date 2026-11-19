@@ -219,15 +219,23 @@ export function parseGroundedReview(raw, evidence, slides) {
     });
   }
   const evidenceMap = new Map(evidence.map(x => [x.id, x.text]));
+  // Gemini sometimes writes "e1" or "[E1]" for the provided E1 marker.
+  // Normalize *only* that notation; never invent or pick a missing source.
+  const canonicalEvidenceId = value => {
+    if (typeof value !== 'string') return '';
+    const match = /^(?:\[E([1-9]\d{0,2})\]|E([1-9]\d{0,2}))$/iu.exec(value.trim());
+    return match ? 'E' + (match[1] || match[2]) : '';
+  };
   const slideMap = new Map(slides.map(s => [s.number, s.text]));
   const withEvidence = (item, withAction) => {
-    if (!item || typeof item.evidenceId !== 'string' || !evidenceMap.has(item.evidenceId)) {
+    const evidenceId = canonicalEvidenceId(item?.evidenceId);
+    if (!evidenceMap.has(evidenceId)) {
       throw new Error('AI dẫn chứng không tồn tại trong bản ghi lời nói.');
     }
     return {
       point: safeFeedbackString(item.point),
-      evidenceId: item.evidenceId,
-      evidence: evidenceMap.get(item.evidenceId),
+      evidenceId,
+      evidence: evidenceMap.get(evidenceId),
       ...(withAction ? { action: safeFeedbackString(item.action, 8, 400) } : {}),
     };
   };
@@ -262,10 +270,10 @@ export function parseGroundedReview(raw, evidence, slides) {
         throw new Error('Slide chưa tìm thấy ý tương ứng không được gán lời nói giả.');
       }
     } else {
-      if (typeof item.evidenceId !== 'string' || !evidenceMap.has(item.evidenceId)) {
+      evidenceId = canonicalEvidenceId(item.evidenceId);
+      if (!evidenceMap.has(evidenceId)) {
         throw new Error('AI đối chiếu slide bằng dẫn chứng lời nói không hợp lệ.');
       }
-      evidenceId = item.evidenceId;
       evidenceText = evidenceMap.get(evidenceId);
       if (!spokenQuote || spokenQuote.length < 4 || spokenQuote.length > 220 ||
           !normalized(evidenceText).includes(normalized(spokenQuote))) {
@@ -315,6 +323,45 @@ export function parseGroundedReview(raw, evidence, slides) {
     source: slides.length ? 'transcript_and_pptx' : 'transcript',
     model: FREE_REVIEW_MODEL,
   };
+}
+
+/**
+ * Explain response-validation failures using fixed, non-sensitive categories.
+ * Never return Gemini's raw response, prompt, ASR or slide text in errors/logs.
+ * This is diagnostic only; it does not bypass content or evidence checks.
+ */
+export function classifyReviewValidationError(error) {
+  if (error?.code === 'GEMINI_MISSING_VIETNAMESE_DIACRITICS') {
+    return {
+      code: 'GEMINI_MISSING_VIETNAMESE_DIACRITICS',
+      error: 'Gemini trả nhận xét tiếng Việt không có dấu. Kết quả chưa được lưu; hệ thống không tự gọi AI lần hai.',
+    };
+  }
+  const message = typeof error?.message === 'string' ? error.message : '';
+  if (message === 'AI trả kết quả không đúng định dạng.') {
+    return { code: 'GEMINI_INVALID_JSON',
+      error: 'Gemini trả JSON không hợp lệ. Không lưu kết quả; hãy thử với ít slide hơn để kiểm tra.' };
+  }
+  if (message === 'Kết quả AI không đủ cấu trúc để nhận xét.') {
+    return { code: 'GEMINI_INVALID_STRUCTURE',
+      error: 'Gemini thiếu phần nhận xét bắt buộc hoặc trả sai cấu trúc. Không hiển thị bản đánh giá chưa đầy đủ.' };
+  }
+  if (message === 'AI dẫn chứng không tồn tại trong bản ghi lời nói.') {
+    return { code: 'GEMINI_INVALID_EVIDENCE',
+      error: 'Gemini tham chiếu mã đoạn lời nói không tồn tại. Không hiển thị nhận xét thiếu dẫn chứng.' };
+  }
+  if (message === 'AI nhận xét kỹ năng thể hiện vượt quá dữ liệu văn bản hiện có.' ||
+      message === 'AI tự chấm điểm hoặc xếp loại dù chức năng này chỉ nhận xét nội dung.') {
+    return { code: 'GEMINI_UNSUPPORTED_CONTENT',
+      error: 'Gemini đưa ra đánh giá ngoài phạm vi dữ liệu hoặc tự chấm điểm. Không hiển thị kết luận thiếu căn cứ.' };
+  }
+  if (message === 'AI trả về nội dung không hợp lệ.' ||
+      message === 'Nội dung nhận xét AI quá ngắn hoặc quá dài.') {
+    return { code: 'GEMINI_INVALID_FIELD',
+      error: 'Một trường nhận xét do Gemini tạo quá ngắn, quá dài hoặc không hợp lệ. Không lưu bản đánh giá chưa đạt yêu cầu.' };
+  }
+  return { code: 'GEMINI_INVALID_FEEDBACK',
+    error: 'Gemini đã trả lời nhưng nhận xét chưa đủ cấu trúc hoặc dẫn chứng hợp lệ. Không hiển thị đánh giá thiếu căn cứ.' };
 }
 
 /**
