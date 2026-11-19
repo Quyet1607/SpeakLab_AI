@@ -114,7 +114,16 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
           slides: slides?.slides || [],
         }),
       });
-      const data = await response.json() as { review?: Review; error?: string; code?: string; remainingToday?: number };
+      if (!/\bapplication\/json\b/iu.test(response.headers.get('content-type') || '')) {
+        throw new Error('Máy chủ không trả JSON (HTTP ' + response.status +
+          '). Hãy kiểm tra Vercel Deployment Protection, Firewall và đường dẫn /api/ai/review.');
+      }
+      let data: { review?: Review; error?: string; code?: string; remainingToday?: number };
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error('API trả JSON không hợp lệ (HTTP ' + response.status + '). Hãy xem Vercel Function Logs.');
+      }
       if (!response.ok || !data.review || !Array.isArray(data.review.strengths) ||
         !Array.isArray(data.review.improvements)) {
         const message = data.error || 'Chưa nhận được nhận xét hợp lệ.';
@@ -212,7 +221,7 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         className="bg-[#446B50] text-white px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-45">
         {busy ? 'Đang phân tích…' : savedReport ? 'Phân tích lại bằng AI' : 'Phân tích bài thuyết trình bằng AI'}
       </button>
-      <p className="text-[11px] text-[#687B6D]">Chỉ hoạt động trên Preview với Gemini Free Tier không bật thanh toán, có kiểm tra quota. Không tự chuyển sang API có phí.</p>
+      <p className="text-[11px] text-[#687B6D]">Hoạt động trên Preview hoặc Production khi chủ dự án đã bật Gemini, xác nhận điều kiện Free Tier và cấu hình giới hạn lượt. Không tự chuyển sang mô hình trả phí.</p>
       {notice && <p role="status" className="text-xs text-[#395C42]">{notice}</p>}
       {error && <p role="alert" className="text-xs rounded-lg bg-[#FDEFEF] border border-[#E2BABA] p-2 text-[#873631]">{error}</p>}
 
