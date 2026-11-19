@@ -317,11 +317,24 @@ export function parseGroundedReview(raw, evidence, slides) {
   };
 }
 
-export function ensureFreePreview(env = process.env) {
-  if (env.VERCEL_ENV !== 'preview' ||
-    env.SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED !== 'true' ||
+/**
+ * Gemini AI review remains fail-closed. Preview is allowed with explicit Free Tier
+ * configuration; Production requires a separate administrator opt-in.
+ * "Free Tier confirmed" is an operator assertion, not a billing check.
+ */
+export function ensureFreeReviewConfigured(env = process.env) {
+  const blocked = (message, code) => {
+    throw Object.assign(new Error(message), { status: 503, safePublic: true, publicCode: code });
+  };
+  if (env.VERCEL_ENV !== 'preview' && env.VERCEL_ENV !== 'production') {
+    blocked('AI chỉ hỗ trợ Vercel Preview hoặc Production.', 'SPEAKLAB_AI_UNSUPPORTED_ENV');
+  }
+  if (env.VERCEL_ENV === 'production' && env.SPEAKLAB_GEMINI_PRODUCTION_ENABLED !== 'true') {
+    blocked('Chức năng AI chưa được chủ dự án bật cho Production.', 'SPEAKLAB_AI_PRODUCTION_DISABLED');
+  }
+  if (env.SPEAKLAB_GEMINI_FREE_TIER_CONFIRMED !== 'true' ||
     typeof env.GEMINI_API_KEY !== 'string' || !env.GEMINI_API_KEY.trim()) {
-    throw Object.assign(new Error('AI miễn phí chưa được cấu hình trên Preview.'), { status: 503, safePublic: true });
+    blocked('Chưa cấu hình Gemini Free Tier cho môi trường triển khai này.', 'SPEAKLAB_AI_NOT_CONFIGURED');
   }
 }
 

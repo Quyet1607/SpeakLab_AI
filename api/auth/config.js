@@ -15,6 +15,6 @@ export default function handler(req, res) {
     clientId: clientId || null,
     enrollmentEnabled: false,
     recordingsCloudEnabled: false,
-    message: 'Sign-in identity verification is in Preview. Student enrollment and Drive upload are not active.',
+    message: 'Google sign-in is available when configured. Student enrollment and Drive upload are not active.',
   });
 }

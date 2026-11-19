@@ -1,9 +1,9 @@
-/** Phase 7.3.1 – authenticated, opt-in, Preview-only text assessment. */
+/** Authenticated, opt-in Gemini text review on explicitly enabled Vercel deployments. */
 import { GoogleGenAI, Type } from '@google/genai';
 import { readSession, isSameOriginRequest } from '../../server/sessionCookie.js';
 import {
   FREE_REVIEW_MODEL, MAX_DETAILED_SLIDES, validateReviewRequest, makeEvidenceChunks,
-  buildReviewPrompt, parseGroundedReview, ensureFreePreview, reserveReviewQuota,
+  buildReviewPrompt, parseGroundedReview, ensureFreeReviewConfigured, reserveReviewQuota,
   releaseReviewQuota, classifyReviewProviderError,
 } from '../../server/freeSpeechReview.js';
 
@@ -87,7 +87,7 @@ export default async function handler(req, res) {
   const quotaDate = new Date().toISOString().slice(0, 10);
   try {
     // These are independent, mandatory guards. Never fall back to a paid model.
-    ensureFreePreview();
+    ensureFreeReviewConfigured();
     const remainingToday = await reserveReviewQuota(identity.id, process.env, fetch, quotaDate);
     const evidence = makeEvidenceChunks(input.transcript);
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -136,7 +136,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ review, remainingToday });
   } catch (error) {
     if (error?.safePublic === true && [429, 503].includes(error?.status)) {
-      return res.status(error.status).json({ code: 'SPEAKLAB_FREE_TIER_GUARD', error: error.message });
+      return res.status(error.status).json({ code: error.publicCode || 'SPEAKLAB_FREE_TIER_GUARD', error: error.message });
     }
     // Never expose provider errors: they can include request metadata.
     const publicError = classifyReviewProviderError(error);

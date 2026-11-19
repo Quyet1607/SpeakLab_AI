@@ -7,3 +7,10 @@ Mã nguồn ứng dụng luyện tập thuyết trình SpeakLab AI.
 ## Preview deployment
 
 Nhánh `feature/recording-3-2` dùng để kiểm thử an toàn trên Vercel Preview. Các thông tin xác thực Google Drive chỉ được đặt trong biến môi trường phía máy chủ của Vercel; không đưa khóa bí mật vào GitHub. Video vẫn được lưu cục bộ cho đến khi hoàn tất xác thực và đồng bộ Drive.
+
+## Gemini on Vercel Production
+
+Gemini review can run on Vercel Preview or Production. Production remains disabled unless
+`SPEAKLAB_GEMINI_PRODUCTION_ENABLED=true` is set for that environment. See
+[PRODUCTION_GEMINI_SETUP.md](./PRODUCTION_GEMINI_SETUP.md). Google Drive OAuth
+and Drive video endpoints remain Preview-only.
