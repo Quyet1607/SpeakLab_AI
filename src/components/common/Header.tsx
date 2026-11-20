@@ -44,9 +44,6 @@ export const Header: React.FC<HeaderProps> = ({
             <h1 className="text-base md:text-lg font-bold text-[#3D4740] tracking-tight">
               {title}
             </h1>
-            <span className="hidden sm:inline-block text-[11px] font-medium text-[#4A6453] bg-[#EEF4F0] px-2 py-0.5 rounded border border-[#D9E5DC]">
-              Bản thử nghiệm Đợt 1
-            </span>
           </div>
           {subtitle && (
             <p className="text-xs text-[#768078] hidden sm:block -mt-0.5">
