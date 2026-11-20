@@ -221,7 +221,6 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
         className="bg-[#446B50] text-white px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-45">
         {busy ? 'Đang phân tích…' : savedReport ? 'Phân tích lại bằng AI' : 'Phân tích bài thuyết trình bằng AI'}
       </button>
-      <p className="text-[11px] text-[#687B6D]">Hoạt động trên Preview hoặc Production khi chủ dự án đã bật Gemini, xác nhận điều kiện Free Tier và cấu hình giới hạn lượt. Không tự chuyển sang mô hình trả phí.</p>
       {notice && <p role="status" className="text-xs text-[#395C42]">{notice}</p>}
       {error && <p role="alert" className="text-xs rounded-lg bg-[#FDEFEF] border border-[#E2BABA] p-2 text-[#873631]">{error}</p>}
 
