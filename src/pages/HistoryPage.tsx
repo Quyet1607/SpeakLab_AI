@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { PracticeSession, PracticeModeType, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
-import { DemoNotice } from '../components/ui/DemoNotice';
 import { listLocalVideos, deleteLocalVideo, importLocalVideo, type LocalVideoRecord } from '../services/localVideoLibrary';
 import { libraryVideoDownloadName } from '../services/recordingNames';
 import { deleteCompletedPracticeTranscript } from '../services/localPracticeHistory';
@@ -217,11 +216,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
 
   return (
     <div className="space-y-6">
-      <DemoNotice
-        title="Lịch sử các buổi luyện tập"
-        message="Chỉ thống kê các buổi luyện thực tế đã hoàn thành trên trình duyệt này. Dữ liệu mẫu không được tính là kết quả học tập. Video được lưu riêng ở mục bên dưới."
-      />
-
       {notice && <div role="status" className="rounded-xl bg-[#EEF4F0] border border-[#D9E5DC] text-sm p-4 text-[#324C3B]">{notice}</div>}
 
       {/* Local-only recordings grouped by Google identity, not server-enforced private storage. */}
