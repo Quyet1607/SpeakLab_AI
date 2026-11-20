@@ -8,12 +8,8 @@ import {
   Sparkles,
   PlayCircle,
   Clock,
-  FileCheck,
   TrendingUp,
   ArrowRight,
-  ShieldAlert,
-  Mic,
-  Camera,
   Layers,
   ChevronRight,
 } from 'lucide-react';
@@ -259,73 +255,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* Roadmap / Future Capabilities Section (as specifically requested in prompt) */}
-      <div className="bg-[#FAFBF9] rounded-2xl border border-[#E4E9E3] p-5 md:p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[#E4E9E3]">
-          <div>
-            <h3 className="text-sm md:text-base font-bold text-[#3D4740] flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#83A58E]" />
-              Lộ trình tính năng nâng cao (Đợt 2 & 3)
-            </h3>
-            <p className="text-xs text-[#768078] mt-0.5">
-              Các module AI và xử lý đa phương tiện sẽ được tích hợp trong giai đoạn sau
-            </p>
-          </div>
-          <span className="text-[11px] text-[#556057] bg-white px-2.5 py-1 rounded-md border border-[#E4E9E3] self-start sm:self-auto font-medium">
-            Kế hoạch nghiên cứu & phát triển
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-          <div className="bg-white p-4 rounded-xl border border-[#E4E9E3]">
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] text-[#3D5C46] flex items-center justify-center mb-2">
-              <Camera className="w-4 h-4" />
-            </div>
-            <h4 className="text-xs font-semibold text-[#3D4740]">
-              Thị giác máy tính & Cử chỉ
-            </h4>
-            <p className="text-[11px] text-[#768078] mt-1 leading-relaxed">
-              Nhận diện hướng nhìn (Eye-contact), tần suất chớp mắt, cử chỉ tay mở và tư thế đứng trước máy quay.
-            </p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-[#E4E9E3]">
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] text-[#3D5C46] flex items-center justify-center mb-2">
-              <Mic className="w-4 h-4" />
-            </div>
-            <h4 className="text-xs font-semibold text-[#3D4740]">
-              Phân tích Giọng nói Tiếng Việt
-            </h4>
-            <p className="text-[11px] text-[#768078] mt-1 leading-relaxed">
-              Đo tốc độ nói (từ/phút), phát hiện khoảng lặng ngập ngừng, đếm từ đệm "à, ừm, thì là" theo thời gian thực.
-            </p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-[#E4E9E3]">
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] text-[#3D5C46] flex items-center justify-center mb-2">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <h4 className="text-xs font-semibold text-[#3D4740]">
-              Hội đồng AI Phản biện
-            </h4>
-            <p className="text-[11px] text-[#768078] mt-1 leading-relaxed">
-              Trích xuất nội dung từ từng slide PowerPoint để tạo các câu hỏi chất vấn hóc búa, đánh giá độ logic phản hồi.
-            </p>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-[#E4E9E3]">
-            <div className="w-8 h-8 rounded-lg bg-[#EEF4F0] text-[#3D5C46] flex items-center justify-center mb-2">
-              <FileCheck className="w-4 h-4" />
-            </div>
-            <h4 className="text-xs font-semibold text-[#3D4740]">
-              Minh chứng Video đa nền tảng
-            </h4>
-            <p className="text-[11px] text-[#768078] mt-1 leading-relaxed">
-              Phát lại video kèm nhãn mốc thời gian vi phạm hoặc xuất sắc; tối ưu xuất ứng dụng di động iOS/Android qua Capacitor.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
