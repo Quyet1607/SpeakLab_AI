@@ -28,7 +28,6 @@ import {
   PresentationSource
 } from '../types';
 import { Button } from '../components/ui/Button';
-import { DemoNotice } from '../components/ui/DemoNotice';
 import { PptxUploader } from '../features/presentation/PptxUploader';
 import { pptxSessionStore } from '../services/pptxService';
 import { PRACTICE_BRIEF_LIMITS, normalizePracticeBrief, validatePracticeBrief } from '../services/practiceBrief';
@@ -170,12 +169,6 @@ export const PracticeSetupPage: React.FC<PracticeSetupPageProps> = ({
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      {/* Top Banner */}
-      <DemoNotice
-        title="Thiết lập phòng luyện tập mô phỏng"
-        message="Trong Đợt 1, các thông số phòng họp và hội đồng được mô phỏng trực quan để bạn làm quen với trải nghiệm trước khi kết nối hệ thống phân tích AI."
-      />
-
       <div className="bg-white rounded-2xl border border-[#E4E9E3] p-5 md:p-8 shadow-xs space-y-8">
         {/* Section 1: Choose Practice Mode */}
         <div>
