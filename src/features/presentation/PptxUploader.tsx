@@ -12,8 +12,7 @@ import {
   Trash2,
   CheckCircle2,
   Layers,
-  Sparkles,
-  Info
+  Sparkles
 } from 'lucide-react';
 import { PptxDocumentInfo, PresentationSource } from '../../types';
 import {
@@ -303,14 +302,6 @@ export const PptxUploader: React.FC<PptxUploaderProps> = ({
         </div>
       ) : null}
 
-      {/* Note about Phase 2.1 scope */}
-      <div className="p-3 rounded-lg bg-[#FAFBF9] border border-[#E4E9E3] text-xs text-[#556057] flex items-start gap-2">
-        <Info className="w-4 h-4 text-[#83A58E] shrink-0 mt-0.5" />
-        <div className="leading-relaxed">
-          <span className="font-semibold text-[#3D4740]">Thông tin Đợt 2.1:</span>{' '}
-          Bạn có thể tải lên tệp PPTX thật để hệ thống kiểm tra và lưu vào phiên. Khi vào phòng luyện tập, thông tin tài liệu sẽ được ghi nhận; bộ dựng từng trang slide chi tiết sẽ được tích hợp ở Đợt 2.2.
-        </div>
-      </div>
     </div>
   );
 };
