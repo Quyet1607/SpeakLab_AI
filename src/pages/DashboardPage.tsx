@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { UserProfile, PracticeSession, ActivePage } from '../types';
 import { Button } from '../components/ui/Button';
-import { DemoNotice } from '../components/ui/DemoNotice';
 
 interface DashboardPageProps {
   currentUser: UserProfile;
@@ -34,9 +33,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   return (
     <div className="space-y-6">
-      {/* Demo Notice Banner */}
-      <DemoNotice />
-
       {/* Hero Welcome Card */}
       <div className="relative bg-white rounded-2xl border border-[#E4E9E3] p-6 md:p-8 shadow-xs overflow-hidden">
         <div className="relative z-10 max-w-2xl space-y-4">
