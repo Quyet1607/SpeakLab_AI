@@ -10,6 +10,7 @@ import {
   type AiSpeechReview as Review, type LocalAiReviewReport,
 } from '../../services/localAiReviewLibrary';
 import { AiReviewResults } from './AiReviewResults';
+import { AiDefensePanel } from './AiDefensePanel';
 
 interface Props {
   sessionId: string;
@@ -225,6 +226,9 @@ export const AiSpeechReviewPanel: React.FC<Props> = ({
       {error && <p role="alert" className="text-xs rounded-lg bg-[#FDEFEF] border border-[#E2BABA] p-2 text-[#873631]">{error}</p>}
 
       {review && <AiReviewResults key={sessionId} review={review} />}
+      <AiDefensePanel sessionId={sessionId} ownerSub={ownerSub} signedIn={signedIn}
+        topic={topic} topicDescription={topicDescription} speakingGoal={speakingGoal}
+        transcript={transcript} slides={slides?.slides || []} />
     </section>
   );
 };
